@@ -1,7 +1,6 @@
 package com.rentaltech.techrental.authentication.controller;
 
 import com.rentaltech.techrental.authentication.model.Account;
-import com.rentaltech.techrental.authentication.model.dto.AccountCreateRequest;
 import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.model.dto.JWTAuthResponse;
