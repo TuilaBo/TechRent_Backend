@@ -1,7 +1,10 @@
 package com.rentaltech.techrental.authentication.service;
 
 import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.repository.AccountRepository;
+import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.SimpleMailMessage;
@@ -20,6 +23,9 @@ public class AccountServiceImpl implements AccountService {
     private AccountRepository accountRepository;
     @Autowired
     private JavaMailSender mailSender;
+    
+    @Autowired
+    private CustomerRepository customerRepository;
 
     @Override
     public List<Account> getAllAccounts() {
@@ -43,7 +49,25 @@ public class AccountServiceImpl implements AccountService {
             throw new RuntimeException("Phone number already exists!");
         }
         account.setPassword(passwordEncoder.encode(account.getPassword()));
-        return accountRepository.save(account);
+        Account savedAccount = accountRepository.save(account);
+        
+        // Tự động tạo Customer profile nếu Account có role Customer
+        if (savedAccount.getRole() == Role.Customer) {
+            try {
+                Customer customer = Customer.builder()
+                        .account(savedAccount)
+                        .email(savedAccount.getEmail())
+                        .phoneNumber(savedAccount.getPhoneNumber())
+                        .fullName("Chưa cập nhật") // Giá trị mặc định
+                        .build();
+                customerRepository.save(customer);
+            } catch (Exception e) {
+                // Log error nhưng không fail register
+                System.err.println("Failed to create customer profile: " + e.getMessage());
+            }
+        }
+        
+        return savedAccount;
     }
 
     @Override
