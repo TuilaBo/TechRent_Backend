@@ -15,9 +15,11 @@ public class WebConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allow requests from your frontend
-        config.addAllowedOrigin("http://localhost:5173");
-        config.addAllowedOrigin("http://localhost:8080");
+        // Allow requests from your frontend using patterns
+        config.addAllowedOriginPattern("http://localhost:*");
+        config.addAllowedOriginPattern("https://localhost:*");
+        config.addAllowedOriginPattern("http://127.0.0.1:*");
+        config.addAllowedOriginPattern("https://127.0.0.1:*");
         // Allow credentials
         config.setAllowCredentials(true);
 
@@ -33,6 +35,12 @@ public class WebConfig {
         config.addAllowedHeader("Content-Type");
         config.addAllowedHeader("Accept");
         config.addAllowedHeader("Authorization");
+        config.addAllowedHeader("Accept-Charset");
+        config.addAllowedHeader("Accept-Encoding");
+        
+        // Set exposed headers for UTF-8
+        config.addExposedHeader("Content-Type");
+        config.addExposedHeader("Accept-Charset");
 
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
