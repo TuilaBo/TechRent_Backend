@@ -57,7 +57,7 @@ public class AuthenController {
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
                 .isActive(false)
-                .role(Role.User)
+                .role(Role.Customer)
                 .build();
         Account saved = accountService.addAccount(account);
         accountService.setVerificationCodeAndSendEmail(saved);
