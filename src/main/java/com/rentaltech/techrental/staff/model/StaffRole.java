@@ -1,7 +1,7 @@
 package com.rentaltech.techrental.staff.model;
 
 public enum StaffRole {
-    Technician,
-    Operator,
-    CustomerSupportStaff
+    TECHNICIAN,
+    OPERATOR,
+    CUSTOMER_SUPPORT_STAFF
 }
