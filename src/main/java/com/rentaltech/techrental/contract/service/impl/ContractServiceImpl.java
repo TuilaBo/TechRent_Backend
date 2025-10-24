@@ -14,8 +14,6 @@ import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.dto.*;
 import com.rentaltech.techrental.contract.repository.ContractRepository;
 import com.rentaltech.techrental.contract.service.ContractService;
-import com.rentaltech.techrental.common.dto.AuthErrorResponseDto;
-import com.rentaltech.techrental.common.dto.SuccessResponseDto;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -436,14 +434,71 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public boolean validateContractForSignature(Long contractId) {
-        // Implementation
-        return false;
+        try {
+            Contract contract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + contractId));
+            
+            // Kiểm tra trạng thái hợp đồng
+            if (contract.getStatus() != ContractStatus.PENDING_SIGNATURE) {
+                return false;
+            }
+            
+            // Kiểm tra hợp đồng chưa hết hạn
+            if (contract.getExpiresAt() != null && contract.getExpiresAt().isBefore(LocalDateTime.now())) {
+                return false;
+            }
+            
+            // Kiểm tra hợp đồng có nội dung
+            if (contract.getContractContent() == null || contract.getContractContent().trim().isEmpty()) {
+                return false;
+            }
+            
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("Lỗi validate contract for signature: " + e.getMessage());
+            return false;
+        }
     }
 
     @Override
     public boolean validateSignatureData(DigitalSignatureRequestDto request) {
-        // Implementation
-        return false;
+        try {
+            // Kiểm tra các trường bắt buộc
+            if (request.getContractId() == null) {
+                return false;
+            }
+            
+            if (request.getDigitalSignature() == null || request.getDigitalSignature().trim().isEmpty()) {
+                return false;
+            }
+            
+            if (request.getPinCode() == null || request.getPinCode().trim().isEmpty()) {
+                return false;
+            }
+            
+            // Kiểm tra PIN code có đúng 6 chữ số
+            if (!request.getPinCode().matches("\\d{6}")) {
+                return false;
+            }
+            
+            // Kiểm tra signature method hợp lệ
+            if (request.getSignatureMethod() != null) {
+                String method = request.getSignatureMethod();
+                if (!method.equals("DIGITAL_CERTIFICATE") && 
+                    !method.equals("SMS_OTP") && 
+                    !method.equals("EMAIL_OTP") && 
+                    !method.equals("MOBILE_APP")) {
+                    return false;
+                }
+            }
+            
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("Lỗi validate signature data: " + e.getMessage());
+            return false;
+        }
     }
 
     @Override

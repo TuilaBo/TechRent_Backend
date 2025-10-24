@@ -250,9 +250,9 @@ public class ContractController {
     @PreAuthorize("hasRole('Customer') or hasRole('Admin')")
     public ResponseEntity<?> sendSMSPIN(
             @PathVariable Long contractId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody @Valid SmsPinRequestDto request) {
         
-        String phoneNumber = request.get("phoneNumber");
+        String phoneNumber = request.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
             return ResponseUtil.createErrorResponse(
                     "PHONE_REQUIRED",
@@ -272,9 +272,9 @@ public class ContractController {
     @PreAuthorize("hasRole('Customer') or hasRole('Admin')")
     public ResponseEntity<?> sendEmailPIN(
             @PathVariable Long contractId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody @Valid EmailPinRequestDto request) {
         
-        String email = request.get("email");
+        String email = request.getEmail();
         if (email == null || email.trim().isEmpty()) {
             return ResponseUtil.createErrorResponse(
                     "EMAIL_REQUIRED",
