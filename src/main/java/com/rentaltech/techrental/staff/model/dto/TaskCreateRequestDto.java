@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class TaskCreateRequestDto {
     private Long taskCategoryId;
     private Long orderId;
+    private Long assignedStaffId; // ID của staff được assign task
     private String type;
     private String description;
     private LocalDateTime plannedStart;

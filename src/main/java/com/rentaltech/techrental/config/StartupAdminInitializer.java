@@ -34,7 +34,7 @@ public class StartupAdminInitializer implements ApplicationRunner {
         Account admin = Account.builder()
                 .username("admin123")
                 .password("admin123") // consider hashing if Spring Security is used
-                .role(Role.Admin)
+                .role(Role.ADMIN)
                 .email("admin@localhost")
                 .phoneNumber(null) // optional
                 .isActive(true)

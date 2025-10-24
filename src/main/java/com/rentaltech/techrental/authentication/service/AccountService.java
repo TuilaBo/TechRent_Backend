@@ -20,4 +20,14 @@ public interface AccountService {
     Account updateAccount(Account account);
 
     void deleteAccount(Long accountId);
+    
+    /**
+     * Cleanup các account chưa verify sau một khoảng thời gian
+     */
+    void cleanupUnverifiedAccounts();
+    
+    /**
+     * Resend verification code cho account chưa verify
+     */
+    boolean resendVerificationCode(String email);
 }

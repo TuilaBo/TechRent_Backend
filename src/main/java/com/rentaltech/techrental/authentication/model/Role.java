@@ -1,9 +1,9 @@
 package com.rentaltech.techrental.authentication.model;
 
 public enum Role {
-    Customer,
-    Admin,
-    Operator,
-    Technician,
-    CustomerSupportStaff
+    CUSTOMER,
+    ADMIN,
+    OPERATOR,
+    TECHNICIAN,
+    CUSTOMER_SUPPORT_STAFF
 }

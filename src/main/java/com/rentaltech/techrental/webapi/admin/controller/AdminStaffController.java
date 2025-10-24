@@ -24,7 +24,7 @@ public class AdminStaffController {
 
     // Tạo staff mới (Admin only)
     @PostMapping
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StaffResponseDto> createStaff(@RequestBody @Valid StaffCreateRequestDto request) {
         try {
             Staff savedStaff = staffService.createStaff(request);
@@ -36,7 +36,7 @@ public class AdminStaffController {
 
     // Lấy tất cả staff (Admin only)
     @GetMapping
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<StaffResponseDto>> getAllStaff() {
         List<Staff> staffList = staffService.getAllStaff();
         List<StaffResponseDto> responseDtos = staffList.stream()
@@ -83,7 +83,7 @@ public class AdminStaffController {
 
     // Cập nhật trạng thái active/inactive (Admin only)
     @PutMapping("/{staffId}/status")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StaffResponseDto> updateStaffStatus(@PathVariable Long staffId, 
                                                              @RequestParam Boolean isActive) {
         try {
@@ -96,7 +96,7 @@ public class AdminStaffController {
 
     // Cập nhật staff role (Admin only)
     @PutMapping("/{staffId}/role")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StaffResponseDto> updateStaffRole(@PathVariable Long staffId, 
                                                            @RequestParam StaffRole staffRole) {
         try {
@@ -109,7 +109,7 @@ public class AdminStaffController {
 
     // Xóa staff (Admin only - soft delete)
     @DeleteMapping("/{staffId}")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteStaff(@PathVariable Long staffId) {
         try {
             staffService.deleteStaff(staffId);

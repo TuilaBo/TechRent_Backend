@@ -12,6 +12,8 @@ public class StaffRoleConverter implements Converter<String, StaffRole> {
         try {
             // Convert PascalCase to UPPER_CASE mapping
             switch (source) {
+                case "Admin":
+                    return StaffRole.ADMIN;
                 case "Technician":
                     return StaffRole.TECHNICIAN;
                 case "Operator":
@@ -24,7 +26,7 @@ public class StaffRoleConverter implements Converter<String, StaffRole> {
             }
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid StaffRole: " + source + 
-                ". Valid values are: Technician, Operator, CustomerSupportStaff");
+                ". Valid values are: Admin, Technician, Operator, CustomerSupportStaff");
         }
     }
 }
