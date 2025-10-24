@@ -18,10 +18,10 @@ public class TaskCategory {
     @Column(name = "task_category_id")
     private Long taskCategoryId;
 
-    @Column(name = "name", length = 100, nullable = false, columnDefinition = "NVARCHAR(100)")
+    @Column(name = "name", length = 100, nullable = false)
     private String name;
 
-    @Column(name = "description", length = 500, columnDefinition = "NVARCHAR(500)")
+    @Column(name = "description", length = 500)
     private String description;
 
     @Column(name = "created_at", nullable = false)

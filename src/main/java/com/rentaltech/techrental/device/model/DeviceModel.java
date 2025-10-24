@@ -34,4 +34,14 @@ public class DeviceModel {
     @ManyToOne
     @JoinColumn(name = "device_category_id", referencedColumnName = "device_category_id", nullable = false)
     private DeviceCategory deviceCategory;
+
+    // Pricing fields for rental calculation
+    @Column(name = "device_value", nullable = false)
+    private Double deviceValue;
+
+    @Column(name = "price_per_day", nullable = false)
+    private Double pricePerDay;
+
+    @Column(name = "deposit_percent", nullable = false)
+    private Double depositPercent;
 }

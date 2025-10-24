@@ -1,6 +1,5 @@
 package com.rentaltech.techrental.webapi.customer.model.dto;
 
-import com.rentaltech.techrental.webapi.customer.model.OrderStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -22,25 +21,6 @@ public class RentalOrderRequestDto {
 
     @NotNull
     private LocalDateTime endDate;
-
-    @NotNull
-    private OrderStatus orderStatus;
-
-    @NotNull
-    private Double depositAmount;
-
-    @NotNull
-    private Double depositAmountHeld;
-
-    private Double depositAmountUsed;
-
-    private Double depositAmountRefunded;
-
-    @NotNull
-    private Double totalPrice;
-
-    @NotNull
-    private Double pricePerDay;
 
     @NotNull
     private Long customerId;

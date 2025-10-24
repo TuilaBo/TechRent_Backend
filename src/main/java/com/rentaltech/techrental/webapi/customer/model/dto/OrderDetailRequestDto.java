@@ -15,11 +15,5 @@ public class OrderDetailRequestDto {
     private Long quantity;
 
     @NotNull
-    private Double pricePerDay;
-
-    @NotNull
-    private Double depositAmountPerUnit;
-
-    @NotNull
     private Long deviceModelId;
 }

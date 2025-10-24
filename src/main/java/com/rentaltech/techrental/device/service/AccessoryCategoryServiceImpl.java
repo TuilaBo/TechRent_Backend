@@ -64,7 +64,12 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     }
 
     private void applyUpdates(AccessoryCategory entity, AccessoryCategoryRequestDto request) {
-        throw new UnsupportedOperationException("TODO: implement AccessoryCategory mapping (update)");
+        if (request == null) throw new IllegalArgumentException("AccessoryCategoryRequestDto is null");
+
+        entity.setAccessoryCategoryName(request.getAccessoryCategoryName());
+        entity.setDescription(request.getDescription());
+        entity.setActive(request.isActive());
+        repository.save(entity);
     }
 
     private AccessoryCategoryResponseDto mapToDto(AccessoryCategory entity) {

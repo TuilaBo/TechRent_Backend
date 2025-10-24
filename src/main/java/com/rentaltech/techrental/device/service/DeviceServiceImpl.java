@@ -27,6 +27,9 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponseDto create(DeviceRequestDto request) {
+        if (repository.findBySerialNumber(request.getSerialNumber()).isPresent()) {
+            throw new IllegalArgumentException("Serial number already exists: " + request.getSerialNumber());
+        }
         Device entity = mapToEntity(request);
         return mapToDto(repository.save(entity));
     }
@@ -78,7 +81,23 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     private void applyUpdates(Device entity, DeviceRequestDto request) {
-        throw new UnsupportedOperationException("TODO: implement Device mapping (update)");
+        if (request == null) throw new IllegalArgumentException("DeviceRequestDto is null");
+        if (request.getDeviceModelId() == null) {
+            throw new IllegalArgumentException("deviceModelId is required");
+        }
+        if (repository.findBySerialNumber(request.getSerialNumber()).isPresent() &&
+                !repository.findBySerialNumber(request.getSerialNumber()).get().getDeviceId().equals(entity.getDeviceId())) {
+            throw new IllegalArgumentException("Serial number already exists: " + request.getSerialNumber());
+        }
+
+        DeviceModel model = deviceModelRepository.findById(request.getDeviceModelId())
+                .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + request.getDeviceModelId()));
+
+        entity.setShelfCode(request.getShelfCode());
+        entity.setSerialNumber(request.getSerialNumber());
+        entity.setStatus(request.getStatus());
+        entity.setDeviceModel(model);
+        repository.save(entity);
     }
 
     private DeviceResponseDto mapToDto(Device entity) {

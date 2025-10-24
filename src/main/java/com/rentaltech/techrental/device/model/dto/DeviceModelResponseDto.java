@@ -17,4 +17,9 @@ public class DeviceModelResponseDto {
     private String specifications;
     private boolean isActive;
     private Long deviceCategoryId;
+
+    // Pricing fields
+    private Double deviceValue;
+    private Double pricePerDay;
+    private Double depositPercent;
 }

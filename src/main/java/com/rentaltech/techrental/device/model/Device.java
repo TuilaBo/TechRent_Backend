@@ -22,14 +22,14 @@ public class Device {
     @Column(name = "device_id", nullable = false)
     private Long deviceId;
 
-    @Column(name = "serial_number", length = 100)
+    @Column(name = "serial_number", unique = true, length = 100)
     private String serialNumber;
 
     @Column(name = "acquire_at")
     private LocalDateTime acquireAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 50)
+    @Column(name = "status")
     private DeviceStatus status;
 
     @Column(name = "shelf_code", length = 100)

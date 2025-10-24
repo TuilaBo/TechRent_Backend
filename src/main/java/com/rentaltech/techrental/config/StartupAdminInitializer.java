@@ -23,7 +23,7 @@ public class StartupAdminInitializer implements ApplicationRunner {
     @Transactional
     public void run(ApplicationArguments args) {
         // Check existing admin by username
-        Account existing = accountRepository.findByUsername("admin");
+        Account existing = accountRepository.findByUsername("admin123");
         if (existing != null) {
             log.info("Admin account already exists with id={}", existing.getAccountId());
             return;

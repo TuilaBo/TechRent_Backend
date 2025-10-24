@@ -74,11 +74,29 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .specifications(request.getSpecifications())
                 .isActive(request.isActive())
                 .deviceCategory(category)
+                .deviceValue(request.getDeviceValue())
+                .pricePerDay(request.getPricePerDay())
+                .depositPercent(request.getDepositPercent())
                 .build();
     }
 
     private void applyUpdates(DeviceModel entity, DeviceModelRequestDto request) {
-        throw new UnsupportedOperationException("TODO: implement DeviceModel mapping (update)");
+        if (request == null) throw new IllegalArgumentException("DeviceModelRequestDto is null");
+        if (request.getDeviceCategoryId() == null) {
+            throw new IllegalArgumentException("deviceCategoryId is required");
+        }
+        DeviceCategory category = deviceCategoryRepository.findById(request.getDeviceCategoryId())
+                .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + request.getDeviceCategoryId()));
+
+        entity.setDeviceName(request.getDeviceName());
+        entity.setBrand(request.getBrand());
+        entity.setImageURL(request.getImageURL());
+        entity.setSpecifications(request.getSpecifications());
+        entity.setActive(request.isActive());
+        entity.setDeviceCategory(category);
+        entity.setDeviceValue(request.getDeviceValue());
+        entity.setPricePerDay(request.getPricePerDay());
+        entity.setDepositPercent(request.getDepositPercent());
     }
 
     private DeviceModelResponseDto mapToDto(DeviceModel entity) {
@@ -90,6 +108,9 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .specifications(entity.getSpecifications())
                 .isActive(entity.isActive())
                 .deviceCategoryId(entity.getDeviceCategory() != null ? entity.getDeviceCategory().getDeviceCategoryId() : null)
+                .deviceValue(entity.getDeviceValue())
+                .pricePerDay(entity.getPricePerDay())
+                .depositPercent(entity.getDepositPercent())
                 .build();
     }
 }

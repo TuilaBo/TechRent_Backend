@@ -64,7 +64,11 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     }
 
     private void applyUpdates(DeviceCategory entity, DeviceCategoryRequestDto request) {
-        throw new UnsupportedOperationException("TODO: implement DeviceCategory mapping (update)");
+        if (request == null) throw new IllegalArgumentException("DeviceCategoryRequestDto is null");
+        entity.setDeviceCategoryName(request.getDeviceCategoryName());
+        entity.setDescription(request.getDescription());
+        entity.setActive(request.isActive());
+        repository.save(entity);
     }
 
     private DeviceCategoryResponseDto mapToDto(DeviceCategory entity) {

@@ -6,10 +6,13 @@ import com.rentaltech.techrental.device.repository.AccessoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,7 @@ import java.util.List;
 @Slf4j
 @Component
 @Order(1)
+@Profile("!test")
 @RequiredArgsConstructor
 public class DataBootstrapInitializer implements ApplicationRunner {
 
@@ -29,10 +33,17 @@ public class DataBootstrapInitializer implements ApplicationRunner {
     private final DeviceRepository deviceRepository;
     private final AccessoryCategoryRepository accessoryCategoryRepository;
     private final AccessoryRepository accessoryRepository;
+    private final TaskCategoryRepository taskCategoryRepository;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        initializeTaskCategories();
+        initializeDeviceRelatedEntities();
+
+    }
+
+    private void initializeDeviceRelatedEntities() {
         // 1) Check tables: if any has data, abort startup
         long dc = deviceCategoryRepository.count();
         long dm = deviceModelRepository.count();
@@ -46,7 +57,7 @@ public class DataBootstrapInitializer implements ApplicationRunner {
                     dc, dm, d, ac, a
             );
             log.error(msg);
-            throw new IllegalStateException(msg);
+            return;
         }
 
         // 2) Seed data as requested
@@ -74,6 +85,9 @@ public class DataBootstrapInitializer implements ApplicationRunner {
                         .imageURL("https://example.com/images/model-" + modelIndex + ".png")
                         .specifications("Thông số kỹ thuật cho mẫu " + modelIndex)
                         .isActive(true)
+                        .deviceValue(Double.valueOf(50000000))
+                        .depositPercent(0.3)
+                        .pricePerDay(Double.valueOf(200000))
                         .deviceCategory(cat)
                         .build());
                 modelIndex++;
@@ -134,4 +148,39 @@ public class DataBootstrapInitializer implements ApplicationRunner {
 
         log.info("Bootstrap completed: seeded 5 DeviceCategory, 10 DeviceModel, 25 Device, 10 AccessoryCategory, 20 Accessory.");
     }
+
+    private void initializeTaskCategories() {
+        if (taskCategoryRepository.count() == 0) {
+            List<TaskCategory> categories = List.of(
+                    TaskCategory.builder()
+                            .name("Pre rental QC")
+                            .description("Quality check before rental")
+                            .build(),
+                    TaskCategory.builder()
+                            .name("Post rental QC")
+                            .description("Quality check after rental return")
+                            .build(),
+                    TaskCategory.builder()
+                            .name("Maintenance")
+                            .description("Device maintenance tasks")
+                            .build(),
+                    TaskCategory.builder()
+                            .name("Delivery")
+                            .description("Device delivery tasks")
+                            .build(),
+                    TaskCategory.builder()
+                            .name("Resolve dispute")
+                            .description("Customer dispute resolution")
+                            .build(),
+                    TaskCategory.builder()
+                            .name("Pick up rental order")
+                            .description("Pick up rental equipment from customer")
+                            .build()
+            );
+
+            taskCategoryRepository.saveAll(categories);
+            log.info("Initialized {} task categories", categories.size());
+        }
+    }
+
 }

@@ -15,6 +15,9 @@ public interface AccountService {
 
     Optional<Account> getByUsername(String username);
 
+    Account getByEmail(String email);
 
+    Account updateAccount(Account account);
 
+    void deleteAccount(Long accountId);
 }

@@ -105,5 +105,19 @@ public class AccountServiceImpl implements AccountService {
         return Optional.ofNullable(accountRepository.findByUsername(username));
     }
 
+    @Override
+    public Account getByEmail(String email) {
+        return accountRepository.findByEmail(email);
+    }
+
+    @Override
+    public Account updateAccount(Account account) {
+        return accountRepository.save(account);
+    }
+
+    @Override
+    public void deleteAccount(Long accountId) {
+        accountRepository.deleteById(accountId);
+    }
 
 }

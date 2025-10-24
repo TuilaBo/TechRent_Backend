@@ -92,7 +92,28 @@ public class AccessoryServiceImpl implements AccessoryService {
     }
 
     private void applyUpdates(Accessory entity, AccessoryRequestDto request) {
-        throw new UnsupportedOperationException("TODO: implement Accessory mapping (update)");
+        if (request == null) throw new IllegalArgumentException("AccessoryRequestDto is null");
+        if (request.getAccessoryCategoryId() == null) {
+            throw new IllegalArgumentException("accessoryCategoryId is required");
+        }
+
+        AccessoryCategory category = accessoryCategoryRepository.findById(request.getAccessoryCategoryId())
+                .orElseThrow(() -> new NoSuchElementException("AccessoryCategory not found: " + request.getAccessoryCategoryId()));
+
+        DeviceModel model = null;
+        if (request.getDeviceModelId() != null) {
+            model = deviceModelRepository.findById(request.getDeviceModelId())
+                    .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + request.getDeviceModelId()));
+        }
+
+        entity.setAccessoryName(request.getAccessoryName());
+        entity.setDescription(request.getDescription());
+        entity.setImageUrl(request.getImageUrl());
+        entity.setActive(request.isActive());
+        entity.setAccessoryCategory(category);
+        entity.setDeviceModel(model);
+
+        repository.save(entity);
     }
 
     private AccessoryResponseDto mapToDto(Accessory entity) {
