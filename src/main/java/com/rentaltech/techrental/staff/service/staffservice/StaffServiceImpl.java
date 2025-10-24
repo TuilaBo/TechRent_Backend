@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.service.staffservice;
 
 import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
@@ -77,8 +78,30 @@ public class StaffServiceImpl implements StaffService {
     public Staff updateStaffRole(Long staffId, StaffRole staffRole) {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Staff not found"));
+        
+        // Cập nhật Staff Role
         staff.setStaffRole(staffRole);
+        
+        // Cập nhật Account Role tương ứng
+        Account account = staff.getAccount();
+        Role accountRole = mapStaffRoleToAccountRole(staffRole);
+        account.setRole(accountRole);
+        
+        // Lưu cả Staff và Account
+        accountService.updateAccount(account);
         return staffRepository.save(staff);
+    }
+    
+    /**
+     * Map StaffRole sang Account Role
+     */
+    private Role mapStaffRoleToAccountRole(StaffRole staffRole) {
+        return switch (staffRole) {
+            case ADMIN -> Role.ADMIN;
+            case OPERATOR -> Role.OPERATOR;
+            case TECHNICIAN -> Role.TECHNICIAN;
+            case CUSTOMER_SUPPORT_STAFF -> Role.CUSTOMER_SUPPORT_STAFF;
+        };
     }
 
     @Override

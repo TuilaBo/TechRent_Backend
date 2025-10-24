@@ -28,10 +28,42 @@ public class TaskController {
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponseDto(savedTask));
     }
 
-    // Lấy tất cả tasks
+    // Lấy tasks với filter options
     @GetMapping
-    public ResponseEntity<List<TaskResponseDto>> getAllTasks() {
+    public ResponseEntity<List<TaskResponseDto>> getTasks(
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long orderId,
+            @RequestParam(required = false) Long assignedStaffId,
+            @RequestParam(required = false) String status) {
+        
         List<Task> tasks = taskService.getAllTasks();
+        
+        // Apply filters
+        if (categoryId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getTaskCategory().getTaskCategoryId().equals(categoryId))
+                    .collect(Collectors.toList());
+        }
+        
+        if (orderId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getOrderId().equals(orderId))
+                    .collect(Collectors.toList());
+        }
+        
+        if (assignedStaffId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getAssignedStaff() != null && 
+                                   task.getAssignedStaff().getStaffId().equals(assignedStaffId))
+                    .collect(Collectors.toList());
+        }
+        
+        if (status != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getStatus().toString().equalsIgnoreCase(status))
+                    .collect(Collectors.toList());
+        }
+        
         List<TaskResponseDto> responseDtos = tasks.stream()
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
@@ -41,22 +73,11 @@ public class TaskController {
     // Lấy task theo ID
     @GetMapping("/{taskId}")
     public ResponseEntity<TaskResponseDto> getTaskById(@PathVariable Long taskId) {
-        return taskService.getTaskById(taskId)
-                .map(task -> ResponseEntity.ok(mapToResponseDto(task)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        Task task = taskService.getTaskById(taskId);
+        return ResponseEntity.ok(mapToResponseDto(task));
     }
 
-    // Lấy tasks theo category
-    @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<TaskResponseDto>> getTasksByCategory(@PathVariable Long categoryId) {
-        List<Task> tasks = taskService.getTasksByCategory(categoryId);
-        List<TaskResponseDto> responseDtos = tasks.stream()
-                .map(this::mapToResponseDto)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(responseDtos);
-    }
-
-    // Lấy tasks theo order
+    // Lấy tasks theo order ID
     @GetMapping("/order/{orderId}")
     public ResponseEntity<List<TaskResponseDto>> getTasksByOrder(@PathVariable Long orderId) {
         List<Task> tasks = taskService.getTasksByOrder(orderId);
@@ -65,6 +86,7 @@ public class TaskController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseDtos);
     }
+
 
     // Cập nhật task
     @PutMapping("/{taskId}")
@@ -89,18 +111,9 @@ public class TaskController {
         }
     }
 
-    // Lấy tasks overdue
-    @GetMapping("/overdue")
-    public ResponseEntity<List<TaskResponseDto>> getOverdueTasks() {
-        List<Task> overdueTasks = taskService.getOverdueTasks();
-        List<TaskResponseDto> responseDtos = overdueTasks.stream()
-                .map(this::mapToResponseDto)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(responseDtos);
-    }
 
     private TaskResponseDto mapToResponseDto(Task task) {
-        return TaskResponseDto.builder()
+        TaskResponseDto.TaskResponseDtoBuilder builder = TaskResponseDto.builder()
                 .taskId(task.getTaskId())
                 .taskCategoryId(task.getTaskCategory().getTaskCategoryId())
                 .taskCategoryName(task.getTaskCategory().getName())
@@ -111,7 +124,15 @@ public class TaskController {
                 .plannedEnd(task.getPlannedEnd())
                 .status(task.getStatus())
                 .createdAt(task.getCreatedAt())
-                .completedAt(task.getCompletedAt())
-                .build();
+                .completedAt(task.getCompletedAt());
+
+        // Thêm thông tin staff nếu có
+        if (task.getAssignedStaff() != null) {
+            builder.assignedStaffId(task.getAssignedStaff().getStaffId())
+                   .assignedStaffName(task.getAssignedStaff().getAccount().getUsername())
+                   .assignedStaffRole(task.getAssignedStaff().getStaffRole().toString());
+        }
+
+        return builder.build();
     }
 }

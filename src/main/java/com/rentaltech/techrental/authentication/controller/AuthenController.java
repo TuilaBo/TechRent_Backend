@@ -7,8 +7,6 @@ import com.rentaltech.techrental.authentication.model.dto.LoginDto;
 import com.rentaltech.techrental.authentication.model.dto.AccountMeResponse;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.service.AccountService;
-import com.rentaltech.techrental.common.dto.AuthErrorResponseDto;
-import com.rentaltech.techrental.common.dto.SuccessResponseDto;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.security.JwtTokenProvider;
 import jakarta.validation.Valid;
@@ -80,7 +78,7 @@ public class AuthenController {
                     .email(request.getEmail())
                     .phoneNumber(request.getPhoneNumber())
                     .isActive(false)
-                    .role(Role.Customer)
+                    .role(Role.CUSTOMER)
                     .build();
             Account saved = accountService.addAccount(account);
             accountService.setVerificationCodeAndSendEmail(saved);
@@ -97,6 +95,35 @@ public class AuthenController {
                     "Đăng ký tài khoản thất bại",
                     e.getMessage(),
                     HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<?> resendVerificationCode(@RequestParam("email") String email) {
+        try {
+            boolean success = accountService.resendVerificationCode(email);
+            if (!success) {
+                return ResponseUtil.createErrorResponse(
+                        "RESEND_FAILED",
+                        "Không thể gửi lại mã xác thực",
+                        "Email không tồn tại hoặc đã được xác thực",
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+            
+            return ResponseUtil.createSuccessResponse(
+                    "Gửi lại mã xác thực thành công!",
+                    "Mã xác thực mới đã được gửi đến email của bạn",
+                    HttpStatus.OK
+            );
+            
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "RESEND_FAILED",
+                    "Gửi lại mã xác thực thất bại",
+                    "Có lỗi xảy ra: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
     }

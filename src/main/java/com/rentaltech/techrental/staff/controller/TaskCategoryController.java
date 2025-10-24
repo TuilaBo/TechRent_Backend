@@ -61,7 +61,7 @@ public class TaskCategoryController {
     
     // Tạo task category (ADMIN ONLY)
     @PostMapping("/admin")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createTaskCategory(@RequestBody @Valid TaskCategoryCreateRequestDto request) {
         try {
             // Kiểm tra tên category đã tồn tại chưa
@@ -99,7 +99,7 @@ public class TaskCategoryController {
 
     // Cập nhật task category (ADMIN ONLY)
     @PutMapping("/admin/{categoryId}")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateTaskCategory(@PathVariable Long categoryId, 
                                               @RequestBody @Valid TaskCategoryUpdateRequestDto request) {
         try {
@@ -149,7 +149,7 @@ public class TaskCategoryController {
 
     // Xóa task category (ADMIN ONLY)
     @DeleteMapping("/admin/{categoryId}")
-    @PreAuthorize("hasRole('Admin')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteTaskCategory(@PathVariable Long categoryId) {
         try {
             if (!taskCategoryRepository.existsById(categoryId)) {

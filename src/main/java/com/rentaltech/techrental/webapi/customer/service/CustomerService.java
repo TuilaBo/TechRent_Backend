@@ -46,7 +46,7 @@ public class CustomerService {
         Account account = accountService.getAccountById(accountId)
                 .orElseThrow(() -> new RuntimeException("Account not found with id: " + accountId));
         
-        if (!account.getRole().name().equals("Customer")) {
+        if (!account.getRole().name().equals("CUSTOMER")) {
             throw new RuntimeException("Account is not a Customer");
         }
         

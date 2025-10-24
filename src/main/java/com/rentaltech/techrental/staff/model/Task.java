@@ -25,6 +25,10 @@ public class Task {
     @Column(name = "order_id", nullable = false)
     private Long orderId; // Foreign key to Order table
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_staff_id")
+    private Staff assignedStaff; // Staff được assign task này
+
     @Column(name = "type", length = 100)
     private String type;
 

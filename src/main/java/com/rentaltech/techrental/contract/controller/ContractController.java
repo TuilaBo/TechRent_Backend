@@ -70,7 +70,7 @@ public class ContractController {
     // ========== CONTRACT MANAGEMENT ==========
     
     @GetMapping
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> getAllContracts() {
         try {
             List<Contract> contracts = contractService.getAllContracts();
@@ -120,7 +120,7 @@ public class ContractController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation( description = "Tạo một hợp đồng mới trong hệ thống")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Tạo hợp đồng thành công",
@@ -156,7 +156,7 @@ public class ContractController {
     }
 
     @PutMapping("/{contractId}")
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> updateContract(
             @PathVariable Long contractId,
             @RequestBody @Valid ContractCreateRequestDto request,
@@ -187,7 +187,7 @@ public class ContractController {
      * Gửi hợp đồng để khách hàng ký
      */
     @PostMapping("/{contractId}/send-for-signature")
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> sendForSignature(
             @PathVariable Long contractId,
             @AuthenticationPrincipal UserDetails principal) {
@@ -215,7 +215,7 @@ public class ContractController {
      * Cập nhật trạng thái hợp đồng
      */
     @PutMapping("/{contractId}/status")
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> updateContractStatus(
             @PathVariable Long contractId,
             @RequestBody Map<String, String> request) {
@@ -247,12 +247,12 @@ public class ContractController {
      * Gửi PIN code qua SMS
      */
     @PostMapping("/{contractId}/send-pin/sms")
-    @PreAuthorize("hasRole('Customer') or hasRole('Admin')")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<?> sendSMSPIN(
             @PathVariable Long contractId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody @Valid SmsPinRequestDto request) {
         
-        String phoneNumber = request.get("phoneNumber");
+        String phoneNumber = request.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
             return ResponseUtil.createErrorResponse(
                     "PHONE_REQUIRED",
@@ -269,12 +269,12 @@ public class ContractController {
      * Gửi PIN code qua Email
      */
     @PostMapping("/{contractId}/send-pin/email")
-    @PreAuthorize("hasRole('Customer') or hasRole('Admin')")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<?> sendEmailPIN(
             @PathVariable Long contractId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody @Valid EmailPinRequestDto request) {
         
-        String email = request.get("email");
+        String email = request.getEmail();
         if (email == null || email.trim().isEmpty()) {
             return ResponseUtil.createErrorResponse(
                     "EMAIL_REQUIRED",
@@ -383,7 +383,7 @@ public class ContractController {
     // ========== CONTRACT STATUS MANAGEMENT ==========
 
     @PostMapping("/{contractId}/cancel")
-    @PreAuthorize("hasRole('Admin') or hasRole('Operator')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> cancelContract(
             @PathVariable Long contractId,
             @RequestParam String reason,
