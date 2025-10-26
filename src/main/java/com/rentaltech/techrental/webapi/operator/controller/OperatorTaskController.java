@@ -1,36 +1,34 @@
 package com.rentaltech.techrental.webapi.operator.controller;
 
-import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskResponseDto;
-import com.rentaltech.techrental.staff.service.taskservice.TaskService;
-import com.rentaltech.techrental.common.dto.SuccessResponseDto;
 import com.rentaltech.techrental.common.util.ResponseUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.rentaltech.techrental.webapi.operator.service.OperatorTaskService;
+import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.Valid;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/operator/tasks")
 @PreAuthorize("hasRole('OPERATOR')")
 @Tag(name = "Operator Tasks", description = "Operator task APIs")
+@RequiredArgsConstructor
 public class OperatorTaskController {
 
-    @Autowired
-    private TaskService taskService;
+    private final OperatorTaskService operatorTaskService;
 
-    // Operator tạo task và assign cho staff cụ thể
     @PostMapping
     @Operation(summary = "Create task for staff", description = "Operator creates and assigns a task to staff")
     public ResponseEntity<?> createTaskForStaff(@RequestBody @Valid TaskCreateRequestDto request) {
-        Task createdTask = taskService.createTask(request);
-        TaskResponseDto responseDto = mapToResponseDto(createdTask);
+        var task = operatorTaskService.createTask(request);
+        TaskResponseDto responseDto = operatorTaskService.mapToResponseDto(task);
 
         return ResponseUtil.createSuccessResponse(
                 "Tạo công việc thành công!",
@@ -40,12 +38,11 @@ public class OperatorTaskController {
         );
     }
 
-    // Operator xem task theo ID
     @GetMapping("/{taskId}")
     @Operation(summary = "Get task by ID", description = "Get task details by ID")
     public ResponseEntity<?> getTaskById(@PathVariable Long taskId) {
-        Task task = taskService.getTaskById(taskId);
-        TaskResponseDto responseDto = mapToResponseDto(task);
+        var task = operatorTaskService.getTaskById(taskId);
+        TaskResponseDto responseDto = operatorTaskService.mapToResponseDto(task);
         
         return ResponseUtil.createSuccessResponse(
                 "Lấy thông tin công việc thành công!",
@@ -55,14 +52,12 @@ public class OperatorTaskController {
         );
     }
 
-    // Operator xem tasks theo order ID
     @GetMapping("/order/{orderId}")
     @Operation(summary = "Get tasks by order", description = "List tasks for an order ID")
     public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId) {
         try {
-            var tasks = taskService.getTasksByOrder(orderId);
-            var responseDtos = tasks.stream()
-                    .map(this::mapToResponseDto)
+            List<TaskResponseDto> responseDtos = operatorTaskService.getTasksByOrder(orderId).stream()
+                    .map(operatorTaskService::mapToResponseDto)
                     .toList();
 
             return ResponseUtil.createSuccessResponse(
@@ -82,23 +77,12 @@ public class OperatorTaskController {
         }
     }
 
-    // Operator xem tasks theo staff (sử dụng query parameter)
     @GetMapping
     @Operation(summary = "List tasks by staff", description = "List tasks, optionally filter by assigned staff")
     public ResponseEntity<?> getTasksByStaff(@RequestParam(required = false) Long assignedStaffId) {
         try {
-            var tasks = taskService.getAllTasks();
-            
-            // Filter theo staff nếu có parameter
-            if (assignedStaffId != null) {
-                tasks = tasks.stream()
-                        .filter(task -> task.getAssignedStaff() != null && 
-                                       task.getAssignedStaff().getStaffId().equals(assignedStaffId))
-                        .toList();
-            }
-            
-            var responseDtos = tasks.stream()
-                    .map(this::mapToResponseDto)
+            List<TaskResponseDto> responseDtos = operatorTaskService.getTasks(assignedStaffId).stream()
+                    .map(operatorTaskService::mapToResponseDto)
                     .toList();
 
             return ResponseUtil.createSuccessResponse(
@@ -118,29 +102,5 @@ public class OperatorTaskController {
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
-    }
-
-    private TaskResponseDto mapToResponseDto(Task task) {
-        TaskResponseDto.TaskResponseDtoBuilder builder = TaskResponseDto.builder()
-                .taskId(task.getTaskId())
-                .taskCategoryId(task.getTaskCategory().getTaskCategoryId())
-                .taskCategoryName(task.getTaskCategory().getName())
-                .orderId(task.getOrderId())
-                .type(task.getType())
-                .description(task.getDescription())
-                .plannedStart(task.getPlannedStart())
-                .plannedEnd(task.getPlannedEnd())
-                .status(task.getStatus())
-                .createdAt(task.getCreatedAt())
-                .completedAt(task.getCompletedAt());
-
-        // Thêm thông tin staff nếu có
-        if (task.getAssignedStaff() != null) {
-            builder.assignedStaffId(task.getAssignedStaff().getStaffId())
-                   .assignedStaffName(task.getAssignedStaff().getAccount().getUsername())
-                   .assignedStaffRole(task.getAssignedStaff().getStaffRole().toString());
-        }
-
-        return builder.build();
     }
 }

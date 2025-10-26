@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "RentalOrder")
+@Table(name = "rental_order")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,7 +24,7 @@ public class RentalOrder {
     @Column(name = "end_date", nullable = false)
     private LocalDateTime endDate;
 
-    @Column(name = "shipping_address", nullable = false)
+    @Column(name = "shipping_address", length = 500)
     private String shippingAddress;
 
     @Enumerated(EnumType.STRING)

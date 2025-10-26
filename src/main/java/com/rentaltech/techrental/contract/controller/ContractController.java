@@ -127,6 +127,7 @@ public class ContractController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation( description = "Tạo một hợp đồng mới trong hệ thống")
+    @Deprecated
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Tạo hợp đồng thành công",
                     content = @Content(schema = @Schema(implementation = SuccessResponseDto.class))),

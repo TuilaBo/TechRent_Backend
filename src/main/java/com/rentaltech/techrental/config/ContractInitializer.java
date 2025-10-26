@@ -24,7 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Slf4j
-@Component
+// @Component
 @Order(3)
 @Profile("!test")
 @RequiredArgsConstructor
@@ -58,7 +58,8 @@ public class ContractInitializer implements ApplicationRunner {
             
             log.info("Contract initialization completed successfully");
         } catch (Exception e) {
-            log.error("Error initializing contract data: {}", e.getMessage());
+            log.error("Error initializing contract data: {}", e.getMessage(), e);
+            // Skip initialization if error occurs - don't crash app
         }
     }
 
@@ -99,6 +100,7 @@ public class ContractInitializer implements ApplicationRunner {
         RentalOrder order = RentalOrder.builder()
                 .startDate(LocalDateTime.now().plusDays(orderNum * 7))
                 .endDate(LocalDateTime.now().plusDays(orderNum * 7 + 30))
+                .shippingAddress("123 Đường ABC, Quận XYZ, TP.HCM")
                 .orderStatus(OrderStatus.PENDING)
                 .depositAmount(1000000.0 * orderNum)
                 .depositAmountHeld(0.0)
@@ -213,4 +215,5 @@ public class ContractInitializer implements ApplicationRunner {
         log.info("Created 3 sample contracts with statuses: DRAFT, PENDING_SIGNATURE, SIGNED");
     }
 }
+
 
