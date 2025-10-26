@@ -22,10 +22,10 @@ public class Contract {
     @Column(name = "contract_number", nullable = false, unique = true, length = 50)
     private String contractNumber;
     
-    @Column(name = "title", nullable = false, length = 200, columnDefinition = "NVARCHAR(200)")
+    @Column(name = "title", nullable = false, length = 200)
     private String title;
     
-    @Column(name = "description", length = 2000, columnDefinition = "NVARCHAR(2000)")
+    @Column(name = "description", length = 2000)
     private String description;
     
     @Column(name = "contract_type", nullable = false, length = 50)
@@ -46,10 +46,10 @@ public class Contract {
     @Column(name = "order_id")
     private Long orderId; // Link to RentalOrder
     
-    @Column(name = "contract_content", columnDefinition = "NTEXT")
+    @Column(name = "contract_content")
     private String contractContent; // Nội dung contract HTML/PDF
     
-    @Column(name = "terms_and_conditions", columnDefinition = "NTEXT")
+    @Column(name = "terms_and_conditions")
     private String termsAndConditions;
     
     @Column(name = "rental_period_days")

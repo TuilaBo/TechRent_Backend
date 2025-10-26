@@ -16,3 +16,4 @@ public class KYCUploadDto {
     private String imageType; // "front_cccd", "back_cccd", "selfie"
 }
 
+
