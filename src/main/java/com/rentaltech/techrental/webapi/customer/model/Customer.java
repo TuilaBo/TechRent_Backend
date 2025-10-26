@@ -2,7 +2,6 @@ package com.rentaltech.techrental.webapi.customer.model;
 
 import com.rentaltech.techrental.authentication.model.Account;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -51,6 +50,30 @@ public class Customer {
     @Column(name = "status", nullable = false)
     @Builder.Default
     private CustomerStatus status = CustomerStatus.ACTIVE;
+
+    // KYC fields
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_status")
+    @Builder.Default
+    private KYCStatus kycStatus = KYCStatus.NOT_STARTED;
+
+    @Column(name = "kyc_front_cccd_url", length = 500)
+    private String kycFrontCCCDUrl; // Ảnh mặt trước CCCD
+
+    @Column(name = "kyc_back_cccd_url", length = 500)
+    private String kycBackCCCDUrl; // Ảnh mặt sau CCCD
+
+    @Column(name = "kyc_selfie_url", length = 500)
+    private String kycSelfieUrl; // Ảnh selfie
+
+    @Column(name = "kyc_verified_at")
+    private LocalDateTime kycVerifiedAt; // Ngày xác minh
+
+    @Column(name = "kyc_verified_by")
+    private Long kycVerifiedBy; // ID người xác minh
+
+    @Column(name = "kyc_rejection_reason", length = 1000)
+    private String kycRejectionReason; // Lý do từ chối
 
     @Column(name = "created_at", nullable = false)
     @Builder.Default

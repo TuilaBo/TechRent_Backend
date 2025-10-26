@@ -1,6 +1,5 @@
 package com.rentaltech.techrental.contract.model.dto;
 
-import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.ContractType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -38,6 +37,9 @@ public class ContractCreateRequestDto {
     @NotNull(message = "ID khách hàng không được để trống")
     @Positive(message = "ID khách hàng phải là số dương")
     private Long customerId;
+    
+    @Schema(description = "ID đơn thuê (optional)", example = "1")
+    private Long orderId;
     
     @Schema(description = "Nội dung hợp đồng", example = "Điều khoản và điều kiện hợp đồng thuê thiết bị")
     @Size(max = 10000, message = "Nội dung hợp đồng không được quá 10000 ký tự")

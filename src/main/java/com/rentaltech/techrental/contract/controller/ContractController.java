@@ -5,6 +5,8 @@ import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.dto.*;
 import com.rentaltech.techrental.contract.service.ContractService;
+import com.rentaltech.techrental.webapi.customer.service.CustomerService;
+import com.rentaltech.techrental.webapi.customer.model.Customer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -38,6 +40,9 @@ public class ContractController {
 
     @Autowired
     private ContractService contractService;
+
+    @Autowired
+    private CustomerService customerService;
 
     // ========== HELPER METHODS ==========
     
@@ -149,6 +154,41 @@ public class ContractController {
             return ResponseUtil.createErrorResponse(
                     "CREATE_CONTRACT_FAILED",
                     "Tạo hợp đồng thất bại",
+                    "Có lỗi xảy ra: " + e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/from-order/{orderId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(description = "Tạo hợp đồng tự động từ đơn thuê")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Tạo hợp đồng từ đơn thuê thành công",
+                    content = @Content(schema = @Schema(implementation = SuccessResponseDto.class))),
+            @ApiResponse(responseCode = "400", description = "Đơn thuê không tồn tại hoặc dữ liệu không hợp lệ",
+                    content = @Content(schema = @Schema(implementation = AuthErrorResponseDto.class))),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
+    })
+    public ResponseEntity<?> createContractFromOrder(
+            @Parameter(description = "ID của đơn thuê cần tạo hợp đồng", required = true)
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal UserDetails principal) {
+        try {
+            Long createdBy = getAccountIdFromPrincipal(principal);
+            Contract contract = contractService.createContractFromOrder(orderId, createdBy);
+            
+            return ResponseUtil.createSuccessResponse(
+                    "Tạo hợp đồng từ đơn thuê thành công!",
+                    "Hợp đồng đã được tạo tự động từ thông tin đơn thuê",
+                    contract,
+                    HttpStatus.CREATED
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "CREATE_CONTRACT_FROM_ORDER_FAILED",
+                    "Tạo hợp đồng từ đơn thuê thất bại",
                     "Có lỗi xảy ra: " + e.getMessage(),
                     HttpStatus.BAD_REQUEST
             );
@@ -410,6 +450,9 @@ public class ContractController {
 
     // ========== CUSTOMER CONTRACTS ==========
     
+    /**
+     * Lấy danh sách hợp đồng của customer (theo customerId)
+     */
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<?> getCustomerContracts(@PathVariable Long customerId) {
         try {
@@ -427,6 +470,75 @@ public class ContractController {
                     "Có lỗi xảy ra: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
+        }
+    }
+
+    /**
+     * Customer xem danh sách hợp đồng của chính mình
+     */
+    @GetMapping("/my-contracts")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getMyContracts(@AuthenticationPrincipal UserDetails principal) {
+        try {
+            // Lấy customerId từ authenticated user
+            Customer customer = getCustomerFromPrincipal(principal);
+            List<Contract> contracts = contractService.getContractsByCustomerId(customer.getCustomerId());
+            
+            return ResponseUtil.createSuccessResponse(
+                    "Lấy danh sách hợp đồng thành công",
+                    "Danh sách hợp đồng của bạn",
+                    contracts,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "GET_MY_CONTRACTS_FAILED",
+                    "Lấy danh sách hợp đồng thất bại",
+                    "Có lỗi xảy ra: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    /**
+     * Customer xem hợp đồng chờ ký của mình
+     */
+    @GetMapping("/pending-signature")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getPendingSignatureContracts(@AuthenticationPrincipal UserDetails principal) {
+        try {
+            Customer customer = getCustomerFromPrincipal(principal);
+            List<Contract> contracts = contractService.getContractsByCustomerIdAndStatus(
+                    customer.getCustomerId(), 
+                    ContractStatus.PENDING_SIGNATURE
+            );
+            
+            return ResponseUtil.createSuccessResponse(
+                    "Lấy danh sách hợp đồng chờ ký thành công",
+                    "Các hợp đồng chờ bạn ký",
+                    contracts,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "GET_PENDING_SIGNATURE_FAILED",
+                    "Lấy danh sách hợp đồng chờ ký thất bại",
+                    "Có lỗi xảy ra: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    /**
+     * Helper method: Lấy Customer từ authentication
+     */
+    private Customer getCustomerFromPrincipal(UserDetails principal) {
+        try {
+            String username = principal.getUsername();
+            return customerService.getCustomerByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin customer cho username: " + username));
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể lấy thông tin customer: " + e.getMessage());
         }
     }
 }
