@@ -19,8 +19,10 @@ public interface ContractService {
     Optional<Contract> getContractByNumber(String contractNumber);
     List<Contract> getContractsByCustomerId(Long customerId);
     List<Contract> getContractsByStatus(ContractStatus status);
+    List<Contract> getContractsByCustomerIdAndStatus(Long customerId, ContractStatus status);
     
     Contract createContract(ContractCreateRequestDto request, Long createdBy);
+    Contract createContractFromOrder(Long orderId, Long createdBy);
     Contract updateContract(Long contractId, ContractCreateRequestDto request, Long updatedBy);
     void deleteContract(Long contractId);
     

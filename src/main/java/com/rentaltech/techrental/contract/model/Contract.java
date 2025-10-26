@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Contract")
+@Table(name = "contract")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,6 +42,9 @@ public class Contract {
     
     @Column(name = "staff_id")
     private Long staffId; // Staff tạo contract
+    
+    @Column(name = "order_id")
+    private Long orderId; // Link to RentalOrder
     
     @Column(name = "contract_content", columnDefinition = "NTEXT")
     private String contractContent; // Nội dung contract HTML/PDF

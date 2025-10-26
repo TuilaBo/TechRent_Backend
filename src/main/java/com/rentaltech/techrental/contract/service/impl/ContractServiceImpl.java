@@ -1,26 +1,37 @@
 package com.rentaltech.techrental.contract.service.impl;
 
-import com.rentaltech.techrental.contract.service.EmailService;
-import com.rentaltech.techrental.contract.service.SMSService;
-import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
+import com.rentaltech.techrental.contract.model.ContractType;
 import com.rentaltech.techrental.contract.model.dto.*;
 import com.rentaltech.techrental.contract.repository.ContractRepository;
 import com.rentaltech.techrental.contract.service.ContractService;
+import com.rentaltech.techrental.contract.service.SMSService;
+import com.rentaltech.techrental.contract.service.EmailService;
+import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.webapi.customer.model.RentalOrder;
+import com.rentaltech.techrental.webapi.customer.model.OrderDetail;
+import com.rentaltech.techrental.webapi.customer.repository.RentalOrderRepository;
+import com.rentaltech.techrental.webapi.customer.repository.OrderDetailRepository;
+import java.util.stream.Collectors;
+import java.math.BigDecimal;
+import java.time.temporal.ChronoUnit;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import org.springframework.data.redis.core.RedisTemplate;
-import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -38,11 +49,45 @@ public class ContractServiceImpl implements ContractService {
     @Autowired
     private EmailService emailService;
 
-    @Autowired
+    @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private DigitalSignatureService digitalSignatureService;
+
+    // Fallback in-memory cache for PIN codes
+    private final ConcurrentHashMap<String, PinCacheEntry> pinCache = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService cleanupExecutor = Executors.newScheduledThreadPool(1);
+    
+    @Autowired
+    private RentalOrderRepository rentalOrderRepository;
+
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
+
+    public ContractServiceImpl() {
+        // Cleanup expired PIN codes every minute
+        cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredPins, 1, 1, TimeUnit.MINUTES);
+    }
+
+    // Inner class for PIN cache entry
+    private static class PinCacheEntry {
+        String pin;
+        long expiryTime;
+        
+        PinCacheEntry(String pin, long expiryTime) {
+            this.pin = pin;
+            this.expiryTime = expiryTime;
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiryTime;
+        }
+    }
+    
+    private void cleanupExpiredPins() {
+        pinCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    }
 
     // ========== PIN CODE GENERATION ==========
     
@@ -151,11 +196,25 @@ public class ContractServiceImpl implements ContractService {
     }
     
     /**
-     * Lưu PIN code vào Redis với thời gian hết hạn 5 phút
+     * Lưu PIN code vào Redis hoặc in-memory cache với thời gian hết hạn 5 phút
      */
     private void savePINCode(Long contractId, String pinCode) {
         String key = "contract_pin_" + contractId;
-        redisTemplate.opsForValue().set(key, pinCode, 300, TimeUnit.SECONDS);
+        
+        try {
+            // Try Redis first
+            if (redisTemplate != null) {
+                redisTemplate.opsForValue().set(key, pinCode, 300, TimeUnit.SECONDS);
+            } else {
+                // Fallback to in-memory cache
+                long expiryTime = System.currentTimeMillis() + (300 * 1000); // 5 minutes
+                pinCache.put(key, new PinCacheEntry(pinCode, expiryTime));
+            }
+        } catch (Exception e) {
+            // If Redis fails, use in-memory cache
+            long expiryTime = System.currentTimeMillis() + (300 * 1000);
+            pinCache.put(key, new PinCacheEntry(pinCode, expiryTime));
+        }
     }
     
     /**
@@ -169,8 +228,29 @@ public class ContractServiceImpl implements ContractService {
     
     private String getStoredPINCode(Long contractId) {
         String key = "contract_pin_" + contractId;
-        Object pinCode = redisTemplate.opsForValue().get(key);
-        return pinCode != null ? pinCode.toString() : null;
+        
+        try {
+            // Try Redis first
+            if (redisTemplate != null) {
+                Object pinCode = redisTemplate.opsForValue().get(key);
+                if (pinCode != null) {
+                    return pinCode.toString();
+                }
+            }
+        } catch (Exception e) {
+            // Redis not available, fallback
+        }
+        
+        // Fallback to in-memory cache
+        PinCacheEntry entry = pinCache.get(key);
+        if (entry != null && !entry.isExpired()) {
+            return entry.pin;
+        } else if (entry != null) {
+            // Remove expired entry
+            pinCache.remove(key);
+        }
+        
+        return null;
     }
 
     // ========== DIGITAL SIGNATURE PROCESS ==========
@@ -283,7 +363,17 @@ public class ContractServiceImpl implements ContractService {
     
     private void deletePINCode(Long contractId) {
         String key = "contract_pin_" + contractId;
-        redisTemplate.delete(key);
+        
+        try {
+            if (redisTemplate != null) {
+                redisTemplate.delete(key);
+            }
+        } catch (Exception e) {
+            // Ignore Redis errors
+        }
+        
+        // Also remove from in-memory cache
+        pinCache.remove(key);
     }
 
     // ========== OTHER METHODS (implement interface) ==========
@@ -314,6 +404,11 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    public List<Contract> getContractsByCustomerIdAndStatus(Long customerId, ContractStatus status) {
+        return contractRepository.findByStatusAndCustomerId(status, customerId);
+    }
+
+    @Override
     public Contract createContract(ContractCreateRequestDto request, Long createdBy) {
         try {
             // Tạo contract number tự động
@@ -328,6 +423,7 @@ public class ContractServiceImpl implements ContractService {
                     .status(ContractStatus.DRAFT)
                     .customerId(request.getCustomerId())
                     .staffId(null) // Staff ID sẽ được set sau khi có staff assignment
+                    .orderId(request.getOrderId()) // Link to rental order if provided
                     .contractContent(request.getContractContent())
                     .termsAndConditions(request.getTermsAndConditions())
                     .rentalPeriodDays(request.getRentalPeriodDays())
@@ -351,6 +447,112 @@ public class ContractServiceImpl implements ContractService {
     public Contract updateContract(Long contractId, ContractCreateRequestDto request, Long updatedBy) {
         // Implementation
         return null;
+    }
+
+    /**
+     * Tạo hợp đồng tự động từ đơn thuê (RentalOrder)
+     */
+    @Override
+    public Contract createContractFromOrder(Long orderId, Long createdBy) {
+        try {
+            // Lấy thông tin đơn thuê
+            RentalOrder order = rentalOrderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn thuê với ID: " + orderId));
+            
+            // Lấy chi tiết đơn thuê
+            List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(orderId);
+            
+            // Tính số ngày thuê
+            long days = ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate());
+            Integer rentalPeriodDays = (int) days;
+            
+            // Tạo mô tả từ các thiết bị trong đơn
+            String description = "Hợp đồng thuê thiết bị từ đơn thuê #" + orderId + ". ";
+            if (!orderDetails.isEmpty()) {
+                String devices = orderDetails.stream()
+                        .map(od -> od.getQuantity() + "x " + od.getDeviceModel().getDeviceName() + " (" + od.getDeviceModel().getBrand() + ")")
+                        .collect(Collectors.joining(", "));
+                description += "Thiết bị: " + devices;
+            }
+            
+            // Tạo tiêu đề
+            String title = "Hợp đồng thuê thiết bị - Đơn #" + orderId;
+            
+            // Tạo nội dung hợp đồng
+            String contractContent = buildContractContent(order, orderDetails);
+            
+            // Tạo điều khoản
+            String termsAndConditions = buildTermsAndConditions(order, orderDetails);
+            
+            // Tạo contract number
+            String contractNumber = generateContractNumber();
+            
+            // Tạo hợp đồng
+            Contract contract = Contract.builder()
+                    .contractNumber(contractNumber)
+                    .title(title)
+                    .description(description)
+                    .contractType(ContractType.EQUIPMENT_RENTAL)
+                    .status(ContractStatus.DRAFT)
+                    .customerId(order.getCustomer().getCustomerId())
+                    .orderId(orderId) // Link to rental order
+                    .contractContent(contractContent)
+                    .termsAndConditions(termsAndConditions)
+                    .rentalPeriodDays(rentalPeriodDays)
+                    .totalAmount(BigDecimal.valueOf(order.getTotalPrice()))
+                    .depositAmount(BigDecimal.valueOf(order.getDepositAmount()))
+                    .startDate(order.getStartDate())
+                    .endDate(order.getEndDate())
+                    .expiresAt(order.getEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
+                    .createdBy(createdBy)
+                    .build();
+            
+            return contractRepository.save(contract);
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể tạo hợp đồng từ đơn thuê: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Tạo nội dung hợp đồng
+     */
+    private String buildContractContent(RentalOrder order, List<OrderDetail> orderDetails) {
+        StringBuilder content = new StringBuilder();
+        content.append("<h2>HỢP ĐỒNG THUÊ THIẾT BỊ CÔNG NGHỆ</h2>");
+        content.append("<p><strong>Đơn thuê:</strong> #").append(order.getOrderId()).append("</p>");
+        content.append("<p><strong>Ngày bắt đầu:</strong> ").append(order.getStartDate()).append("</p>");
+        content.append("<p><strong>Ngày kết thúc:</strong> ").append(order.getEndDate()).append("</p>");
+        content.append("<p><strong>Số ngày thuê:</strong> ").append(ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate())).append(" ngày</p>");
+        content.append("<h3>Thiết bị thuê:</h3>");
+        content.append("<ul>");
+        for (OrderDetail detail : orderDetails) {
+            content.append("<li>")
+                    .append(detail.getQuantity()).append("x ")
+                    .append(detail.getDeviceModel().getDeviceName())
+                    .append(" (").append(detail.getDeviceModel().getBrand()).append(")")
+                    .append(" - Giá/ngày: ").append(detail.getPricePerDay())
+                    .append(" - Tiền cọc: ").append(detail.getDepositAmountPerUnit() * detail.getQuantity())
+                    .append("</li>");
+        }
+        content.append("</ul>");
+        content.append("<p><strong>Tổng tiền thuê:</strong> ").append(order.getTotalPrice()).append(" VNĐ</p>");
+        content.append("<p><strong>Tiền cọc:</strong> ").append(order.getDepositAmount()).append(" VNĐ</p>");
+        return content.toString();
+    }
+    
+    /**
+     * Tạo điều khoản và điều kiện
+     */
+    private String buildTermsAndConditions(RentalOrder order, List<OrderDetail> orderDetails) {
+        StringBuilder terms = new StringBuilder();
+        terms.append("ĐIỀU KHOẢN VÀ ĐIỀU KIỆN THUÊ THIẾT BỊ\n\n");
+        terms.append("1. Khách hàng có trách nhiệm bảo quản thiết bị trong thời gian thuê.\n");
+        terms.append("2. Nếu thiết bị bị hư hỏng hoặc mất mát, khách hàng sẽ phải chịu chi phí sửa chữa hoặc thay thế.\n");
+        terms.append("3. Tiền cọc sẽ được hoàn trả sau khi thiết bị được kiểm tra và không có hư hỏng.\n");
+        terms.append("4. Khách hàng phải trả lại thiết bị đúng hạn, nếu quá hạn sẽ bị phạt 10% giá trị thiết bị mỗi ngày.\n");
+        terms.append("5. Mọi tranh chấp sẽ được giải quyết theo pháp luật Việt Nam.\n");
+        return terms.toString();
     }
 
     @Override
@@ -482,8 +684,8 @@ public class ContractServiceImpl implements ContractService {
                 return false;
             }
             
-            // Kiểm tra signature method hợp lệ
-            if (request.getSignatureMethod() != null) {
+            // Kiểm tra signature method hợp lệ (optional)
+            if (request.getSignatureMethod() != null && !request.getSignatureMethod().trim().isEmpty()) {
                 String method = request.getSignatureMethod();
                 if (!method.equals("DIGITAL_CERTIFICATE") && 
                     !method.equals("SMS_OTP") && 
