@@ -107,7 +107,7 @@ public class DataBootstrapInitializer implements ApplicationRunner {
                         .serialNumber(String.format("SN-%05d", snCounter++))
                         .acquireAt(LocalDateTime.now().minusDays((mi + 1) * (n + 1)))
                         .status(DeviceStatus.AVAILABLE)
-                        .shelfCode(String.format("K%d-%c", (mi + 1), 'A' + n))
+//                        .shelfCode(String.format("K%d-%c", (mi + 1), 'A' + n))
                         .deviceModel(model)
                         .build());
             }

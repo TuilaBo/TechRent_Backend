@@ -16,10 +16,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/technician/tasks")
 @PreAuthorize("hasRole('TECHNICIAN')")
+@Tag(name = "Technician Tasks", description = "Technician task APIs")
 public class TechnicianTaskController {
 
     @Autowired
@@ -30,6 +33,7 @@ public class TechnicianTaskController {
 
     // Lấy tất cả task được assign cho technician hiện tại
     @GetMapping
+    @Operation(summary = "List my tasks", description = "Technician lists assigned tasks")
     public ResponseEntity<?> getMyTasks(Authentication authentication) {
         try {
             // Lấy thông tin technician hiện tại
@@ -61,6 +65,7 @@ public class TechnicianTaskController {
 
     // Lấy task theo ID (chỉ task được assign cho technician hiện tại)
     @GetMapping("/{taskId}")
+    @Operation(summary = "Get my task by ID", description = "Technician gets details of an assigned task")
     public ResponseEntity<?> getTaskById(@PathVariable Long taskId, Authentication authentication) {
         try {
             // Lấy thông tin technician hiện tại
@@ -90,6 +95,7 @@ public class TechnicianTaskController {
 
     // Lấy task theo trạng thái
     @GetMapping(params = "status")
+    @Operation(summary = "List tasks by status", description = "Technician lists tasks filtered by status")
     public ResponseEntity<?> getTasksByStatus(@RequestParam TaskStatus status, Authentication authentication) {
         try {
             String username = authentication.getName();
@@ -119,6 +125,7 @@ public class TechnicianTaskController {
 
     // Lấy task theo order ID (chỉ task được assign cho technician hiện tại)
     @GetMapping("/order/{orderId}")
+    @Operation(summary = "List tasks by order", description = "Technician lists tasks for an order")
     public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId, Authentication authentication) {
         try {
             String username = authentication.getName();
@@ -148,6 +155,7 @@ public class TechnicianTaskController {
 
     // Cập nhật trạng thái task (chỉ task được assign cho technician hiện tại)
     @PutMapping("/{taskId}/status")
+    @Operation(summary = "Update task status", description = "Technician updates the status of an assigned task")
     public ResponseEntity<?> updateTaskStatus(@PathVariable Long taskId, 
                                             @RequestParam TaskStatus status, 
                                             Authentication authentication) {
@@ -177,6 +185,7 @@ public class TechnicianTaskController {
 
     // Lấy task quá hạn (chỉ task được assign cho technician hiện tại)
     @GetMapping("/overdue")
+    @Operation(summary = "List overdue tasks", description = "Technician lists overdue tasks")
     public ResponseEntity<?> getOverdueTasks(Authentication authentication) {
         try {
             String username = authentication.getName();

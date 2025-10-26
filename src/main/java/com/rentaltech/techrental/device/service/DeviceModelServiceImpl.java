@@ -6,11 +6,15 @@ import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -43,6 +47,17 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     @Transactional(readOnly = true)
     public List<DeviceModelResponseDto> findAll() {
         return repository.findAll().stream().map(this::mapToDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<DeviceModelResponseDto> search(String deviceName,
+                                               String brand,
+                                               Long deviceCategoryId,
+                                               Boolean isActive,
+                                               Pageable pageable) {
+        Specification<DeviceModel> spec = buildSpecification(deviceName, brand, deviceCategoryId, isActive);
+        return repository.findAll(spec, pageable).map(this::mapToDto);
     }
 
     @Override
@@ -112,5 +127,27 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .pricePerDay(entity.getPricePerDay())
                 .depositPercent(entity.getDepositPercent())
                 .build();
+    }
+
+    private Specification<DeviceModel> buildSpecification(String deviceName,
+                                                          String brand,
+                                                          Long deviceCategoryId,
+                                                          Boolean isActive) {
+        return (root, query, cb) -> {
+            var predicate = cb.conjunction();
+            if (deviceName != null && !deviceName.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.get("deviceName")), "%" + deviceName.toLowerCase() + "%"));
+            }
+            if (brand != null && !brand.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.get("brand")), "%" + brand.toLowerCase() + "%"));
+            }
+            if (deviceCategoryId != null) {
+                predicate.getExpressions().add(cb.equal(root.join("deviceCategory").get("deviceCategoryId"), deviceCategoryId));
+            }
+            if (isActive != null) {
+                predicate.getExpressions().add(cb.equal(root.get("isActive"), isActive));
+            }
+            return predicate;
+        };
     }
 }

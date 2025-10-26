@@ -17,7 +17,15 @@ import com.rentaltech.techrental.webapi.customer.model.dto.RentalOrderResponseDt
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.repository.OrderDetailRepository;
 import com.rentaltech.techrental.webapi.customer.repository.RentalOrderRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -25,6 +33,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -52,6 +61,30 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<RentalOrderResponseDto> search(String orderStatus, Long customerId, String shippingAddress, Double minTotalPrice, Double maxTotalPrice, Double minPricePerDay, Double maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo, Pageable pageable) {
+        Long effectiveCustomerId = customerId;
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated()) {
+            boolean isCustomer = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .anyMatch("ROLE_CUSTOMER"::equals);
+            if (isCustomer) {
+                var username = auth.getName();
+                var customerOpt = customerRepository.findByAccount_Username(username);
+                effectiveCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
+            }
+        }
+
+        Specification<RentalOrder> spec = buildSpecification(orderStatus, effectiveCustomerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo);
+        return rentalOrderRepository.findAll(spec, pageable).map(rentalOrder -> {
+            List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(rentalOrder.getOrderId());
+            return mapToDto(rentalOrder, details);
+        });
+    }
+
+    @Override
     public RentalOrderResponseDto create(RentalOrderRequestDto request) {
         if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto is null");
         if (request.getCustomerId() == null) throw new IllegalArgumentException("customerId is required");
@@ -72,6 +105,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         RentalOrder order = RentalOrder.builder()
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
+                .shippingAddress(request.getShippingAddress())
                 .orderStatus(OrderStatus.PENDING)
                 .depositAmount(computed.totalDeposit)
                 .depositAmountHeld(0.0)
@@ -110,6 +144,22 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     public RentalOrderResponseDto findById(Long id) {
         RentalOrder order = rentalOrderRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("RentalOrder not found: " + id));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated()) {
+            boolean isCustomer = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .anyMatch("ROLE_CUSTOMER"::equals);
+            if (isCustomer) {
+                var username = auth.getName();
+                var customerOpt = customerRepository.findByAccount_Username(username);
+                Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
+                Long ownerCustomerId = order.getCustomer() != null ? order.getCustomer().getCustomerId() : null;
+                if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: not your order");
+                }
+            }
+        }
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
         return mapToDto(order, details);
     }
@@ -117,7 +167,33 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     @Override
     @Transactional(readOnly = true)
     public List<RentalOrderResponseDto> findAll() {
-        List<RentalOrder> orders = rentalOrderRepository.findAll();
+        List<RentalOrder> orders;
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority).anyMatch("ROLE_CUSTOMER"::equals)) {
+            var username = auth.getName();
+            var customerOpt = customerRepository.findByAccount_Username(username);
+            Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
+            Specification<RentalOrder> spec = buildSpecification(
+                    null,
+                    requesterCustomerId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+            orders = rentalOrderRepository.findAll(spec);
+        } else {
+            orders = rentalOrderRepository.findAll();
+        }
         List<RentalOrderResponseDto> result = new ArrayList<>(orders.size());
         for (RentalOrder order : orders) {
             List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
@@ -148,6 +224,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
         existing.setStartDate(request.getStartDate());
         existing.setEndDate(request.getEndDate());
+        existing.setShippingAddress(request.getShippingAddress());
         existing.setOrderStatus(OrderStatus.PENDING);
         existing.setDepositAmount(computed.totalDeposit);
         existing.setDepositAmountHeld(0.0);
@@ -173,6 +250,60 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
+    }
+
+    private Specification<RentalOrder> buildSpecification(String orderStatus, Long customerId, String shippingAddress, Double minTotalPrice, Double maxTotalPrice, Double minPricePerDay, Double maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo) {
+        return (root, query, cb) -> {
+            var predicate = cb.conjunction();
+            if (orderStatus != null && !orderStatus.isBlank()) {
+                try {
+                    var st = OrderStatus.valueOf(orderStatus.toUpperCase());
+                    predicate.getExpressions().add(cb.equal(root.get("orderStatus"), st));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            if (customerId != null) {
+                predicate.getExpressions().add(cb.equal(root.join("customer").get("customerId"), customerId));
+            }
+            if (shippingAddress != null && !shippingAddress.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.get("shippingAddress")), "%" + shippingAddress.toLowerCase() + "%"));
+            }
+            if (minTotalPrice != null) {
+                predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("totalPrice"), minTotalPrice));
+            }
+            if (maxTotalPrice != null) {
+                predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("totalPrice"), maxTotalPrice));
+            }
+            if (minPricePerDay != null) {
+                predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("pricePerDay"), minPricePerDay));
+            }
+            if (maxPricePerDay != null) {
+                predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("pricePerDay"), maxPricePerDay));
+            }
+            LocalDateTime sFrom = parseDateTime(startDateFrom);
+            if (sFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("startDate"), sFrom));
+            LocalDateTime sTo = parseDateTime(startDateTo);
+            if (sTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("startDate"), sTo));
+            LocalDateTime eFrom = parseDateTime(endDateFrom);
+            if (eFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("endDate"), eFrom));
+            LocalDateTime eTo = parseDateTime(endDateTo);
+            if (eTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("endDate"), eTo));
+            LocalDateTime cFrom = parseDateTime(createdAtFrom);
+            if (cFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("createdAt"), cFrom));
+            LocalDateTime cTo = parseDateTime(createdAtTo);
+            if (cTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("createdAt"), cTo));
+            return predicate;
+        };
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        try {
+            return LocalDateTime.parse(value);
+        } catch (Exception e) {
+            try {
+                return java.time.LocalDate.parse(value).atStartOfDay();
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     private Computed computeFromDetails(RentalOrderRequestDto request) {
@@ -226,6 +357,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .orderId(order.getOrderId())
                 .startDate(order.getStartDate())
                 .endDate(order.getEndDate())
+                .shippingAddress(order.getShippingAddress())
                 .orderStatus(order.getOrderStatus())
                 .depositAmount(order.getDepositAmount())
                 .depositAmountHeld(order.getDepositAmountHeld())

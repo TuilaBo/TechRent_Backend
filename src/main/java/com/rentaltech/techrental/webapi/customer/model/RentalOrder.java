@@ -24,6 +24,9 @@ public class RentalOrder {
     @Column(name = "end_date", nullable = false)
     private LocalDateTime endDate;
 
+    @Column(name = "shipping_address", nullable = false)
+    private String shippingAddress;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "order_status", nullable = false)
     private OrderStatus orderStatus;

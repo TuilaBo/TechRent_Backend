@@ -17,9 +17,14 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/staff/task-categories")
+@Tag(name = "Task Categories", description = "Task category management APIs")
 public class TaskCategoryController {
 
     @Autowired
@@ -30,6 +35,7 @@ public class TaskCategoryController {
 
     // Lấy tất cả task categories (READ ONLY)
     @GetMapping
+    @Operation(summary = "List task categories", description = "Retrieve all task categories")
     public ResponseEntity<List<TaskCategory>> getAllTaskCategories() {
         List<TaskCategory> categories = taskCategoryService.getAllTaskCategories();
         return ResponseEntity.ok(categories);
@@ -37,6 +43,7 @@ public class TaskCategoryController {
 
     // Lấy task category theo ID (READ ONLY)
     @GetMapping("/{categoryId}")
+    @Operation(summary = "Get task category", description = "Retrieve task category by ID")
     public ResponseEntity<TaskCategory> getTaskCategoryById(@PathVariable Long categoryId) {
         return taskCategoryService.getTaskCategoryById(categoryId)
                 .map(category -> ResponseEntity.ok(category))
@@ -45,6 +52,7 @@ public class TaskCategoryController {
 
     // Tìm task categories theo tên (READ ONLY)
     @GetMapping("/search")
+    @Operation(summary = "Search task categories", description = "Search task categories by name")
     public ResponseEntity<List<TaskCategory>> searchTaskCategories(@RequestParam String name) {
         List<TaskCategory> categories = taskCategoryService.searchTaskCategoriesByName(name);
         return ResponseEntity.ok(categories);
@@ -52,6 +60,7 @@ public class TaskCategoryController {
 
     // Kiểm tra task category có tồn tại không (READ ONLY)
     @GetMapping("/exists")
+    @Operation(summary = "Check task category exists", description = "Check whether a task category name already exists")
     public ResponseEntity<Boolean> checkTaskCategoryExists(@RequestParam String name) {
         boolean exists = taskCategoryService.checkTaskCategoryExists(name);
         return ResponseEntity.ok(exists);
@@ -62,6 +71,12 @@ public class TaskCategoryController {
     // Tạo task category (ADMIN ONLY)
     @PostMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create task category", description = "Create a new task category")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Bad request"),
+            @ApiResponse(responseCode = "409", description = "Already exists")
+    })
     public ResponseEntity<?> createTaskCategory(@RequestBody @Valid TaskCategoryCreateRequestDto request) {
         try {
             // Kiểm tra tên category đã tồn tại chưa
@@ -100,6 +115,7 @@ public class TaskCategoryController {
     // Cập nhật task category (ADMIN ONLY)
     @PutMapping("/admin/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update task category", description = "Update a task category by ID")
     public ResponseEntity<?> updateTaskCategory(@PathVariable Long categoryId, 
                                               @RequestBody @Valid TaskCategoryUpdateRequestDto request) {
         try {
@@ -150,6 +166,7 @@ public class TaskCategoryController {
     // Xóa task category (ADMIN ONLY)
     @DeleteMapping("/admin/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete task category", description = "Delete a task category by ID")
     public ResponseEntity<?> deleteTaskCategory(@PathVariable Long categoryId) {
         try {
             if (!taskCategoryRepository.existsById(categoryId)) {
