@@ -23,6 +23,9 @@ public class RentalOrderRequestDto {
     private LocalDateTime endDate;
 
     @NotNull
+    private String shippingAddress;
+
+    @NotNull
     private Long customerId;
 
     @NotNull

@@ -14,9 +14,14 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/admin/staff")
+@Tag(name = "Admin Staff", description = "Admin staff management APIs")
 public class AdminStaffController {
 
     @Autowired
@@ -25,6 +30,11 @@ public class AdminStaffController {
     // Tạo staff mới (Admin only)
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create staff", description = "Create a new staff account")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Bad request")
+    })
     public ResponseEntity<StaffResponseDto> createStaff(@RequestBody @Valid StaffCreateRequestDto request) {
         try {
             Staff savedStaff = staffService.createStaff(request);
@@ -36,6 +46,7 @@ public class AdminStaffController {
 
     // Lấy tất cả staff (Admin only)
     @GetMapping
+    @Operation(summary = "List staff", description = "Retrieve all staff")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<StaffResponseDto>> getAllStaff() {
         List<Staff> staffList = staffService.getAllStaff();
@@ -47,6 +58,7 @@ public class AdminStaffController {
 
     // Lấy staff theo ID
     @GetMapping("/{staffId}")
+    @Operation(summary = "Get staff by ID", description = "Retrieve staff by ID")
     public ResponseEntity<StaffResponseDto> getStaffById(@PathVariable Long staffId) {
         return staffService.getStaffById(staffId)
                 .map(staff -> ResponseEntity.ok(mapToResponseDto(staff)))
@@ -55,6 +67,7 @@ public class AdminStaffController {
 
     // Lấy staff theo Account ID
     @GetMapping("/account/{accountId}")
+    @Operation(summary = "Get staff by account ID", description = "Retrieve staff by account ID")
     public ResponseEntity<StaffResponseDto> getStaffByAccountId(@PathVariable Long accountId) {
         return staffService.getStaffByAccountId(accountId)
                 .map(staff -> ResponseEntity.ok(mapToResponseDto(staff)))
@@ -63,6 +76,7 @@ public class AdminStaffController {
 
     // Lấy staff theo role
     @GetMapping("/role/{staffRole}")
+    @Operation(summary = "Get staff by role", description = "List staff by role")
     public ResponseEntity<List<StaffResponseDto>> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
@@ -73,6 +87,7 @@ public class AdminStaffController {
 
     // Lấy active staff
     @GetMapping("/active")
+    @Operation(summary = "Get active staff", description = "List active staff members")
     public ResponseEntity<List<StaffResponseDto>> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
         List<StaffResponseDto> responseDtos = activeStaff.stream()
@@ -84,6 +99,7 @@ public class AdminStaffController {
     // Cập nhật trạng thái active/inactive (Admin only)
     @PutMapping("/{staffId}/status")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update staff status", description = "Activate or deactivate a staff member")
     public ResponseEntity<StaffResponseDto> updateStaffStatus(@PathVariable Long staffId, 
                                                              @RequestParam Boolean isActive) {
         try {
@@ -97,6 +113,7 @@ public class AdminStaffController {
     // Cập nhật staff role (Admin only)
     @PutMapping("/{staffId}/role")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update staff role", description = "Change a staff member's role")
     public ResponseEntity<StaffResponseDto> updateStaffRole(@PathVariable Long staffId, 
                                                            @RequestParam StaffRole staffRole) {
         try {
@@ -110,6 +127,7 @@ public class AdminStaffController {
     // Xóa staff (Admin only - soft delete)
     @DeleteMapping("/{staffId}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete staff", description = "Soft delete a staff member by ID")
     public ResponseEntity<Void> deleteStaff(@PathVariable Long staffId) {
         try {
             staffService.deleteStaff(staffId);

@@ -2,6 +2,8 @@ package com.rentaltech.techrental.common.util;
 
 import com.rentaltech.techrental.common.dto.AuthErrorResponseDto;
 import com.rentaltech.techrental.common.dto.SuccessResponseDto;
+import com.rentaltech.techrental.common.dto.PagedResponseDto;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -37,6 +39,27 @@ public class ResponseUtil {
                 .details(details)
                 .code(status.value())
                 .data(data)
+                .build();
+        return ResponseEntity.status(status).body(successResponse);
+    }
+
+    public static ResponseEntity<SuccessResponseDto> createSuccessPaginationResponse(
+            String message, String details, Page<?> page, HttpStatus status) {
+        PagedResponseDto payload = PagedResponseDto.builder()
+                .content(page.getContent())
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .isLast(page.isLast())
+                .numberOfElements(page.getNumberOfElements())
+                .build();
+        SuccessResponseDto successResponse = SuccessResponseDto.builder()
+                .status("SUCCESS")
+                .message(message)
+                .details(details)
+                .code(status.value())
+                .data(payload)
                 .build();
         return ResponseEntity.status(status).body(successResponse);
     }

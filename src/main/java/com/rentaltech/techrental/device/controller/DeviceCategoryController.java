@@ -10,24 +10,27 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/device-categories")
-@Tag(name = "Danh mục thiết bị", description = "API quản lý danh mục thiết bị")
+@Tag(name = "Device Categories", description = "Device category management APIs")
 public class DeviceCategoryController {
 
     private final DeviceCategoryService service;
 
     @PostMapping
-    @Operation(summary = "Tạo danh mục thiết bị", description = "Tạo mới một danh mục thiết bị")
+    @Operation(summary = "Create device category", description = "Create a new device category")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Tạo thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> create(@Valid @RequestBody DeviceCategoryRequestDto request) {
         return ResponseUtil.createSuccessResponse(
@@ -39,13 +42,13 @@ public class DeviceCategoryController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy danh mục thiết bị theo ID", description = "Truy vấn danh mục thiết bị theo ID")
+    @Operation(summary = "Get device category by ID", description = "Retrieve device category by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "ID danh mục thiết bị") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Device category ID") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Danh mục thiết bị tìm thấy",
                 "Danh mục thiết bị với id " + id + " đã được tìm thấy",
@@ -55,10 +58,10 @@ public class DeviceCategoryController {
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách danh mục thiết bị", description = "Lấy tất cả danh mục thiết bị")
+    @Operation(summary = "List device categories", description = "Retrieve all device categories")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -70,36 +73,55 @@ public class DeviceCategoryController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật danh mục thiết bị", description = "Cập nhật danh mục thiết bị theo ID")
+    @Operation(summary = "Update device category", description = "Update device category by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> update(@Parameter(description = "ID danh mục thiết bị") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Device category ID") @PathVariable Long id,
                                     @Valid @RequestBody DeviceCategoryRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Danh mục thiết bị được cập nhật thành công",
-                "Danh mục thiết bị với id " + id + " đã cập nhật vào hệ thống",
+                "Danh mục thiết bị với id " + id + " đã được cập nhật",
                 service.update(id, request),
                 HttpStatus.OK
         );
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xoá danh mục thiết bị", description = "Xoá danh mục thiết bị theo ID")
+    @Operation(summary = "Delete device category", description = "Delete device category by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Xoá thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "204", description = "Deleted"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "ID danh mục thiết bị") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Device category ID") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Danh mục thiết bị được xóa thành công",
-                "Danh mục thiết bị với id " + id + " đã xóa khỏi hệ thống",
+                "Danh mục thiết bị với id " + id + " đã bị xóa khỏi hệ thống",
                 HttpStatus.NO_CONTENT
+        );
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search/sort/filter device categories", description = "Search device categories with pagination, sorting and filtering")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<?> search(
+            @RequestParam(required = false) String deviceCategoryName,
+            @RequestParam(required = false) Boolean isActive,
+            Pageable pageable) {
+        var page = service.search(deviceCategoryName, isActive, pageable);
+        return ResponseUtil.createSuccessPaginationResponse(
+                "Kết quả tìm kiếm danh mục thiết bị",
+                "Áp dụng phân trang/sắp xếp/lọc theo tham số",
+                page,
+                HttpStatus.OK
         );
     }
 }

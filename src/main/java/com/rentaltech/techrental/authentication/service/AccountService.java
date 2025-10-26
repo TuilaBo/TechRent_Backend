@@ -30,4 +30,9 @@ public interface AccountService {
      * Resend verification code cho account chưa verify
      */
     boolean resendVerificationCode(String email);
+
+    /**
+     * Authenticate user with username or email and return JWT token
+     */
+    String authenticateAndGenerateToken(com.rentaltech.techrental.authentication.model.dto.LoginDto loginDto);
 }
