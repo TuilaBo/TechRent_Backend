@@ -32,8 +32,8 @@ public class Device {
     @Column(name = "status")
     private DeviceStatus status;
 
-    @Column(name = "shelf_code", length = 100)
-    private String shelfCode;
+//    @Column(name = "shelf_code", length = 100)
+//    private String shelfCode;
 
     @ManyToOne
     @JoinColumn(name = "device_model_id", referencedColumnName = "device_model_id", nullable = false)

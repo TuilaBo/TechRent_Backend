@@ -13,21 +13,22 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Pageable;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rental-orders")
-@Tag(name = "Đơn thuê", description = "API quản lý đơn thuê")
+@Tag(name = "Rental Orders", description = "Rental order management APIs")
 public class RentalOrderController {
 
     private final RentalOrderService service;
 
     @PostMapping
-    @Operation(summary = "Tạo đơn thuê", description = "Tạo mới một đơn thuê cùng chi tiết đơn")
+    @Operation(summary = "Create rental order", description = "Create a new rental order with details")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Tạo thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> create(@Valid @RequestBody RentalOrderRequestDto request) {
         return ResponseUtil.createSuccessResponse(
@@ -39,13 +40,13 @@ public class RentalOrderController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy đơn thuê theo ID", description = "Truy vấn đơn thuê theo ID kèm chi tiết đơn")
+    @Operation(summary = "Get rental order by ID", description = "Retrieve rental order by ID with details")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "ID đơn thuê") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Rental order ID") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê tìm thấy",
                 "Đơn thuê với id " + id + " đã được tìm thấy",
@@ -55,10 +56,10 @@ public class RentalOrderController {
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách đơn thuê", description = "Lấy tất cả đơn thuê kèm chi tiết đơn")
+    @Operation(summary = "List rental orders", description = "Retrieve all rental orders with details")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -70,14 +71,14 @@ public class RentalOrderController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật đơn thuê", description = "Cập nhật đơn thuê theo ID, thay thế chi tiết đơn")
+    @Operation(summary = "Update rental order", description = "Update rental order by ID; change order details")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> update(@Parameter(description = "ID đơn thuê") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Rental order ID") @PathVariable Long id,
                                     @Valid @RequestBody RentalOrderRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê được cập nhật thành công",
@@ -88,13 +89,13 @@ public class RentalOrderController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xoá đơn thuê", description = "Xoá đơn thuê theo ID")
+    @Operation(summary = "Delete rental order", description = "Delete rental order by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Xoá thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "204", description = "Deleted"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "ID đơn thuê") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Rental order ID") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê được xóa thành công",
@@ -102,4 +103,34 @@ public class RentalOrderController {
                 HttpStatus.NO_CONTENT
         );
     }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search/sort/filter rental orders", description = "Search rental orders with pagination, sorting and filtering using Specification")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<?> search(
+            @RequestParam(required = false) String orderStatus,
+            @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String shippingAddress,
+            @RequestParam(required = false) Double minTotalPrice,
+            @RequestParam(required = false) Double maxTotalPrice,
+            @RequestParam(required = false) Double minPricePerDay,
+            @RequestParam(required = false) Double maxPricePerDay,
+            @RequestParam(required = false) String startDateFrom,
+            @RequestParam(required = false) String startDateTo,
+            @RequestParam(required = false) String endDateFrom,
+            @RequestParam(required = false) String endDateTo,
+            @RequestParam(required = false) String createdAtFrom,
+            @RequestParam(required = false) String createdAtTo, Pageable pageable) {
+        var page = service.search(orderStatus, customerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
+        return ResponseUtil.createSuccessPaginationResponse(
+                "Kết quả tìm kiếm đơn thuê",
+                "Áp dụng phân trang/sắp xếp/lọc theo tham số",
+                page,
+                HttpStatus.OK
+        );
+    }
 }
+

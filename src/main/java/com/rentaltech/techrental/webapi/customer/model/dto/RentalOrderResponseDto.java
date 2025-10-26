@@ -17,6 +17,7 @@ public class RentalOrderResponseDto {
     private Long orderId;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private String shippingAddress;
     private OrderStatus orderStatus;
     private Double depositAmount;
     private Double depositAmountHeld;

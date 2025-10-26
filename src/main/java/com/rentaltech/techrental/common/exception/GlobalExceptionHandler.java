@@ -6,6 +6,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.core.AuthenticationException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -17,6 +21,32 @@ public class GlobalExceptionHandler {
                 "Không tìm thấy công việc",
                 ex.getMessage(),
                 HttpStatus.NOT_FOUND
+        );
+    }
+
+    // ===== Authentication exceptions (moved from AuthenController.authenticateUser) =====
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<?> handleBadCredentials(BadCredentialsException ex) {
+        return ResponseUtil.badCredentials();
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<?> handleDisabled(DisabledException ex) {
+        return ResponseUtil.accountDisabled();
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<?> handleLocked(LockedException ex) {
+        return ResponseUtil.accountLocked();
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<?> handleAuthException(AuthenticationException ex) {
+        return ResponseUtil.createErrorResponse(
+                "AUTHENTICATION_FAILED",
+                "Xác thực thất bại",
+                "Có lỗi xảy ra trong quá trình xác thực: " + ex.getMessage(),
+                HttpStatus.UNAUTHORIZED
         );
     }
 

@@ -13,10 +13,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/operator/tasks")
 @PreAuthorize("hasRole('OPERATOR')")
+@Tag(name = "Operator Tasks", description = "Operator task APIs")
 public class OperatorTaskController {
 
     @Autowired
@@ -24,6 +27,7 @@ public class OperatorTaskController {
 
     // Operator tạo task và assign cho staff cụ thể
     @PostMapping
+    @Operation(summary = "Create task for staff", description = "Operator creates and assigns a task to staff")
     public ResponseEntity<?> createTaskForStaff(@RequestBody @Valid TaskCreateRequestDto request) {
         Task createdTask = taskService.createTask(request);
         TaskResponseDto responseDto = mapToResponseDto(createdTask);
@@ -38,6 +42,7 @@ public class OperatorTaskController {
 
     // Operator xem task theo ID
     @GetMapping("/{taskId}")
+    @Operation(summary = "Get task by ID", description = "Get task details by ID")
     public ResponseEntity<?> getTaskById(@PathVariable Long taskId) {
         Task task = taskService.getTaskById(taskId);
         TaskResponseDto responseDto = mapToResponseDto(task);
@@ -52,6 +57,7 @@ public class OperatorTaskController {
 
     // Operator xem tasks theo order ID
     @GetMapping("/order/{orderId}")
+    @Operation(summary = "Get tasks by order", description = "List tasks for an order ID")
     public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId) {
         try {
             var tasks = taskService.getTasksByOrder(orderId);
@@ -78,6 +84,7 @@ public class OperatorTaskController {
 
     // Operator xem tasks theo staff (sử dụng query parameter)
     @GetMapping
+    @Operation(summary = "List tasks by staff", description = "List tasks, optionally filter by assigned staff")
     public ResponseEntity<?> getTasksByStaff(@RequestParam(required = false) Long assignedStaffId) {
         try {
             var tasks = taskService.getAllTasks();

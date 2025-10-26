@@ -17,17 +17,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/accessories")
-@Tag(name = "Phụ kiện", description = "API quản lý phụ kiện")
+@Tag(name = "Accessories", description = "Accessory management APIs")
 public class AccessoryController {
 
     private final AccessoryService service;
 
     @PostMapping
-    @Operation(summary = "Tạo phụ kiện", description = "Tạo mới một phụ kiện")
+    @Operation(summary = "Create accessory", description = "Create a new accessory")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Tạo thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "201", description = "Created"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> create(@Valid @RequestBody AccessoryRequestDto request) {
         return ResponseUtil.createSuccessResponse(
@@ -39,13 +39,13 @@ public class AccessoryController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Lấy phụ kiện theo ID", description = "Truy vấn phụ kiện theo ID")
+    @Operation(summary = "Get accessory by ID", description = "Retrieve accessory by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "ID phụ kiện") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Accessory ID") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Phụ kiện tìm thấy",
                 "Phụ kiện với id " + id + " đã được tìm thấy",
@@ -55,10 +55,10 @@ public class AccessoryController {
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách phụ kiện", description = "Lấy tất cả phụ kiện")
+    @Operation(summary = "List accessories", description = "Retrieve all accessories")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -70,14 +70,14 @@ public class AccessoryController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật phụ kiện", description = "Cập nhật phụ kiện theo ID")
+    @Operation(summary = "Update accessory", description = "Update accessory by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid data"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> update(@Parameter(description = "ID phụ kiện") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Accessory ID") @PathVariable Long id,
                                     @Valid @RequestBody AccessoryRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Phụ kiện được cập nhật thành công",
@@ -88,13 +88,13 @@ public class AccessoryController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xoá phụ kiện", description = "Xoá phụ kiện theo ID")
+    @Operation(summary = "Delete accessory", description = "Delete accessory by ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Xoá thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy"),
-            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+            @ApiResponse(responseCode = "204", description = "Deleted"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "ID phụ kiện") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Accessory ID") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Phụ kiện được xóa thành công",
@@ -103,3 +103,4 @@ public class AccessoryController {
         );
     }
 }
+

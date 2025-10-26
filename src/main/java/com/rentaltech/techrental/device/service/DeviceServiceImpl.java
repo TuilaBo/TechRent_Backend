@@ -2,15 +2,20 @@ package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
+import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -49,6 +54,19 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<DeviceResponseDto> search(String serialNumber,
+                                          String shelfCode,
+                                          String status,
+                                          Long deviceModelId,
+                                          String brand,
+                                          String deviceName,
+                                          Pageable pageable) {
+        Specification<Device> spec = buildSpecification(serialNumber, shelfCode, status, deviceModelId, brand, deviceName);
+        return repository.findAll(spec, pageable).map(this::mapToDto);
+    }
+
+    @Override
     public DeviceResponseDto update(Long id, DeviceRequestDto request) {
         Device entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
@@ -75,7 +93,7 @@ public class DeviceServiceImpl implements DeviceService {
                 .serialNumber(request.getSerialNumber())
                 .acquireAt(request.getAcquireAt())
                 .status(request.getStatus())
-                .shelfCode(request.getShelfCode())
+//                .shelfCode(request.getShelfCode())
                 .deviceModel(model)
                 .build();
     }
@@ -93,7 +111,7 @@ public class DeviceServiceImpl implements DeviceService {
         DeviceModel model = deviceModelRepository.findById(request.getDeviceModelId())
                 .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + request.getDeviceModelId()));
 
-        entity.setShelfCode(request.getShelfCode());
+//        entity.setShelfCode(request.getShelfCode());
         entity.setSerialNumber(request.getSerialNumber());
         entity.setStatus(request.getStatus());
         entity.setDeviceModel(model);
@@ -106,8 +124,41 @@ public class DeviceServiceImpl implements DeviceService {
                 .serialNumber(entity.getSerialNumber())
                 .acquireAt(entity.getAcquireAt())
                 .status(entity.getStatus())
-                .shelfCode(entity.getShelfCode())
+//                .shelfCode(entity.getShelfCode())
                 .deviceModelId(entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null)
                 .build();
+    }
+
+    private Specification<Device> buildSpecification(String serialNumber,
+                                                     String shelfCode,
+                                                     String status,
+                                                     Long deviceModelId,
+                                                     String brand,
+                                                     String deviceName) {
+        return (root, query, cb) -> {
+            var predicate = cb.conjunction();
+            if (serialNumber != null && !serialNumber.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.get("serialNumber")), "%" + serialNumber.toLowerCase() + "%"));
+            }
+            if (shelfCode != null && !shelfCode.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.get("shelfCode")), "%" + shelfCode.toLowerCase() + "%"));
+            }
+            if (status != null && !status.isBlank()) {
+                try {
+                    DeviceStatus st = DeviceStatus.valueOf(status.toUpperCase());
+                    predicate.getExpressions().add(cb.equal(root.get("status"), st));
+                } catch (IllegalArgumentException ignored) {}
+            }
+            if (deviceModelId != null) {
+                predicate.getExpressions().add(cb.equal(root.join("deviceModel").get("deviceModelId"), deviceModelId));
+            }
+            if (brand != null && !brand.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.join("deviceModel").get("brand")), "%" + brand.toLowerCase() + "%"));
+            }
+            if (deviceName != null && !deviceName.isBlank()) {
+                predicate.getExpressions().add(cb.like(cb.lower(root.join("deviceModel").get("deviceName")), "%" + deviceName.toLowerCase() + "%"));
+            }
+            return predicate;
+        };
     }
 }
