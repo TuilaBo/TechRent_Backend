@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -26,6 +27,7 @@ public class DeviceModelController {
     private final DeviceModelService service;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create device model", description = "Create a new device model")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Created"),
@@ -42,6 +44,7 @@ public class DeviceModelController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get device model by ID", description = "Retrieve device model by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
@@ -91,6 +94,7 @@ public class DeviceModelController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete device model", description = "Delete device model by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),
@@ -114,11 +118,11 @@ public class DeviceModelController {
     })
     public ResponseEntity<?> search(
             @RequestParam(required = false) String deviceName,
-            @RequestParam(required = false) String brand,
+            @RequestParam(required = false) Long brandId,
             @RequestParam(required = false) Long deviceCategoryId,
             @RequestParam(required = false) Boolean isActive,
             Pageable pageable) {
-        var page = service.search(deviceName, brand, deviceCategoryId, isActive, pageable);
+        var page = service.search(deviceName, brandId, deviceCategoryId, isActive, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm mẫu thiết bị",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
@@ -127,4 +131,5 @@ public class DeviceModelController {
         );
     }
 }
+
 

@@ -3,6 +3,7 @@ package com.rentaltech.techrental.common.exception;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
@@ -10,6 +11,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
+import java.util.NoSuchElementException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -50,6 +52,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<?> handleAuthException(AuthorizationDeniedException ex) {
+        return ResponseUtil.createErrorResponse(
+                "AUTHORIZATION_FAILED",
+                "Xác thực thất bại",
+                "Bạn không thể thực hiện hành động này: " + ex.getMessage(),
+                HttpStatus.FORBIDDEN
+        );
+    }
+
     @ExceptionHandler(TaskCreationException.class)
     public ResponseEntity<?> handleTaskCreationException(TaskCreationException ex, WebRequest request) {
         return ResponseUtil.createErrorResponse(
@@ -75,6 +87,26 @@ public class GlobalExceptionHandler {
         return ResponseUtil.createErrorResponse(
                 "INVALID_ARGUMENT",
                 "Tham số không hợp lệ",
+                ex.getMessage(),
+                HttpStatus.BAD_REQUEST
+        );
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<?> handleNoSuchElementException(NoSuchElementException ex, WebRequest request) {
+        return ResponseUtil.createErrorResponse(
+                "NOT_FOUND",
+                "Không tìm thấy",
+                ex.getMessage(),
+                HttpStatus.NOT_FOUND
+        );
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<?> handleIllegalStateException(IllegalStateException ex, WebRequest request) {
+        return ResponseUtil.createErrorResponse(
+                "INVALID_STATE",
+                "Trạng thái không hợp lệ",
                 ex.getMessage(),
                 HttpStatus.BAD_REQUEST
         );

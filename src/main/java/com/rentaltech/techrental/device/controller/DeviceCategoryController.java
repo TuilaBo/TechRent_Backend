@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -26,6 +27,7 @@ public class DeviceCategoryController {
     private final DeviceCategoryService service;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create device category", description = "Create a new device category")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Created"),
@@ -73,6 +75,7 @@ public class DeviceCategoryController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update device category", description = "Update device category by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
@@ -91,6 +94,7 @@ public class DeviceCategoryController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete device category", description = "Delete device category by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),

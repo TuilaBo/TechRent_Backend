@@ -1,11 +1,10 @@
 package com.rentaltech.techrental.webapi.customer.controller;
 
-import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
-import com.rentaltech.techrental.webapi.customer.model.dto.CustomerCreateRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequestDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
+import com.rentaltech.techrental.common.util.ResponseUtil;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,11 +13,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/customer")
@@ -27,113 +27,120 @@ import java.util.Optional;
 public class CustomerController {
 
     private final CustomerService customerService;
-    private final AccountService accountService;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "List customers", description = "Retrieve all customers")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success")
     })
-    public ResponseEntity<List<CustomerResponseDto>> getAllCustomers() {
+    public ResponseEntity<?> getAllCustomers() {
         List<Customer> customers = customerService.getAllCustomers();
         List<CustomerResponseDto> responseDtos = customers.stream()
                 .map(this::mapToResponseDto)
                 .toList();
-        return ResponseEntity.ok(responseDtos);
+        return ResponseUtil.createSuccessResponse(
+                "Lấy danh sách khách hàng thành công",
+                "Danh sách khách hàng",
+                responseDtos,
+                HttpStatus.OK
+        );
     }
 
     @GetMapping("/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get customer by ID", description = "Retrieve customer by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<CustomerResponseDto> getCustomerById(@PathVariable Long customerId) {
-        Optional<Customer> customer = customerService.getCustomerById(customerId);
-        return customer.map(c -> ResponseEntity.ok(mapToResponseDto(c)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<?> getCustomerById(@PathVariable Long customerId) {
+        Customer customer = customerService.getCustomerByIdOrThrow(customerId);
+        return ResponseUtil.createSuccessResponse(
+                "Lấy thông tin khách hàng thành công",
+                "Chi tiết khách hàng",
+                mapToResponseDto(customer),
+                HttpStatus.OK
+        );
     }
 
     @GetMapping("/profile")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "My profile", description = "Get current customer's profile")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<CustomerResponseDto> getMyProfile(
-            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal) {
+    public ResponseEntity<?> getMyProfile(
+            @AuthenticationPrincipal UserDetails principal) {
         if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseUtil.unauthorized();
         }
-        
-        Optional<Customer> customer = customerService.getCustomerByUsername(principal.getUsername());
-        return customer.map(c -> ResponseEntity.ok(mapToResponseDto(c)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        Customer customer = customerService.getCustomerByUsernameOrThrow(principal.getUsername());
+        return ResponseUtil.createSuccessResponse(
+                "Lấy thông tin hồ sơ thành công",
+                "Hồ sơ khách hàng hiện tại",
+                mapToResponseDto(customer),
+                HttpStatus.OK
+        );
     }
 
-
-
     @PutMapping("/profile")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Update my profile", description = "Update current customer's profile")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "400", description = "Bad request"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<CustomerResponseDto> updateMyProfile(
+    public ResponseEntity<?> updateMyProfile(
             @RequestBody @Valid CustomerUpdateRequestDto request,
-            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails principal) {
+            @AuthenticationPrincipal UserDetails principal) {
         if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseUtil.unauthorized();
         }
-        
-        try {
-            Long accountId = getAccountIdFromPrincipal(principal);
-            Customer customer = customerService.updateCustomerByAccountId(accountId, request);
-            return ResponseEntity.ok(mapToResponseDto(customer));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
+        Customer customer = customerService.updateCustomerByUsername(principal.getUsername(), request);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật hồ sơ thành công",
+                "Thông tin hồ sơ đã được cập nhật",
+                mapToResponseDto(customer),
+                HttpStatus.OK
+        );
     }
 
     @PutMapping("/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update customer", description = "Update customer by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "400", description = "Bad request")
     })
-    public ResponseEntity<CustomerResponseDto> updateCustomer(
+    public ResponseEntity<?> updateCustomer(
             @PathVariable Long customerId,
             @RequestBody @Valid CustomerUpdateRequestDto request) {
-        try {
-            Customer customer = customerService.updateCustomer(customerId, request);
-            return ResponseEntity.ok(mapToResponseDto(customer));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
+        Customer customer = customerService.updateCustomer(customerId, request);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật khách hàng thành công",
+                "Thông tin khách hàng đã được cập nhật",
+                mapToResponseDto(customer),
+                HttpStatus.OK
+        );
     }
 
     @DeleteMapping("/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete customer", description = "Delete customer by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<Void> deleteCustomer(@PathVariable Long customerId) {
-        try {
-            customerService.deleteCustomer(customerId);
-            return ResponseEntity.noContent().build();
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    private Long getAccountIdFromPrincipal(org.springframework.security.core.userdetails.UserDetails principal) {
-        // Lấy username từ principal và tìm accountId từ AccountService
-        String username = principal.getUsername();
-        return accountService.getByUsername(username)
-                .map(account -> account.getAccountId())
-                .orElse(null);
+    public ResponseEntity<?> deleteCustomer(@PathVariable Long customerId) {
+        customerService.deleteCustomer(customerId);
+        return ResponseUtil.createSuccessResponse(
+                "Xóa khách hàng thành công",
+                "Khách hàng đã được xóa",
+                HttpStatus.NO_CONTENT
+        );
     }
 
     private CustomerResponseDto mapToResponseDto(Customer customer) {
@@ -154,3 +161,4 @@ public class CustomerController {
                 .build();
     }
 }
+

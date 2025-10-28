@@ -13,7 +13,7 @@ public interface DeviceModelService {
     DeviceModelResponseDto findById(Long id);
     List<DeviceModelResponseDto> findAll();
     Page<DeviceModelResponseDto> search(String deviceName,
-                                        String brand,
+                                        Long brandId,
                                         Long deviceCategoryId,
                                         Boolean isActive,
                                         Pageable pageable);

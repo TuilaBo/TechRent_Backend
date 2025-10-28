@@ -25,7 +25,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/operator/kyc")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
 @Tag(name = "KYC Management", description = "APIs để quản lý KYC cho customer")
 public class KYCController {
 
@@ -37,6 +36,7 @@ public class KYCController {
      * POST /api/operator/kyc/customers/{customerId}/documents?type=front_cccd
      */
     @PostMapping("/customers/{customerId}/documents")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Upload KYC document")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Upload thành công"),
@@ -81,6 +81,7 @@ public class KYCController {
      * Update KYC status (RESTful: PATCH)
      */
     @PatchMapping("/customers/{customerId}")
+    @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN') or hasRole('CUSTOMER')")
     @Operation(summary = "Update KYC status")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
@@ -116,6 +117,7 @@ public class KYCController {
      * Get customers pending verification
      */
     @GetMapping("/pending")
+    @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
     @Operation(summary = "Get customers pending KYC verification")
     public ResponseEntity<?> getPendingVerification() {
         try {
@@ -142,6 +144,7 @@ public class KYCController {
      * Get KYC info for customer
      */
     @GetMapping("/customers/{customerId}")
+    @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
     @Operation(summary = "Get KYC info for customer")
     public ResponseEntity<?> getCustomerKYC(@PathVariable Long customerId) {
         try {
@@ -170,6 +173,7 @@ public class KYCController {
      * Get all KYC statuses (for dropdown/select)
      */
     @GetMapping("/statuses")
+    @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
     @Operation(summary = "Get all KYC statuses")
     public ResponseEntity<?> getKYCStatuses() {
         try {

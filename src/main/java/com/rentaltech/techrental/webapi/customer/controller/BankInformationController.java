@@ -1,10 +1,9 @@
-package com.rentaltech.techrental.device.controller;
+package com.rentaltech.techrental.webapi.customer.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
-import com.rentaltech.techrental.device.model.dto.AccessoryCategoryRequestDto;
-import com.rentaltech.techrental.device.service.AccessoryCategoryService;
+import com.rentaltech.techrental.webapi.customer.model.dto.BankInformationRequestDto;
+import com.rentaltech.techrental.webapi.customer.service.BankInformationService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,92 +16,93 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/accessory-categories")
-@Tag(name = "Accessory Categories", description = "Accessory category management APIs")
-public class AccessoryCategoryController {
+@RequestMapping("/api/bank-informations")
+@Tag(name = "Bank Information", description = "Bank information management APIs")
+public class BankInformationController {
 
-    private final AccessoryCategoryService service;
+    private final BankInformationService service;
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create accessory category", description = "Create a new accessory category")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Create bank information", description = "Create a new bank information for a customer")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Created"),
             @ApiResponse(responseCode = "400", description = "Invalid data"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> create(@Valid @RequestBody AccessoryCategoryRequestDto request) {
+    public ResponseEntity<?> create(@Valid @RequestBody BankInformationRequestDto request) {
         return ResponseUtil.createSuccessResponse(
-                "Danh mục phụ kiện được tạo thành công",
-                "Danh mục phụ kiện đã được thêm vào hệ thống",
+                "Thêm thông tin ngân hàng thành công",
+                "Bank information has been created",
                 service.create(request),
                 HttpStatus.CREATED
         );
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get accessory category by ID", description = "Retrieve accessory category by ID")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
+    @Operation(summary = "Get bank information by ID", description = "Retrieve bank information by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "404", description = "Not found"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "Accessory category ID") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
-                "Danh mục phụ kiện tìm thấy",
-                "Danh mục phụ kiện với id " + id + " đã được tìm thấy",
+                "Tìm thấy thông tin ngân hàng",
+                "Bank information found with id " + id,
                 service.findById(id),
                 HttpStatus.OK
         );
     }
 
     @GetMapping
-    @Operation(summary = "List accessory categories", description = "Retrieve all accessory categories")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
+    @Operation(summary = "List bank informations", description = "Retrieve all bank informations; customers only see their own")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
-                "Danh sách tất cả danh mục phụ kiện",
-                "Danh sách tất cả danh mục phụ kiện trong hệ thống",
+                "Danh sách thông tin ngân hàng",
+                "All bank informations",
                 service.findAll(),
                 HttpStatus.OK
         );
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update accessory category", description = "Update accessory category by ID")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Update bank information", description = "Update bank information by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "400", description = "Invalid data"),
             @ApiResponse(responseCode = "404", description = "Not found"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> update(@Parameter(description = "Accessory category ID") @PathVariable Long id,
-                                    @Valid @RequestBody AccessoryCategoryRequestDto request) {
+    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody BankInformationRequestDto request) {
         return ResponseUtil.createSuccessResponse(
-                "Danh mục phụ kiện được cập nhật thành công",
-                "Danh mục phụ kiện với id " + id + " đã cập nhật vào hệ thống",
+                "Cập nhật thông tin ngân hàng thành công",
+                "Bank information updated",
                 service.update(id, request),
                 HttpStatus.OK
         );
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete accessory category", description = "Delete accessory category by ID")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Delete bank information", description = "Delete bank information by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),
             @ApiResponse(responseCode = "404", description = "Not found"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "Accessory category ID") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
-                "Danh mục phụ kiện được xóa thành công",
-                "Danh mục phụ kiện với id " + id + " đã xóa khỏi hệ thống",
+                "Xóa thông tin ngân hàng thành công",
+                "Bank information deleted",
                 HttpStatus.NO_CONTENT
         );
     }
