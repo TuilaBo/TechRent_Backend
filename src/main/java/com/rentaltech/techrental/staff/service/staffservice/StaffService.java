@@ -18,6 +18,7 @@ public interface StaffService {
     List<Staff> getActiveStaff();
 
     Staff createStaff(@Valid StaffCreateRequestDto request);
+    Staff createStaffWithAccount(@jakarta.validation.Valid com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto request);
     Staff updateStaffStatus(Long staffId, Boolean isActive);
     Staff updateStaffRole(Long staffId, StaffRole staffRole);
     void deleteStaff(Long staffId);

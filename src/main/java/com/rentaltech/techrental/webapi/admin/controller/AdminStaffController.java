@@ -3,6 +3,7 @@ package com.rentaltech.techrental.webapi.admin.controller;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffResponseDto;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,17 +28,14 @@ public class AdminStaffController {
     @Autowired
     private StaffService staffService;
 
-    // Tạo staff mới (Admin only)
+    
+    // Tạo staff + account trong 1 call (Admin only)
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create staff", description = "Create a new staff account")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Created"),
-            @ApiResponse(responseCode = "400", description = "Bad request")
-    })
-    public ResponseEntity<StaffResponseDto> createStaff(@RequestBody @Valid StaffCreateRequestDto request) {
+    @Operation(summary = "Create staff with account", description = "Admin nhập email/password/role -> tạo cả Account và Staff")
+    public ResponseEntity<StaffResponseDto> createStaffWithAccount(@RequestBody @Valid AdminStaffCreateWithAccountRequestDto request) {
         try {
-            Staff savedStaff = staffService.createStaff(request);
+            Staff savedStaff = staffService.createStaffWithAccount(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponseDto(savedStaff));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();

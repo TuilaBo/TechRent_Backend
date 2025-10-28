@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
@@ -87,6 +88,16 @@ public class GlobalExceptionHandler {
                 "Lỗi hệ thống",
                 "Có lỗi xảy ra: " + ex.getMessage(),
                 HttpStatus.INTERNAL_SERVER_ERROR
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxUploadSize(MaxUploadSizeExceededException ex, WebRequest request) {
+        return ResponseUtil.createErrorResponse(
+                "PAYLOAD_TOO_LARGE",
+                "Tệp tải lên vượt quá giới hạn",
+                "Vui lòng chọn tệp dung lượng nhỏ hơn",
+                HttpStatus.PAYLOAD_TOO_LARGE
         );
     }
 

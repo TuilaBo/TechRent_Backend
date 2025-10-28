@@ -124,43 +124,7 @@ public class ContractController {
         }
     }
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation( description = "Tạo một hợp đồng mới trong hệ thống")
-    @Deprecated
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Tạo hợp đồng thành công",
-                    content = @Content(schema = @Schema(implementation = SuccessResponseDto.class))),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ",
-                    content = @Content(schema = @Schema(implementation = AuthErrorResponseDto.class))),
-            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
-            @ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
-    })
-    public ResponseEntity<?> createContract(
-            @Parameter(description = "Thông tin hợp đồng cần tạo", required = true)
-            @RequestBody @Valid ContractCreateRequestDto request,
-            @AuthenticationPrincipal UserDetails principal) {
-        try {
-            // Lấy accountId từ username thông qua AccountService
-            Long createdBy = getAccountIdFromPrincipal(principal);
-            Contract contract = contractService.createContract(request, createdBy);
-            
-            return ResponseUtil.createSuccessResponse(
-                    "Tạo hợp đồng thành công!",
-                    "Hợp đồng đã được tạo và lưu vào hệ thống",
-                    contract,
-                    HttpStatus.CREATED
-            );
-        } catch (Exception e) {
-            return ResponseUtil.createErrorResponse(
-                    "CREATE_CONTRACT_FAILED",
-                    "Tạo hợp đồng thất bại",
-                    "Có lỗi xảy ra: " + e.getMessage(),
-                    HttpStatus.BAD_REQUEST
-            );
-        }
-    }
-
+   
     @PostMapping("/from-order/{orderId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(description = "Tạo hợp đồng tự động từ đơn thuê")

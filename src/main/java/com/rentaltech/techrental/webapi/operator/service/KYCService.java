@@ -13,16 +13,25 @@ public interface KYCService {
      * Upload KYC document for customer
      */
     Customer uploadDocument(Long customerId, MultipartFile file, String documentType);
+    Customer uploadDocuments(Long customerId, MultipartFile front, MultipartFile back, MultipartFile selfie);
+
+    // Higher-level orchestration (move business from controller)
+    Map<String, Object> operatorUploadDocument(Long customerId, MultipartFile file, String documentType);
+    Map<String, Object> customerUploadDocument(String username, MultipartFile file, String documentType);
+    Map<String, Object> customerUploadDocuments(String username, MultipartFile front, MultipartFile back, MultipartFile selfie);
+    Map<String, Object> getMyKyc(String username);
     
     /**
      * Update KYC status (verify or reject)
      */
     Customer updateKYCStatus(Long customerId, KYCVerificationDto request, Long operatorId);
+    Map<String, Object> updateKycStatusAndBuild(Long customerId, KYCVerificationDto request, Long operatorId);
     
     /**
      * Get list of customers pending verification
      */
     List<Customer> getPendingVerification();
+    List<Map<String, Object>> getPendingVerificationMaps();
     
     /**
      * Get KYC info for customer

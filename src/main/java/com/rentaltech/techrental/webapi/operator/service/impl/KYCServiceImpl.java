@@ -5,6 +5,7 @@ import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.KYCVerificationDto;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.operator.service.KYCService;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,77 +23,182 @@ import java.util.Map;
 public class KYCServiceImpl implements KYCService {
     
     private final CustomerRepository customerRepository;
+    private final ImageStorageService imageStorageService;
+    private final com.rentaltech.techrental.webapi.customer.repository.CustomerRepository custRepo; // alias if needed
     
     @Override
     public Customer uploadDocument(Long customerId, MultipartFile file, String documentType) {
-        // Validate customer exists
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
-        
-        // Validate file
-        if (file == null || file.isEmpty()) {
-            throw new RuntimeException("File không được để trống");
+        try {
+            // Validate customer exists
+            Customer customer = customerRepository.findById(customerId)
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
+
+            // Validate file
+            if (file == null || file.isEmpty()) {
+                throw new RuntimeException("File không được để trống");
+            }
+
+            // Upload file and get URL
+            String imageUrl = imageStorageService.uploadKycImage(file, customerId, documentType);
+
+            // Update customer with image URL
+            switch (documentType) {
+                case "front_cccd" -> customer.setKycFrontCCCDUrl(imageUrl);
+                case "back_cccd" -> customer.setKycBackCCCDUrl(imageUrl);
+                case "selfie" -> customer.setKycSelfieUrl(imageUrl);
+                default -> throw new RuntimeException("Loại giấy tờ không hợp lệ");
+            }
+
+            // Update KYC status
+            updateKYCStatusAfterUpload(customer);
+
+            return customerRepository.save(customer);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Upload KYC thất bại: " + e.getMessage(), e);
         }
-        
-        // Upload file and get URL
-        String imageUrl = saveImageAndReturnUrl(file, customerId, documentType);
-        
-        // Update customer with image URL
-        switch (documentType) {
-            case "front_cccd" -> customer.setKycFrontCCCDUrl(imageUrl);
-            case "back_cccd" -> customer.setKycBackCCCDUrl(imageUrl);
-            case "selfie" -> customer.setKycSelfieUrl(imageUrl);
-            default -> throw new RuntimeException("Loại giấy tờ không hợp lệ");
+    }
+
+    @Override
+    public Map<String, Object> operatorUploadDocument(Long customerId, MultipartFile file, String documentType) {
+        Customer c = uploadDocument(customerId, file, documentType);
+        return buildKYCMap(c);
+    }
+
+    @Override
+    public Map<String, Object> customerUploadDocument(String username, MultipartFile file, String documentType) {
+        try {
+            Customer me = customerRepository.findAll().stream()
+                    .filter(c -> c.getAccount() != null && c.getAccount().getUsername().equals(username))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại"));
+            Customer updated = uploadDocument(me.getCustomerId(), file, documentType);
+            return buildKYCMap(updated);
+        } catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new RuntimeException("Upload KYC thất bại: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public Map<String, Object> customerUploadDocuments(String username, MultipartFile front, MultipartFile back, MultipartFile selfie) {
+        try {
+            Customer me = customerRepository.findAll().stream()
+                    .filter(c -> c.getAccount() != null && c.getAccount().getUsername().equals(username))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại"));
+            Customer updated = uploadDocuments(me.getCustomerId(), front, back, selfie);
+            return buildKYCMap(updated);
+        } catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new RuntimeException("Upload KYC nhiều ảnh thất bại: " + e.getMessage(), e); }
+    }
+
+    @Override
+    public Customer uploadDocuments(Long customerId, MultipartFile front, MultipartFile back, MultipartFile selfie) {
+        try {
+            Customer customer = customerRepository.findById(customerId)
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
+
+            if ((front == null || front.isEmpty()) && (back == null || back.isEmpty()) && (selfie == null || selfie.isEmpty())) {
+                throw new RuntimeException("Ít nhất một ảnh phải được chọn");
+            }
+
+            if (front != null && !front.isEmpty()) {
+                String url = imageStorageService.uploadKycImage(front, customerId, "front_cccd");
+                customer.setKycFrontCCCDUrl(url);
+            }
+            if (back != null && !back.isEmpty()) {
+                String url = imageStorageService.uploadKycImage(back, customerId, "back_cccd");
+                customer.setKycBackCCCDUrl(url);
+            }
+            if (selfie != null && !selfie.isEmpty()) {
+                String url = imageStorageService.uploadKycImage(selfie, customerId, "selfie");
+                customer.setKycSelfieUrl(url);
+            }
+
+            updateKYCStatusAfterUpload(customer);
+            return customerRepository.save(customer);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Upload KYC nhiều ảnh thất bại: " + e.getMessage(), e);
         }
-        
-        // Update KYC status
-        updateKYCStatusAfterUpload(customer);
-        
-        return customerRepository.save(customer);
     }
     
     @Override
     public Customer updateKYCStatus(Long customerId, KYCVerificationDto request, Long operatorId) {
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
-        
-        customer.setKycStatus(request.getStatus());
-        customer.setKycVerifiedAt(LocalDateTime.now());
-        customer.setKycVerifiedBy(operatorId);
-        
-        if (request.getStatus() == KYCStatus.REJECTED) {
-            customer.setKycRejectionReason(request.getRejectionReason());
+        try {
+            Customer customer = customerRepository.findById(customerId)
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
+
+            customer.setKycStatus(request.getStatus());
+            customer.setKycVerifiedAt(LocalDateTime.now());
+            customer.setKycVerifiedBy(operatorId);
+
+            if (request.getStatus() == KYCStatus.REJECTED) {
+                customer.setKycRejectionReason(request.getRejectionReason());
+            }
+
+            return customerRepository.save(customer);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Cập nhật trạng thái KYC thất bại: " + e.getMessage(), e);
         }
-        
-        return customerRepository.save(customer);
+    }
+
+    @Override
+    public Map<String, Object> updateKycStatusAndBuild(Long customerId, KYCVerificationDto request, Long operatorId) {
+        Customer c = updateKYCStatus(customerId, request, operatorId);
+        return buildKYCMap(c);
     }
     
     @Override
     @Transactional(readOnly = true)
     public List<Customer> getPendingVerification() {
-        List<Customer> customers = new ArrayList<>();
-        customers.addAll(customerRepository.findByKycStatus(KYCStatus.PENDING_VERIFICATION));
-        customers.addAll(customerRepository.findByKycStatus(KYCStatus.DOCUMENTS_SUBMITTED));
-        return customers;
+        try {
+            List<Customer> customers = new ArrayList<>();
+            customers.addAll(customerRepository.findByKycStatus(KYCStatus.PENDING_VERIFICATION));
+            customers.addAll(customerRepository.findByKycStatus(KYCStatus.DOCUMENTS_SUBMITTED));
+            return customers;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Lấy danh sách chờ xác minh thất bại: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getPendingVerificationMaps() {
+        return getPendingVerification().stream().map(this::buildKYCMap).toList();
+    }
+
+    @Override
+    public Map<String, Object> getMyKyc(String username) {
+        Customer me = customerRepository.findAll().stream()
+                .filter(c -> c.getAccount() != null && c.getAccount().getUsername().equals(username))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Customer không tồn tại"));
+        return buildKYCMap(me);
     }
     
     @Override
     @Transactional(readOnly = true)
     public Customer getKYCInfo(Long customerId) {
-        return customerRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
+        try {
+            return customerRepository.findById(customerId)
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Lấy thông tin KYC thất bại: " + e.getMessage(), e);
+        }
     }
     
     /**
      * Save image to storage and return URL
      * TODO: Implement with cloud storage (S3, Azure Blob, etc.)
      */
-    private String saveImageAndReturnUrl(MultipartFile file, Long customerId, String imageType) {
-        // TODO: Implement actual file upload
-        // For now, return mock URL
-        return String.format("/uploads/kyc/customer_%d_%s_%d.jpg", 
-                customerId, imageType, System.currentTimeMillis());
-    }
+    // removed local stub uploader; using Cloudinary via ImageStorageService
     
     /**
      * Update KYC status based on uploaded documents
