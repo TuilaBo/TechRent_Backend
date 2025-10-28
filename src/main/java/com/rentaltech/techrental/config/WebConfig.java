@@ -29,6 +29,7 @@ public class WebConfig {
         config.addAllowedMethod("PUT");
         config.addAllowedMethod("DELETE");
         config.addAllowedMethod("OPTIONS");
+        config.addAllowedMethod("PATCH");
 
         // Allow common headers
         config.addAllowedHeader("Origin");

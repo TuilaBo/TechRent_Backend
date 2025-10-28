@@ -112,7 +112,7 @@ public class TaskController {
 
     // Cập nhật task
     @PutMapping("/{taskId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Update task", description = "Update a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),

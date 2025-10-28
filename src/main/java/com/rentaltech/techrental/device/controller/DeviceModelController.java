@@ -44,7 +44,6 @@ public class DeviceModelController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get device model by ID", description = "Retrieve device model by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
@@ -76,6 +75,7 @@ public class DeviceModelController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update device model", description = "Update device model by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),

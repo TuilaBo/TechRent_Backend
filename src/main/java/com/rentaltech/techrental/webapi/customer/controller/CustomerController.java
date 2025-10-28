@@ -1,8 +1,10 @@
 package com.rentaltech.techrental.webapi.customer.controller;
 
 import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.model.dto.BankInformationResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequestDto;
+import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressResponseDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import jakarta.validation.Valid;
@@ -11,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/customer")
 @AllArgsConstructor
@@ -151,10 +155,32 @@ public class CustomerController {
                 .email(customer.getEmail())
                 .phoneNumber(customer.getPhoneNumber())
                 .fullName(customer.getFullName())
-                .shippingAddress(customer.getShippingAddress())
-                .bankAccountNumber(customer.getBankAccountNumber())
-                .bankName(customer.getBankName())
-                .bankAccountHolder(customer.getBankAccountHolder())
+                .kycStatus(customer.getKycStatus())
+                .shippingAddressDtos(customer.getShippingAddresses().stream().map(
+                        entity -> {
+                            return ShippingAddressResponseDto.builder()
+                                    .shippingAddressId(entity.getShippingAddressId())
+                                    .address(entity.getAddress())
+                                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
+                                    .createdAt(entity.getCreatedAt())
+                                    .updatedAt(entity.getUpdatedAt())
+                                    .build();
+                        }).toList()
+
+                )
+                .bankInformationDtos(customer.getBankInformations().stream().map(
+                        entity -> {
+                            return BankInformationResponseDto.builder()
+                                    .bankInformationId(entity.getBankInformationId())
+                                    .bankName(entity.getBankName())
+                                    .bankHolder(entity.getBankHolder())
+                                    .cardNumber(entity.getCardNumber())
+                                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
+                                    .createdAt(entity.getCreatedAt())
+                                    .updatedAt(entity.getUpdatedAt())
+                                    .build();
+                        }).toList()
+                )
                 .status(customer.getStatus())
                 .createdAt(customer.getCreatedAt())
                 .updatedAt(customer.getUpdatedAt())

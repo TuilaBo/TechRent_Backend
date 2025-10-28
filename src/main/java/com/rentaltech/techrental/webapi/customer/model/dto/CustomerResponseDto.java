@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.webapi.customer.model.dto;
 
 import com.rentaltech.techrental.webapi.customer.model.CustomerStatus;
+import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -21,10 +23,9 @@ public class CustomerResponseDto {
     private String email;
     private String phoneNumber;
     private String fullName;
-    private String shippingAddress;
-    private String bankAccountNumber;
-    private String bankName;
-    private String bankAccountHolder;
+    private KYCStatus kycStatus;
+    private List<ShippingAddressResponseDto> shippingAddressDtos;
+    private List<BankInformationResponseDto> bankInformationDtos;
     private CustomerStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -24,11 +24,11 @@ public class CustomerUpdateRequestDto {
     @Size(max = 100, message = "Họ tên không được quá 100 ký tự")
     private String fullName;
 
-    @Size(max = 500, message = "Địa chỉ giao hàng không được quá 500 ký tự")
-    private String shippingAddress;
-
-    @Size(max = 20, message = "Số tài khoản ngân hàng không được quá 20 ký tự")
-    private String bankAccountNumber;
+//    @Size(max = 500, message = "Địa chỉ giao hàng không được quá 500 ký tự")
+//    private String shippingAddress;
+//
+//    @Size(max = 20, message = "Số tài khoản ngân hàng không được quá 20 ký tự")
+//    private String bankAccountNumber;
 
     @Size(max = 100, message = "Tên ngân hàng không được quá 100 ký tự")
     private String bankName;

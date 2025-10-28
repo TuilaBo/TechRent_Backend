@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class BankInformationResponseDto {
     private Long bankInformationId;
     private String bankName;
+    private String bankHolder;
     private String cardNumber;
     private Long customerId;
     private LocalDateTime createdAt;
