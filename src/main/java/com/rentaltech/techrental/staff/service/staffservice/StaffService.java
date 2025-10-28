@@ -14,6 +14,8 @@ public interface StaffService {
     List<Staff> getAllStaff();
     Optional<Staff> getStaffById(Long staffId);
     Optional<Staff> getStaffByAccountId(Long accountId);
+    Staff getStaffByIdOrThrow(Long staffId);
+    Staff getStaffByAccountIdOrThrow(Long accountId);
     List<Staff> getStaffByRole(StaffRole staffRole);
     List<Staff> getActiveStaff();
 

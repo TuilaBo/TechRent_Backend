@@ -12,6 +12,7 @@ public interface TaskService {
     Task getTaskById(Long taskId);
     List<Task> getTasksByCategory(Long categoryId);
     List<Task> getTasksByOrder(Long orderId);
+    List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status);
     Task updateTask(Long taskId, TaskUpdateRequestDto request);
     void deleteTask(Long taskId);
     List<Task> getOverdueTasks();

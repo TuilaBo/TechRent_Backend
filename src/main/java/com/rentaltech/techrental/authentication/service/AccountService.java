@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.authentication.service;
 
 import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 
 import java.util.List;
 import java.util.Optional;
@@ -10,8 +11,12 @@ public interface AccountService {
     Optional<Account> getAccountById(Long id);
     Account addAccount(Account account);
 
+    // Register a new CUSTOMER account and send verification email
+    Account registerCustomer(CreateUserRequestDto request);
+
     void setVerificationCodeAndSendEmail(Account account);
-    boolean verifyEmail(String email, String code);
+    // Throws IllegalArgumentException if invalid/expired, NoSuchElementException if not found
+    void verifyEmail(String email, String code);
 
     Optional<Account> getByUsername(String username);
 
@@ -29,7 +34,8 @@ public interface AccountService {
     /**
      * Resend verification code cho account chưa verify
      */
-    boolean resendVerificationCode(String email);
+    // Throws IllegalArgumentException/NoSuchElementException when invalid
+    void resendVerificationCode(String email);
 
     /**
      * Authenticate user with username or email and return JWT token

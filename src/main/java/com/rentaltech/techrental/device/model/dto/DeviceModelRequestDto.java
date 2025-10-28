@@ -20,9 +20,8 @@ public class DeviceModelRequestDto {
     @Size(max = 100)
     private String deviceName;
 
-    @NotBlank
-    @Size(max = 100)
-    private String brand;
+    @NotNull
+    private Long brandId;
 
     @Size(max = 500)
     private String imageURL;
