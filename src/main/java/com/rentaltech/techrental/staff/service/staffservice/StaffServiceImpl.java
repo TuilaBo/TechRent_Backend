@@ -6,9 +6,11 @@ import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -76,6 +78,27 @@ public class StaffServiceImpl implements StaffService {
                 .staffRole(request.getStaffRole())
                 .build();
 
+        return staffRepository.save(staff);
+    }
+
+    @Override
+    @Transactional
+    public Staff createStaffWithAccount(AdminStaffCreateWithAccountRequestDto request) {
+        Account account = Account.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(request.getPassword())
+                .phoneNumber(request.getPhoneNumber())
+                .role(mapStaffRoleToAccountRole(request.getStaffRole()))
+                .isActive(true)
+                .build();
+        Account saved = accountService.addAccount(account);
+
+        Staff staff = Staff.builder()
+                .account(saved)
+                .staffRole(request.getStaffRole())
+                .isActive(true)
+                .build();
         return staffRepository.save(staff);
     }
 
