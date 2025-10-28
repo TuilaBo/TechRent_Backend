@@ -2,10 +2,12 @@ package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.DeviceCategory;
 import com.rentaltech.techrental.device.model.DeviceModel;
+import com.rentaltech.techrental.device.model.Brand;
 import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
+import com.rentaltech.techrental.device.repository.BrandRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -22,11 +24,14 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     private final DeviceModelRepository repository;
     private final DeviceCategoryRepository deviceCategoryRepository;
+    private final BrandRepository brandRepository;
 
     public DeviceModelServiceImpl(DeviceModelRepository repository,
-                                  DeviceCategoryRepository deviceCategoryRepository) {
+                                  DeviceCategoryRepository deviceCategoryRepository,
+                                  BrandRepository brandRepository) {
         this.repository = repository;
         this.deviceCategoryRepository = deviceCategoryRepository;
+        this.brandRepository = brandRepository;
     }
 
     @Override
@@ -52,11 +57,11 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     @Override
     @Transactional(readOnly = true)
     public Page<DeviceModelResponseDto> search(String deviceName,
-                                               String brand,
+                                               Long brandId,
                                                Long deviceCategoryId,
                                                Boolean isActive,
                                                Pageable pageable) {
-        Specification<DeviceModel> spec = buildSpecification(deviceName, brand, deviceCategoryId, isActive);
+        Specification<DeviceModel> spec = buildSpecification(deviceName, brandId, deviceCategoryId, isActive);
         return repository.findAll(spec, pageable).map(this::mapToDto);
     }
 
@@ -79,12 +84,17 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         if (request.getDeviceCategoryId() == null) {
             throw new IllegalArgumentException("deviceCategoryId is required");
         }
+        if (request.getBrandId() == null) {
+            throw new IllegalArgumentException("brandId is required");
+        }
         DeviceCategory category = deviceCategoryRepository.findById(request.getDeviceCategoryId())
                 .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + request.getDeviceCategoryId()));
+        Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + request.getBrandId()));
 
         return DeviceModel.builder()
                 .deviceName(request.getDeviceName())
-                .brand(request.getBrand())
+                .brand(brand)
                 .imageURL(request.getImageURL())
                 .specifications(request.getSpecifications())
                 .isActive(request.isActive())
@@ -100,11 +110,16 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         if (request.getDeviceCategoryId() == null) {
             throw new IllegalArgumentException("deviceCategoryId is required");
         }
+        if (request.getBrandId() == null) {
+            throw new IllegalArgumentException("brandId is required");
+        }
         DeviceCategory category = deviceCategoryRepository.findById(request.getDeviceCategoryId())
                 .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + request.getDeviceCategoryId()));
+        Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + request.getBrandId()));
 
         entity.setDeviceName(request.getDeviceName());
-        entity.setBrand(request.getBrand());
+        entity.setBrand(brand);
         entity.setImageURL(request.getImageURL());
         entity.setSpecifications(request.getSpecifications());
         entity.setActive(request.isActive());
@@ -118,7 +133,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         return DeviceModelResponseDto.builder()
                 .deviceModelId(entity.getDeviceModelId())
                 .deviceName(entity.getDeviceName())
-                .brand(entity.getBrand())
+                .brandId(entity.getBrand() != null ? entity.getBrand().getBrandId() : null)
                 .imageURL(entity.getImageURL())
                 .specifications(entity.getSpecifications())
                 .isActive(entity.isActive())
@@ -130,7 +145,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     }
 
     private Specification<DeviceModel> buildSpecification(String deviceName,
-                                                          String brand,
+                                                          Long brandId,
                                                           Long deviceCategoryId,
                                                           Boolean isActive) {
         return (root, query, cb) -> {
@@ -138,8 +153,8 @@ public class DeviceModelServiceImpl implements DeviceModelService {
             if (deviceName != null && !deviceName.isBlank()) {
                 predicate.getExpressions().add(cb.like(cb.lower(root.get("deviceName")), "%" + deviceName.toLowerCase() + "%"));
             }
-            if (brand != null && !brand.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("brand")), "%" + brand.toLowerCase() + "%"));
+            if (brandId != null) {
+                predicate.getExpressions().add(cb.equal(root.join("brand").get("brandId"), brandId));
             }
             if (deviceCategoryId != null) {
                 predicate.getExpressions().add(cb.equal(root.join("deviceCategory").get("deviceCategoryId"), deviceCategoryId));

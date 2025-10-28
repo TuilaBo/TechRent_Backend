@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 @Service
 public class TaskServiceImpl implements TaskService {
@@ -40,13 +42,13 @@ public class TaskServiceImpl implements TaskService {
             validateTaskCreationRequest(request);
             
             TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
-                    .orElseThrow(() -> new RuntimeException("TaskCategory not found"));
+                    .orElseThrow(() -> new NoSuchElementException("TaskCategory not found"));
 
             // Tìm staff được assign (nếu có)
             Staff assignedStaff = null;
             if (request.getAssignedStaffId() != null) {
                 assignedStaff = staffRepository.findById(request.getAssignedStaffId())
-                        .orElseThrow(() -> new RuntimeException("Staff not found"));
+                        .orElseThrow(() -> new NoSuchElementException("Staff not found"));
             }
 
             Task task = Task.builder()
@@ -104,13 +106,40 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status) {
+        List<Task> tasks = taskRepository.findAll();
+        if (categoryId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getTaskCategory().getTaskCategoryId().equals(categoryId))
+                    .collect(Collectors.toList());
+        }
+        if (orderId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getOrderId().equals(orderId))
+                    .collect(Collectors.toList());
+        }
+        if (assignedStaffId != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getAssignedStaff() != null &&
+                            task.getAssignedStaff().getStaffId().equals(assignedStaffId))
+                    .collect(Collectors.toList());
+        }
+        if (status != null) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getStatus().toString().equalsIgnoreCase(status))
+                    .collect(Collectors.toList());
+        }
+        return tasks;
+    }
+
+    @Override
     public Task updateTask(Long taskId, TaskUpdateRequestDto request) {
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(() -> new NoSuchElementException("Task not found"));
 
         if (request.getTaskCategoryId() != null) {
             TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
-                    .orElseThrow(() -> new RuntimeException("TaskCategory not found"));
+                    .orElseThrow(() -> new NoSuchElementException("TaskCategory not found"));
             task.setTaskCategory(category);
         }
         if (request.getType() != null) task.setType(request.getType());
@@ -125,7 +154,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public void deleteTask(Long taskId) {
         if (!taskRepository.existsById(taskId)) {
-            throw new RuntimeException("Task not found");
+            throw new NoSuchElementException("Task not found");
         }
         taskRepository.deleteById(taskId);
     }

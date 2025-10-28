@@ -6,8 +6,10 @@ import com.rentaltech.techrental.staff.model.dto.TaskResponseDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.rentaltech.techrental.common.util.ResponseUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -28,120 +30,120 @@ public class TaskController {
 
     // Tạo task mới (Job Ticket)
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Create task", description = "Create a new staff task")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Created"),
             @ApiResponse(responseCode = "400", description = "Bad request")
     })
-    public ResponseEntity<TaskResponseDto> createTask(@RequestBody @Valid TaskCreateRequestDto request) {
+    public ResponseEntity<?> createTask(@RequestBody @Valid TaskCreateRequestDto request) {
         Task savedTask = taskService.createTask(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponseDto(savedTask));
+        return ResponseUtil.createSuccessResponse(
+                "Tạo tác vụ thành công",
+                "Tác vụ đã được tạo",
+                mapToResponseDto(savedTask),
+                HttpStatus.CREATED
+        );
     }
 
     // Lấy tasks với filter options
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "List tasks", description = "Get tasks with optional filters")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success")
     })
-    public ResponseEntity<List<TaskResponseDto>> getTasks(
+    public ResponseEntity<?> getTasks(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long orderId,
             @RequestParam(required = false) Long assignedStaffId,
             @RequestParam(required = false) String status) {
-        
-        List<Task> tasks = taskService.getAllTasks();
-        
-        // Apply filters
-        if (categoryId != null) {
-            tasks = tasks.stream()
-                    .filter(task -> task.getTaskCategory().getTaskCategoryId().equals(categoryId))
-                    .collect(Collectors.toList());
-        }
-        
-        if (orderId != null) {
-            tasks = tasks.stream()
-                    .filter(task -> task.getOrderId().equals(orderId))
-                    .collect(Collectors.toList());
-        }
-        
-        if (assignedStaffId != null) {
-            tasks = tasks.stream()
-                    .filter(task -> task.getAssignedStaff() != null && 
-                                   task.getAssignedStaff().getStaffId().equals(assignedStaffId))
-                    .collect(Collectors.toList());
-        }
-        
-        if (status != null) {
-            tasks = tasks.stream()
-                    .filter(task -> task.getStatus().toString().equalsIgnoreCase(status))
-                    .collect(Collectors.toList());
-        }
-        
+
+        List<Task> tasks = taskService.getTasks(categoryId, orderId, assignedStaffId, status);
         List<TaskResponseDto> responseDtos = tasks.stream()
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(responseDtos);
+        return ResponseUtil.createSuccessResponse(
+                "Lấy danh sách tác vụ thành công",
+                "Danh sách tác vụ",
+                responseDtos,
+                HttpStatus.OK
+        );
     }
 
     // Lấy task theo ID
     @GetMapping("/{taskId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get task by ID", description = "Retrieve a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<TaskResponseDto> getTaskById(@PathVariable Long taskId) {
+    public ResponseEntity<?> getTaskById(@PathVariable Long taskId) {
         Task task = taskService.getTaskById(taskId);
-        return ResponseEntity.ok(mapToResponseDto(task));
+        return ResponseUtil.createSuccessResponse(
+                "Lấy tác vụ thành công",
+                "Chi tiết tác vụ",
+                mapToResponseDto(task),
+                HttpStatus.OK
+        );
     }
 
     // Lấy tasks theo order ID
     @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get tasks by order", description = "Retrieve tasks by order ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success")
     })
-    public ResponseEntity<List<TaskResponseDto>> getTasksByOrder(@PathVariable Long orderId) {
+    public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId) {
         List<Task> tasks = taskService.getTasksByOrder(orderId);
         List<TaskResponseDto> responseDtos = tasks.stream()
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(responseDtos);
+        return ResponseUtil.createSuccessResponse(
+                "Lấy danh sách tác vụ theo đơn hàng thành công",
+                "Danh sách tác vụ theo đơn hàng",
+                responseDtos,
+                HttpStatus.OK
+        );
     }
 
 
     // Cập nhật task
     @PutMapping("/{taskId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Update task", description = "Update a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<TaskResponseDto> updateTask(@PathVariable Long taskId, 
+    public ResponseEntity<?> updateTask(@PathVariable Long taskId,
                                                      @RequestBody @Valid TaskUpdateRequestDto request) {
-        try {
-            Task updatedTask = taskService.updateTask(taskId, request);
-            return ResponseEntity.ok(mapToResponseDto(updatedTask));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        Task updatedTask = taskService.updateTask(taskId, request);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật tác vụ thành công",
+                "Tác vụ đã được cập nhật",
+                mapToResponseDto(updatedTask),
+                HttpStatus.OK
+        );
     }
 
     // Xóa task
     @DeleteMapping("/{taskId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Delete task", description = "Delete a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
-        try {
-            taskService.deleteTask(taskId);
-            return ResponseEntity.noContent().build();
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<?> deleteTask(@PathVariable Long taskId) {
+        taskService.deleteTask(taskId);
+        return ResponseUtil.createSuccessResponse(
+                "Xóa tác vụ thành công",
+                "Tác vụ đã được xóa",
+                HttpStatus.NO_CONTENT
+        );
     }
 
 

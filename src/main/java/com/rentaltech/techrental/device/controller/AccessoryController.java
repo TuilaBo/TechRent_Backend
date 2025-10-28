@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,6 +24,7 @@ public class AccessoryController {
     private final AccessoryService service;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create accessory", description = "Create a new accessory")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Created"),
@@ -70,6 +72,7 @@ public class AccessoryController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update accessory", description = "Update accessory by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
@@ -88,6 +91,7 @@ public class AccessoryController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete accessory", description = "Delete accessory by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted"),

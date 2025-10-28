@@ -2,6 +2,7 @@ package com.rentaltech.techrental.device.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.rentaltech.techrental.device.model.Brand;
 
 @Entity
 @Table(name = "DeviceModel")
@@ -19,8 +20,12 @@ public class DeviceModel {
     @Column(name = "deivce_name", length = 100, nullable = false)
     private String deviceName;
 
-    @Column(name = "brand", length = 100, nullable = false)
-    private String brand;
+    @ManyToOne
+    @JoinColumn(name = "brand_id", referencedColumnName = "brand_id", nullable = false)
+    private Brand brand;
+
+    @Column(name = "description", length = 300, nullable = false)
+    private String description;
 
     @Column(name = "image_url", length = 500)
     private String imageURL;

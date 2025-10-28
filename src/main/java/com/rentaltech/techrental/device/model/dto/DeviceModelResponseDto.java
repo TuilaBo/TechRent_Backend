@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class DeviceModelResponseDto {
     private Long deviceModelId;
     private String deviceName;
-    private String brand;
+    private Long brandId;
     private String imageURL;
     private String specifications;
     private boolean isActive;

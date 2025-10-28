@@ -4,11 +4,10 @@ import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.repository.AccountRepository;
 import com.rentaltech.techrental.authentication.model.dto.LoginDto;
+import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -19,6 +18,7 @@ import com.rentaltech.techrental.security.JwtTokenProvider;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.NoSuchElementException;
 
 @Service
 public class AccountServiceImpl implements AccountService {
@@ -27,9 +27,7 @@ public class AccountServiceImpl implements AccountService {
 
     @Autowired
     private AccountRepository accountRepository;
-    @Autowired
-    private JavaMailSender mailSender;
-    
+
     @Autowired
     private CustomerRepository customerRepository;
 
@@ -38,6 +36,9 @@ public class AccountServiceImpl implements AccountService {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private VerificationEmailService verificationEmailService;
 
     @Override
     public List<Account> getAllAccounts() {
@@ -53,14 +54,14 @@ public class AccountServiceImpl implements AccountService {
     public Account addAccount(Account account) {
         // Kiểm tra username đã tồn tại chưa
         if (accountRepository.findByUsername(account.getUsername()) != null) {
-            throw new RuntimeException("Username already exists!");
+            throw new IllegalArgumentException("Username already exists!");
         }
         
         // Kiểm tra email đã tồn tại chưa (chỉ với accounts đã verified)
         if (account.getEmail() != null) {
             Account existingEmailAccount = accountRepository.findByEmail(account.getEmail());
             if (existingEmailAccount != null && existingEmailAccount.getIsActive()) {
-                throw new RuntimeException("Email already exists!");
+                throw new IllegalArgumentException("Email already exists!");
             }
             // Nếu email tồn tại nhưng chưa verified, xóa account cũ
             if (existingEmailAccount != null && !existingEmailAccount.getIsActive()) {
@@ -72,7 +73,7 @@ public class AccountServiceImpl implements AccountService {
         if (account.getPhoneNumber() != null) {
             Account existingPhoneAccount = accountRepository.findByPhoneNumber(account.getPhoneNumber());
             if (existingPhoneAccount != null && existingPhoneAccount.getIsActive()) {
-                throw new RuntimeException("Phone number already exists!");
+                throw new IllegalArgumentException("Phone number already exists!");
             }
             // Nếu phone tồn tại nhưng chưa verified, xóa account cũ
             if (existingPhoneAccount != null && !existingPhoneAccount.getIsActive()) {
@@ -103,33 +104,43 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    public Account registerCustomer(CreateUserRequestDto request) {
+        Account account = Account.builder()
+                .username(request.getUsername())
+                .password(request.getPassword())
+                .email(request.getEmail())
+                .phoneNumber(request.getPhoneNumber())
+                .isActive(false)
+                .role(Role.CUSTOMER)
+                .build();
+        Account saved = addAccount(account);
+        setVerificationCodeAndSendEmail(saved);
+        return saved;
+    }
+
+    @Override
     public void setVerificationCodeAndSendEmail(Account account) {
         String code = String.format("%06d", new java.util.Random().nextInt(1_000_000));
         account.setVerificationCode(code);
         account.setVerificationExpiry(java.time.LocalDateTime.now().plusMinutes(10));
         accountRepository.save(account);
-
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(account.getEmail());
-        message.setSubject("Verify your email");
-        message.setText("Your verification code is: " + code + "\nThis code expires in 10 minutes.");
-        mailSender.send(message);
+        // Send email asynchronously to avoid blocking response
+        verificationEmailService.sendVerificationEmail(account.getEmail(), code);
     }
 
     @Override
-    public boolean verifyEmail(String email, String code) {
+    public void verifyEmail(String email, String code) {
         Account account = accountRepository.findByEmailAndVerificationCode(email, code);
         if (account == null) {
-            return false;
+            throw new NoSuchElementException("Không tìm thấy tài khoản hoặc mã xác thực không đúng");
         }
         if (account.getVerificationExpiry() == null || account.getVerificationExpiry().isBefore(java.time.LocalDateTime.now())) {
-            return false;
+            throw new IllegalArgumentException("Mã xác thực không hợp lệ hoặc đã hết hạn");
         }
         account.setIsActive(true);
         account.setVerificationCode(null);
         account.setVerificationExpiry(null);
         accountRepository.save(account);
-        return true;
     }
 
     @Override
@@ -177,18 +188,16 @@ public class AccountServiceImpl implements AccountService {
     /**
      * Resend verification code cho account chưa verify
      */
-    public boolean resendVerificationCode(String email) {
+    @Override
+    public void resendVerificationCode(String email) {
         Account account = accountRepository.findByEmail(email);
         if (account == null) {
-            return false;
+            throw new NoSuchElementException("Không tìm thấy tài khoản với email đã cung cấp");
         }
-        
-        if (account.getIsActive()) {
-            return false; // Account đã verified
+        if (Boolean.TRUE.equals(account.getIsActive())) {
+            throw new IllegalStateException("Tài khoản đã được xác thực");
         }
-        
         setVerificationCodeAndSendEmail(account);
-        return true;
     }
 
     @Override
