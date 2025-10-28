@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.webapi.customer.service;
 
+import com.rentaltech.techrental.webapi.customer.model.BankInformation;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.ShippingAddress;
 import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressRequestDto;
@@ -33,13 +34,16 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
     @Override
     public ShippingAddressResponseDto create(ShippingAddressRequestDto request) {
         if (request == null) throw new IllegalArgumentException("ShippingAddressRequestDto is null");
-        if (request.getCustomerId() == null) throw new IllegalArgumentException("customerId is required");
         if (request.getAddress() == null || request.getAddress().isBlank()) {
             throw new IllegalArgumentException("address is required");
         }
 
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + request.getCustomerId()));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Customer customer = customerRepository.findByAccount_Username(auth.getName())
+                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+        if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
+            throw new IllegalArgumentException("Address is already exists");
+        }
 
         ShippingAddress entity = ShippingAddress.builder()
                 .address(request.getAddress())
@@ -83,6 +87,13 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         if (request.getAddress() != null && !request.getAddress().isBlank()) {
             existing.setAddress(request.getAddress());
         }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Customer customer = customerRepository.findByAccount_Username(auth.getName())
+                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+        if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
+            throw new IllegalArgumentException("Address is already exists");
+        }
+
         ShippingAddress saved = repository.save(existing);
         return mapToDto(saved);
     }

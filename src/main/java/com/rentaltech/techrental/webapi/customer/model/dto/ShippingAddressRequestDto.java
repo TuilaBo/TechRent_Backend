@@ -15,8 +15,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ShippingAddressRequestDto {
-    @NotNull(message = "customerId is required")
-    private Long customerId;
 
     @NotBlank(message = "address is required")
     @Size(max = 500, message = "address must be <= 500 characters")

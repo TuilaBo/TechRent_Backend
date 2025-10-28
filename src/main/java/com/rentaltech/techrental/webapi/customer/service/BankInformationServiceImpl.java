@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -33,16 +34,18 @@ public class BankInformationServiceImpl implements BankInformationService {
     @Override
     public BankInformationResponseDto create(BankInformationRequestDto request) {
         if (request == null) throw new IllegalArgumentException("BankInformationRequestDto is null");
-        if (request.getCustomerId() == null) throw new IllegalArgumentException("customerId is required");
         if (request.getBankName() == null || request.getBankName().isBlank()) {
             throw new IllegalArgumentException("bankName is required");
         }
         if (request.getCardNumber() == null || request.getCardNumber().isBlank()) {
             throw new IllegalArgumentException("cardNumber is required");
         }
-
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + request.getCustomerId()));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Customer customer = customerRepository.findByAccount_Username(auth.getName())
+                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+        if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customer.getCustomerId())) {
+            throw new IllegalArgumentException("Card with this number is already in use");
+        }
 
         BankInformation entity = BankInformation.builder()
                 .bankName(request.getBankName())
@@ -89,6 +92,14 @@ public class BankInformationServiceImpl implements BankInformationService {
         }
         if (request.getCardNumber() != null && !request.getCardNumber().isBlank()) {
             existing.setCardNumber(request.getCardNumber());
+        }
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long customerId = customerRepository.findByAccount_Username(username)
+                .map(Customer::getCustomerId)
+                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + username));
+
+        if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customerId)) {
+            throw new IllegalArgumentException("Card with this number is already in use");
         }
 
         BankInformation saved = repository.save(existing);

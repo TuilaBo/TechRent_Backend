@@ -15,8 +15,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BankInformationRequestDto {
-    @NotNull(message = "customerId is required")
-    private Long customerId;
 
     @NotBlank(message = "bankName is required")
     @Size(max = 100, message = "bankName must be <= 100 characters")

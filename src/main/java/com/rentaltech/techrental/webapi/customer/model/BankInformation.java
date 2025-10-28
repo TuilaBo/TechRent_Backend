@@ -26,7 +26,7 @@ public class BankInformation {
     @Column(name = "bank_name", length = 100, nullable = false)
     private String bankName;
 
-    @Column(name = "card_number", length = 20, nullable = false)
+    @Column(name = "card_number", length = 20, nullable = false, unique = true)
     private String cardNumber;
 
     @CreationTimestamp

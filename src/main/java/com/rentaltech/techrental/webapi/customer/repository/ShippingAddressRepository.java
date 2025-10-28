@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface ShippingAddressRepository extends JpaRepository<ShippingAddress, Long> {
     List<ShippingAddress> findByCustomer_CustomerId(Long customerId);
+
+    boolean existsByAddressAndCustomer_CustomerId(String address, Long customerCustomerId);
 }

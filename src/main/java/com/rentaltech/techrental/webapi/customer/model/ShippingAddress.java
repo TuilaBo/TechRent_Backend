@@ -23,6 +23,7 @@ public class ShippingAddress {
     @Column(name = "shipping_address_id", nullable = false)
     private Long shippingAddressId;
 
+    @Column(name = "address", length = 500, nullable = false, unique = true)
     private String address;
 
     @CreationTimestamp

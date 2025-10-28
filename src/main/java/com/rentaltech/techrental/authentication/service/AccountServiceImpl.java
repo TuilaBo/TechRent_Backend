@@ -8,8 +8,6 @@ import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,9 +27,7 @@ public class AccountServiceImpl implements AccountService {
 
     @Autowired
     private AccountRepository accountRepository;
-    @Autowired
-    private JavaMailSender mailSender;
-    
+
     @Autowired
     private CustomerRepository customerRepository;
 
@@ -58,14 +54,14 @@ public class AccountServiceImpl implements AccountService {
     public Account addAccount(Account account) {
         // Kiểm tra username đã tồn tại chưa
         if (accountRepository.findByUsername(account.getUsername()) != null) {
-            throw new RuntimeException("Username already exists!");
+            throw new IllegalArgumentException("Username already exists!");
         }
         
         // Kiểm tra email đã tồn tại chưa (chỉ với accounts đã verified)
         if (account.getEmail() != null) {
             Account existingEmailAccount = accountRepository.findByEmail(account.getEmail());
             if (existingEmailAccount != null && existingEmailAccount.getIsActive()) {
-                throw new RuntimeException("Email already exists!");
+                throw new IllegalArgumentException("Email already exists!");
             }
             // Nếu email tồn tại nhưng chưa verified, xóa account cũ
             if (existingEmailAccount != null && !existingEmailAccount.getIsActive()) {
@@ -77,7 +73,7 @@ public class AccountServiceImpl implements AccountService {
         if (account.getPhoneNumber() != null) {
             Account existingPhoneAccount = accountRepository.findByPhoneNumber(account.getPhoneNumber());
             if (existingPhoneAccount != null && existingPhoneAccount.getIsActive()) {
-                throw new RuntimeException("Phone number already exists!");
+                throw new IllegalArgumentException("Phone number already exists!");
             }
             // Nếu phone tồn tại nhưng chưa verified, xóa account cũ
             if (existingPhoneAccount != null && !existingPhoneAccount.getIsActive()) {
