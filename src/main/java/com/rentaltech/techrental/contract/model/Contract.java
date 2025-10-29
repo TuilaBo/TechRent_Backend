@@ -46,10 +46,10 @@ public class Contract {
     @Column(name = "order_id")
     private Long orderId; // Link to RentalOrder
     
-    @Column(name = "contract_content")
+    @Column(name = "contract_content", columnDefinition = "TEXT")
     private String contractContent; // Nội dung contract HTML/PDF
     
-    @Column(name = "terms_and_conditions")
+    @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
     private String termsAndConditions;
     
     @Column(name = "rental_period_days")
