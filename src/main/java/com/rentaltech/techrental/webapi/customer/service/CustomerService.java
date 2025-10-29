@@ -95,8 +95,8 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setFullName(request.getFullName());
-        customer.setShippingAddress(request.getShippingAddress());
-        customer.setBankAccountNumber(request.getBankAccountNumber());
+//        customer.setShippingAddress(request.getShippingAddress());
+//        customer.setBankAccountNumber(request.getBankAccountNumber());
         customer.setBankName(request.getBankName());
         customer.setBankAccountHolder(request.getBankAccountHolder());
         
@@ -110,8 +110,8 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setFullName(request.getFullName());
-        customer.setShippingAddress(request.getShippingAddress());
-        customer.setBankAccountNumber(request.getBankAccountNumber());
+//        customer.setShippingAddress(request.getShippingAddress());
+//        customer.setBankAccountNumber(request.getBankAccountNumber());
         customer.setBankName(request.getBankName());
         customer.setBankAccountHolder(request.getBankAccountHolder());
         

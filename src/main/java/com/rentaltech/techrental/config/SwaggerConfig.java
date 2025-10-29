@@ -24,14 +24,14 @@ public class SwaggerConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
                 .exposedHeaders("Content-Type", "Accept-Charset")
                 .allowCredentials(true);
     }
 
     @Bean
-    public OpenAPI openAPI(@Value("${swagger.server-url:http://localhost:8081}") String serverUrl) {
+    public OpenAPI openAPI(@Value("${swagger.server-url:http://localhost:8080}") String serverUrl) {
         return new OpenAPI()
                 .servers(List.of(new Server().url(serverUrl)))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "Customer")
@@ -45,6 +46,12 @@ public class Customer {
 
     @Column(name = "bank_account_holder", length = 100)
     private String bankAccountHolder;
+
+    @OneToMany(mappedBy = "customer", fetch = FetchType.EAGER)
+    private List<ShippingAddress> shippingAddresses;
+
+    @OneToMany(mappedBy = "customer", fetch =  FetchType.EAGER)
+    private List<BankInformation> bankInformations;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

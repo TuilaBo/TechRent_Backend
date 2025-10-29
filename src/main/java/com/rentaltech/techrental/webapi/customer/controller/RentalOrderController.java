@@ -58,8 +58,8 @@ public class RentalOrderController {
         );
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
     @Operation(summary = "List rental orders", description = "Retrieve all rental orders with details")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
@@ -111,7 +111,7 @@ public class RentalOrderController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
     @Operation(summary = "Search/sort/filter rental orders", description = "Search rental orders with pagination, sorting and filtering using Specification")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
