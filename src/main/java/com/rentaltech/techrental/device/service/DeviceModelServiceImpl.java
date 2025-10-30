@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Map;
 
 @Service
 @Transactional
@@ -95,6 +94,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         return DeviceModel.builder()
                 .deviceName(request.getDeviceName())
                 .brand(brand)
+                .description(request.getDescription())
                 .imageURL(request.getImageURL())
                 .specifications(request.getSpecifications())
                 .isActive(request.isActive())
@@ -120,6 +120,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
         entity.setDeviceName(request.getDeviceName());
         entity.setBrand(brand);
+        entity.setDescription(request.getDescription());
         entity.setImageURL(request.getImageURL());
         entity.setSpecifications(request.getSpecifications());
         entity.setActive(request.isActive());
