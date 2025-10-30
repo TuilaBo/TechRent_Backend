@@ -175,22 +175,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             var username = auth.getName();
             var customerOpt = customerRepository.findByAccount_Username(username);
             Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
-            Specification<RentalOrder> spec = buildSpecification(
-                    null,
-                    requesterCustomerId,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            orders = rentalOrderRepository.findAll(spec);
+            orders = rentalOrderRepository.findByCustomer_CustomerId(requesterCustomerId);
         } else {
             orders = rentalOrderRepository.findAll();
         }

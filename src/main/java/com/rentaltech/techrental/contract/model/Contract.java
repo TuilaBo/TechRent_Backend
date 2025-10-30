@@ -19,13 +19,13 @@ public class Contract {
     @Column(name = "contract_id")
     private Long contractId;
     
-    @Column(name = "contract_number", nullable = false, unique = true, length = 50)
+    @Column(name = "contract_number", nullable = false, unique = true, columnDefinition = "TEXT")
     private String contractNumber;
     
-    @Column(name = "title", nullable = false, length = 200)
+    @Column(name = "title", nullable = false, columnDefinition = "TEXT")
     private String title;
     
-    @Column(name = "description", length = 2000)
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
     
     @Column(name = "contract_type", nullable = false, length = 50)

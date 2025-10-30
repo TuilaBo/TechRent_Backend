@@ -49,6 +49,7 @@ public class BankInformationServiceImpl implements BankInformationService {
 
         BankInformation entity = BankInformation.builder()
                 .bankName(request.getBankName())
+                .bankHolder(request.getBankHolder())
                 .cardNumber(request.getCardNumber())
                 .customer(customer)
                 .build();
@@ -89,6 +90,9 @@ public class BankInformationServiceImpl implements BankInformationService {
         if (request == null) throw new IllegalArgumentException("BankInformationRequestDto is null");
         if (request.getBankName() != null && !request.getBankName().isBlank()) {
             existing.setBankName(request.getBankName());
+        }
+        if (request.getBankHolder() != null && !request.getBankHolder().isBlank()) {
+            existing.setBankHolder(request.getBankHolder());
         }
         if (request.getCardNumber() != null && !request.getCardNumber().isBlank()) {
             existing.setCardNumber(request.getCardNumber());
@@ -135,6 +139,7 @@ public class BankInformationServiceImpl implements BankInformationService {
         return BankInformationResponseDto.builder()
                 .bankInformationId(entity.getBankInformationId())
                 .bankName(entity.getBankName())
+                .bankHolder(entity.getBankHolder())
                 .cardNumber(entity.getCardNumber())
                 .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
                 .createdAt(entity.getCreatedAt())
