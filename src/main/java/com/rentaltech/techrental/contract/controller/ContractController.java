@@ -124,7 +124,7 @@ public class ContractController {
         }
     }
 
-   
+
     @PostMapping("/from-order/{orderId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(description = "Tạo hợp đồng tự động từ đơn thuê")

@@ -108,6 +108,12 @@
 			<artifactId>tess4j</artifactId>
 			<version>5.12.0</version>
 		</dependency>
+		<!-- JAI ImageIO for OCR image format support -->
+		<dependency>
+			<groupId>com.github.jai-imageio</groupId>
+			<artifactId>jai-imageio-core</artifactId>
+			<version>1.4.0</version>
+		</dependency>
 		<!-- Cloudinary Java SDK -->
 		<dependency>
 			<groupId>com.cloudinary</groupId>

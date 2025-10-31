@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Map;
 
 @Service
 @Transactional
@@ -121,6 +120,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
         entity.setDeviceName(request.getDeviceName());
         entity.setBrand(brand);
+        entity.setDescription(request.getDescription());
         entity.setImageURL(request.getImageURL());
         entity.setSpecifications(request.getSpecifications());
         entity.setAmountAvailable(deviceRepository.countByDeviceModel_DeviceModelId(entity.getDeviceModelId()));

@@ -30,7 +30,15 @@ public class OcrServiceImpl implements OcrService {
         tesseract.setLanguage(lang);
         File temp = null;
         try {
-            temp = File.createTempFile("kyc-ocr-", "-img");
+            // Determine file extension based on content type
+            String extension = ".png";
+            String contentType = imageFile.getContentType();
+            if (contentType != null) {
+                if (contentType.contains("jpeg") || contentType.contains("jpg")) {
+                    extension = ".jpg";
+                }
+            }
+            temp = File.createTempFile("kyc-ocr-", extension);
             Path p = temp.toPath();
             Files.copy(imageFile.getInputStream(), p, StandardCopyOption.REPLACE_EXISTING);
             return tesseract.doOCR(temp);

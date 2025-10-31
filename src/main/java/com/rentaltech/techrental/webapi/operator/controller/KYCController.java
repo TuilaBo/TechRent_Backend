@@ -97,13 +97,26 @@ public class KYCController {
      * OCR CCCD image to extract text (front/back/selfie)
      * POST /api/operator/kyc/ocr?lang=vie
      */
-    @PostMapping("/ocr")
+    @PostMapping(value = "/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
     @Operation(summary = "OCR CCCD image to text (Tesseract)")
     public ResponseEntity<?> ocrCccd(
-            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Ảnh CCCD mặt trước", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "front", required = false) MultipartFile front,
+            @Parameter(description = "Ảnh CCCD mặt sau", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "back", required = false) MultipartFile back,
+            @Parameter(description = "Ngôn ngữ OCR (mặc định: eng)", example = "vie") 
             @RequestParam(value = "lang", required = false) String lang
     ) {
+        MultipartFile file = (front != null) ? front : back;
+        if (file == null) {
+            return ResponseUtil.createErrorResponse(
+                    "NO_FILE_PROVIDED",
+                    "Không có file ảnh để OCR",
+                    "Vui lòng cung cấp ít nhất một file ảnh CCCD mặt trước hoặc mặt sau",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
         String text = ocrService.extractText(file, lang);
         Map<String, Object> data = new HashMap<>();
         data.put("text", text);
