@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @RestController
@@ -119,10 +120,12 @@ public class DeviceModelController {
     public ResponseEntity<?> search(
             @RequestParam(required = false) String deviceName,
             @RequestParam(required = false) Long brandId,
+            @RequestParam(required = false) Long amountAvailable,
             @RequestParam(required = false) Long deviceCategoryId,
+            @RequestParam(required = false) BigDecimal pricePerDay,
             @RequestParam(required = false) Boolean isActive,
             Pageable pageable) {
-        var page = service.search(deviceName, brandId, deviceCategoryId, isActive, pageable);
+        var page = service.search(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm mẫu thiết bị",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,22 +33,22 @@ public class RentalOrder {
     private OrderStatus orderStatus;
 
     @Column(name = "deposit_amount", nullable = false)
-    private Double depositAmount;
+    private BigDecimal depositAmount;
 
     @Column(name = "deposit_amount_held", nullable = false)
-    private Double depositAmountHeld;
+    private BigDecimal depositAmountHeld;
 
     @Column(name = "deposit_amount_used")
-    private Double depositAmountUsed;
+    private BigDecimal depositAmountUsed;
 
     @Column(name = "deposit_amount_refunded")
-    private Double depositAmountRefunded;
+    private BigDecimal depositAmountRefunded;
 
     @Column(name = "total_price", nullable = false)
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     @Column(name = "price_per_day", nullable = false)
-    private Double pricePerDay;
+    private BigDecimal pricePerDay;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

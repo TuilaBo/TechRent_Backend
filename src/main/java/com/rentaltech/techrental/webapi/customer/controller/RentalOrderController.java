@@ -16,6 +16,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rental-orders")
@@ -121,10 +123,10 @@ public class RentalOrderController {
             @RequestParam(required = false) String orderStatus,
             @RequestParam(required = false) Long customerId,
             @RequestParam(required = false) String shippingAddress,
-            @RequestParam(required = false) Double minTotalPrice,
-            @RequestParam(required = false) Double maxTotalPrice,
-            @RequestParam(required = false) Double minPricePerDay,
-            @RequestParam(required = false) Double maxPricePerDay,
+            @RequestParam(required = false) BigDecimal minTotalPrice,
+            @RequestParam(required = false) BigDecimal maxTotalPrice,
+            @RequestParam(required = false) BigDecimal minPricePerDay,
+            @RequestParam(required = false) BigDecimal maxPricePerDay,
             @RequestParam(required = false) String startDateFrom,
             @RequestParam(required = false) String startDateTo,
             @RequestParam(required = false) String endDateFrom,

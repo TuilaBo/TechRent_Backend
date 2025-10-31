@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -12,14 +14,14 @@ import lombok.NoArgsConstructor;
 public class DeviceModelResponseDto {
     private Long deviceModelId;
     private String deviceName;
+    private String description;
     private Long brandId;
     private String imageURL;
     private String specifications;
     private boolean isActive;
     private Long deviceCategoryId;
-
-    // Pricing fields
-    private Double deviceValue;
-    private Double pricePerDay;
-    private Double depositPercent;
+    private Long amountAvailable;
+    private BigDecimal deviceValue;
+    private BigDecimal pricePerDay;
+    private BigDecimal depositPercent;
 }

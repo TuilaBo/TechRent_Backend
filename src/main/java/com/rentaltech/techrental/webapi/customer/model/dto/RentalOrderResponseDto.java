@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,12 +20,12 @@ public class RentalOrderResponseDto {
     private LocalDateTime endDate;
     private String shippingAddress;
     private OrderStatus orderStatus;
-    private Double depositAmount;
-    private Double depositAmountHeld;
-    private Double depositAmountUsed;
-    private Double depositAmountRefunded;
-    private Double totalPrice;
-    private Double pricePerDay;
+    private BigDecimal depositAmount;
+    private BigDecimal depositAmountHeld;
+    private BigDecimal depositAmountUsed;
+    private BigDecimal depositAmountRefunded;
+    private BigDecimal totalPrice;
+    private BigDecimal pricePerDay;
     private LocalDateTime createdAt;
     private Long customerId;
     private List<OrderDetailResponseDto> orderDetails;

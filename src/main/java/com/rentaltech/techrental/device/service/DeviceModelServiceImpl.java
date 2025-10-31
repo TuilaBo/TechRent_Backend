@@ -8,31 +8,28 @@ import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.BrandRepository;
+import com.rentaltech.techrental.device.repository.DeviceRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Map;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class DeviceModelServiceImpl implements DeviceModelService {
 
+    private final DeviceRepository deviceRepository;
     private final DeviceModelRepository repository;
     private final DeviceCategoryRepository deviceCategoryRepository;
     private final BrandRepository brandRepository;
-
-    public DeviceModelServiceImpl(DeviceModelRepository repository,
-                                  DeviceCategoryRepository deviceCategoryRepository,
-                                  BrandRepository brandRepository) {
-        this.repository = repository;
-        this.deviceCategoryRepository = deviceCategoryRepository;
-        this.brandRepository = brandRepository;
-    }
 
     @Override
     public DeviceModelResponseDto create(DeviceModelRequestDto request) {
@@ -58,10 +55,12 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     @Transactional(readOnly = true)
     public Page<DeviceModelResponseDto> search(String deviceName,
                                                Long brandId,
+                                               Long amountAvailable,
                                                Long deviceCategoryId,
+                                               BigDecimal pricePerDay,
                                                Boolean isActive,
                                                Pageable pageable) {
-        Specification<DeviceModel> spec = buildSpecification(deviceName, brandId, deviceCategoryId, isActive);
+        Specification<DeviceModel> spec = buildSpecification(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive);
         return repository.findAll(spec, pageable).map(this::mapToDto);
     }
 
@@ -95,7 +94,9 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         return DeviceModel.builder()
                 .deviceName(request.getDeviceName())
                 .brand(brand)
+                .description(request.getDescription())
                 .imageURL(request.getImageURL())
+                .amountAvailable(0L)
                 .specifications(request.getSpecifications())
                 .isActive(request.isActive())
                 .deviceCategory(category)
@@ -122,6 +123,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         entity.setBrand(brand);
         entity.setImageURL(request.getImageURL());
         entity.setSpecifications(request.getSpecifications());
+        entity.setAmountAvailable(deviceRepository.countByDeviceModel_DeviceModelId(entity.getDeviceModelId()));
         entity.setActive(request.isActive());
         entity.setDeviceCategory(category);
         entity.setDeviceValue(request.getDeviceValue());
@@ -133,6 +135,8 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         return DeviceModelResponseDto.builder()
                 .deviceModelId(entity.getDeviceModelId())
                 .deviceName(entity.getDeviceName())
+                .description(entity.getDescription())
+                .amountAvailable(entity.getAmountAvailable())
                 .brandId(entity.getBrand() != null ? entity.getBrand().getBrandId() : null)
                 .imageURL(entity.getImageURL())
                 .specifications(entity.getSpecifications())
@@ -146,7 +150,9 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     private Specification<DeviceModel> buildSpecification(String deviceName,
                                                           Long brandId,
+                                                          Long amountAvailable,
                                                           Long deviceCategoryId,
+                                                          BigDecimal pricePerDay,
                                                           Boolean isActive) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
@@ -155,6 +161,12 @@ public class DeviceModelServiceImpl implements DeviceModelService {
             }
             if (brandId != null) {
                 predicate.getExpressions().add(cb.equal(root.join("brand").get("brandId"), brandId));
+            }
+            if (amountAvailable != null) {
+                predicate.getExpressions().add(cb.equal(root.join("amountAvailable"), amountAvailable));
+            }
+            if (pricePerDay != null) {
+                predicate.getExpressions().add(cb.equal(root.join("pricePerDay"), pricePerDay));
             }
             if (deviceCategoryId != null) {
                 predicate.getExpressions().add(cb.equal(root.join("deviceCategory").get("deviceCategoryId"), deviceCategoryId));

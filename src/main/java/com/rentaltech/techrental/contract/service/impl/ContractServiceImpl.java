@@ -499,8 +499,8 @@ public class ContractServiceImpl implements ContractService {
                     .contractContent(contractContent)
                     .termsAndConditions(termsAndConditions)
                     .rentalPeriodDays(rentalPeriodDays)
-                    .totalAmount(BigDecimal.valueOf(order.getTotalPrice()))
-                    .depositAmount(BigDecimal.valueOf(order.getDepositAmount()))
+                    .totalAmount(order.getTotalPrice())
+                    .depositAmount(order.getDepositAmount())
                     .startDate(order.getStartDate())
                     .endDate(order.getEndDate())
                     .expiresAt(order.getEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
@@ -532,7 +532,7 @@ public class ContractServiceImpl implements ContractService {
                     .append(detail.getDeviceModel().getDeviceName())
                     .append(" (").append(detail.getDeviceModel().getBrand()).append(")")
                     .append(" - Giá/ngày: ").append(detail.getPricePerDay())
-                    .append(" - Tiền cọc: ").append(detail.getDepositAmountPerUnit() * detail.getQuantity())
+                    .append(" - Tiền cọc: ").append(detail.getDepositAmountPerUnit().multiply(BigDecimal.valueOf(detail.getQuantity())))
                     .append("</li>");
         }
         content.append("</ul>");

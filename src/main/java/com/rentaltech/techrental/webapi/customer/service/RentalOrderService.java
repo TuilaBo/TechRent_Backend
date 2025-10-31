@@ -5,6 +5,7 @@ import com.rentaltech.techrental.webapi.customer.model.dto.RentalOrderResponseDt
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -16,10 +17,10 @@ public interface RentalOrderService {
             String orderStatus,
             Long customerId,
             String shippingAddress,
-            Double minTotalPrice,
-            Double maxTotalPrice,
-            Double minPricePerDay,
-            Double maxPricePerDay,
+            BigDecimal minTotalPrice,
+            BigDecimal maxTotalPrice,
+            BigDecimal minPricePerDay,
+            BigDecimal maxPricePerDay,
             String startDateFrom,
             String startDateTo,
             String endDateFrom,

@@ -33,7 +33,7 @@ public class CustomerController {
     private final CustomerService customerService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "List customers", description = "Retrieve all customers")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success")
@@ -52,7 +52,7 @@ public class CustomerController {
     }
 
     @GetMapping("/{customerId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get customer by ID", description = "Retrieve customer by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
@@ -113,7 +113,7 @@ public class CustomerController {
     }
 
     @PutMapping("/{customerId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Update customer", description = "Update customer by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),

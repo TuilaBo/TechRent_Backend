@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -12,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class OrderDetailResponseDto {
     private Long orderDetailId;
     private Long quantity;
-    private Double pricePerDay;
-    private Double depositAmountPerUnit;
+    private BigDecimal pricePerDay;
+    private BigDecimal depositAmountPerUnit;
     private Long deviceModelId;
 }
