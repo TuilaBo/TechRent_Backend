@@ -34,9 +34,9 @@ public class DeviceModelRequestDto {
     @Size(max = 1000)
     private String specifications;
 
-    @NotBlank
-    @Size(max = 300)
-    private String description;
+//    @NotBlank
+//    @Size(max = 300)
+//    private String description;
 
     private boolean isActive;
 
