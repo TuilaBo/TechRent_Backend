@@ -36,7 +36,19 @@ public class DeviceServiceImpl implements DeviceService {
             throw new IllegalArgumentException("Serial number already exists: " + request.getSerialNumber());
         }
         Device entity = mapToEntity(request);
-        return mapToDto(repository.save(entity));
+        Device saved = repository.save(entity);
+
+        // If new device is AVAILABLE, increase amountAvailable for its model
+        if (saved.getStatus() == DeviceStatus.AVAILABLE && saved.getDeviceModel() != null) {
+            Long modelId = saved.getDeviceModel().getDeviceModelId();
+            deviceModelRepository.findById(modelId).ifPresent(model -> {
+                Long current = model.getAmountAvailable() == null ? 0L : model.getAmountAvailable();
+                model.setAmountAvailable(current + 1);
+                deviceModelRepository.save(model);
+            });
+        }
+
+        return mapToDto(saved);
     }
 
     @Override
@@ -70,7 +82,31 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponseDto update(Long id, DeviceRequestDto request) {
         Device entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        // Capture old status and model for adjustments
+        DeviceStatus oldStatus = entity.getStatus();
+        Long oldModelId = entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null;
         applyUpdates(entity, request);
+        // After applyUpdates, entity contains new state
+        DeviceStatus newStatus = entity.getStatus();
+        Long newModelId = entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null;
+
+        // Decrement from old model if it was AVAILABLE
+        if (oldStatus == DeviceStatus.AVAILABLE && oldModelId != null) {
+            deviceModelRepository.findById(oldModelId).ifPresent(model -> {
+                Long current = model.getAmountAvailable() == null ? 0L : model.getAmountAvailable();
+                model.setAmountAvailable(Math.max(0L, current - 1));
+                deviceModelRepository.save(model);
+            });
+        }
+        // Increment on new model if now AVAILABLE
+        if (newStatus == DeviceStatus.AVAILABLE && newModelId != null) {
+            deviceModelRepository.findById(newModelId).ifPresent(model -> {
+                Long current = model.getAmountAvailable() == null ? 0L : model.getAmountAvailable();
+                model.setAmountAvailable(current + 1);
+                deviceModelRepository.save(model);
+            });
+        }
+
         return mapToDto(repository.save(entity));
     }
 

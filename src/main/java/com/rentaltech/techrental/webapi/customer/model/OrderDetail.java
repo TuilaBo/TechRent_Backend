@@ -4,6 +4,8 @@ import com.rentaltech.techrental.device.model.DeviceModel;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "OrderDetail")
 @Data
@@ -21,10 +23,10 @@ public class OrderDetail {
     private Long quantity;
 
     @Column(name = "price_per_day", nullable = false)
-    private Double pricePerDay;
+    private BigDecimal pricePerDay;
 
     @Column(name = "deposit_amount_per_unit", nullable = false)
-    private Double depositAmountPerUnit;
+    private BigDecimal depositAmountPerUnit;
 
     @ManyToOne
     @JoinColumn(name = "order_id", referencedColumnName = "order_id", nullable = false)

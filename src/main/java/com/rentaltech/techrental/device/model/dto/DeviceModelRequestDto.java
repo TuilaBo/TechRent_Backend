@@ -10,6 +10,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,6 +24,9 @@ public class DeviceModelRequestDto {
 
     @NotNull
     private Long brandId;
+
+    @Size(max = 300)
+    private String description;
 
     @Size(max = 500)
     private String imageURL;
@@ -41,14 +46,14 @@ public class DeviceModelRequestDto {
     // Pricing fields
     @NotNull
     @DecimalMin("0.0")
-    private Double deviceValue;
+    private BigDecimal deviceValue;
 
     @NotNull
     @DecimalMin("0.0")
-    private Double pricePerDay;
+    private BigDecimal pricePerDay;
 
     @NotNull
     @DecimalMin("0.0")
     @DecimalMax("1.0")
-    private Double depositPercent;
+    private BigDecimal depositPercent;
 }

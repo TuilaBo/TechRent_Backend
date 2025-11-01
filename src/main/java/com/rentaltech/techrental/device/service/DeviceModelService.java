@@ -5,6 +5,7 @@ import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +15,9 @@ public interface DeviceModelService {
     List<DeviceModelResponseDto> findAll();
     Page<DeviceModelResponseDto> search(String deviceName,
                                         Long brandId,
+                                        Long amountAvailable,
                                         Long deviceCategoryId,
+                                        BigDecimal pricePerDay,
                                         Boolean isActive,
                                         Pageable pageable);
     DeviceModelResponseDto update(Long id, DeviceModelRequestDto request);

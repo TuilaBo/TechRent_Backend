@@ -2,7 +2,8 @@ package com.rentaltech.techrental.device.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import com.rentaltech.techrental.device.model.Brand;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "DeviceModel")
@@ -24,6 +25,9 @@ public class DeviceModel {
     @JoinColumn(name = "brand_id", referencedColumnName = "brand_id", nullable = false)
     private Brand brand;
 
+    @Column(name = "amount_available")
+    private Long amountAvailable;
+
     @Column(name = "description", length = 300, nullable = false)
     private String description;
 
@@ -42,11 +46,11 @@ public class DeviceModel {
 
     // Pricing fields for rental calculation
     @Column(name = "device_value", nullable = false)
-    private Double deviceValue;
+    private BigDecimal deviceValue;
 
     @Column(name = "price_per_day", nullable = false)
-    private Double pricePerDay;
+    private BigDecimal pricePerDay;
 
     @Column(name = "deposit_percent", nullable = false)
-    private Double depositPercent;
+    private BigDecimal depositPercent;
 }
