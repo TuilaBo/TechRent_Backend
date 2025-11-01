@@ -58,7 +58,9 @@ public class SecurityWebConfig {
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/ws/**",  // WebSocket endpoint
+                                "/ws"  // WebSocket endpoint không có trailing slash
                         ).permitAll()
                         .anyRequest().permitAll()
                 )
