@@ -12,3 +12,4 @@ public interface MaintenancePlanDeviceRepository extends JpaRepository<Maintenan
 
 
 
+
