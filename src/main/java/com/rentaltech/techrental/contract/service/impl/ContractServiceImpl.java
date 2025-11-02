@@ -302,7 +302,7 @@ public class ContractServiceImpl implements ContractService {
                     .ipAddress(request.getIpAddress())
                     .signedAt(LocalDateTime.now())
                     .signatureStatus("VALID")
-                    .certificateInfo("Digital Certificate Verified")
+                    .certificateInfo("Chứng thư số đã được xác thực")
                     .auditTrail(generateAuditTrail(request))
                     .build();
             
@@ -353,7 +353,7 @@ public class ContractServiceImpl implements ContractService {
      */
     private String generateAuditTrail(DigitalSignatureRequestDto request) {
         return String.format(
-                "Signature Method: %s, Device: %s, IP: %s, Time: %s",
+                "Phương thức ký: %s, Thiết bị: %s, IP: %s, Thời gian: %s",
                 request.getSignatureMethod(),
                 request.getDeviceInfo(),
                 request.getIpAddress(),
@@ -658,7 +658,7 @@ public class ContractServiceImpl implements ContractService {
             return true;
             
         } catch (Exception e) {
-            System.err.println("Lỗi validate contract for signature: " + e.getMessage());
+            System.err.println("Lỗi kiểm tra hợp đồng trước khi ký: " + e.getMessage());
             return false;
         }
     }
@@ -698,7 +698,7 @@ public class ContractServiceImpl implements ContractService {
             return true;
             
         } catch (Exception e) {
-            System.err.println("Lỗi validate signature data: " + e.getMessage());
+            System.err.println("Lỗi kiểm tra dữ liệu chữ ký: " + e.getMessage());
             return false;
         }
     }

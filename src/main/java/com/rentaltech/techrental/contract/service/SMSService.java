@@ -35,8 +35,8 @@ public class SMSService {
             String formattedPhone = formatVietnamesePhone(phoneNumber);
             
             // Nội dung SMS
-            String message = "TechRental: Ma PIN de ky hop dong la: " + otp + 
-                           ". Ma co hieu luc trong 5 phut. Khong chia se ma nay voi bat ky ai.";
+            String message = "TechRental: Mã PIN để ký hợp đồng là: " + otp +
+                           ". Mã có hiệu lực trong 5 phút. Không chia sẻ mã này với bất kỳ ai.";
             
             // Gọi API Viettel SMS
             return sendViettelSMS(formattedPhone, message);
@@ -105,8 +105,8 @@ public class SMSService {
      */
     public boolean sendOTPViaTwilio(String phoneNumber, String otp) {
         try {
-            String message = "TechRental: Your PIN code is: " + otp + 
-                           ". Valid for 5 minutes. Do not share this code.";
+            String message = "TechRental: Mã PIN của bạn là: " + otp +
+                           ". Mã có hiệu lực trong 5 phút. Không chia sẻ mã này.";
             
             // Twilio API implementation
             // Cần thêm Twilio SDK dependency
@@ -126,7 +126,7 @@ public class SMSService {
             // Mock implementation for testing
             System.out.println("=== SMS MOCK ===");
             System.out.println("To: " + phoneNumber);
-            System.out.println("Message: TechRental: Ma PIN de ky hop dong la: " + otp);
+            System.out.println("Message: TechRental: Mã PIN để ký hợp đồng là: " + otp);
             System.out.println("=================");
             
             // Simulate API call delay

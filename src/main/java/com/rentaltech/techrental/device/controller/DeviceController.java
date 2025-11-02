@@ -3,6 +3,9 @@ package com.rentaltech.techrental.device.controller;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
 import com.rentaltech.techrental.device.service.DeviceService;
+import com.rentaltech.techrental.webapi.customer.model.OrderDetail;
+import com.rentaltech.techrental.webapi.customer.service.CustomerService;
+import com.rentaltech.techrental.webapi.customer.repository.OrderDetailRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,9 +17,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.NoSuchElementException;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,6 +30,8 @@ import java.util.Map;
 public class DeviceController {
 
     private final DeviceService service;
+    private final OrderDetailRepository orderDetailRepository;
+    private final CustomerService customerService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -70,6 +77,56 @@ public class DeviceController {
                 "Danh sách tất cả thiết bị",
                 "Danh sách tất cả thiết bị trong hệ thống",
                 service.findAll(),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/model/{deviceModelId}")
+    @Operation(summary = "Get devices by model", description = "Retrieve all devices belonging to a model id")
+    public ResponseEntity<?> getByModel(@PathVariable Long deviceModelId) {
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách thiết bị theo model",
+                "Danh sách thiết bị của model " + deviceModelId,
+                service.findByModelId(deviceModelId),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/order-detail/{orderDetailId}")
+    @Operation(summary = "Get devices by order detail", description = "Retrieve allocated devices for an order detail")
+    public ResponseEntity<?> getByOrderDetail(@PathVariable Long orderDetailId,
+                                              Authentication authentication) {
+        OrderDetail orderDetail = orderDetailRepository.findById(orderDetailId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy OrderDetail với id: " + orderDetailId));
+
+        if (authentication != null && hasRole(authentication, "ROLE_CUSTOMER")) {
+            Long ownerCustomerId = orderDetail.getRentalOrder().getCustomer().getCustomerId();
+            Long currentCustomerId = customerService.getCustomerByUsernameOrThrow(authentication.getName()).getCustomerId();
+            if (!ownerCustomerId.equals(currentCustomerId)) {
+                return ResponseUtil.createErrorResponse(
+                        "FORBIDDEN",
+                        "Không có quyền truy cập",
+                        "Order detail không thuộc quyền sở hữu",
+                        HttpStatus.FORBIDDEN
+                );
+            }
+        }
+
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách thiết bị theo order detail",
+                "Danh sách thiết bị của order detail " + orderDetailId,
+                service.findByOrderDetail(orderDetailId),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/serial/{serialNumber}")
+    @Operation(summary = "Get device by serial number", description = "Retrieve device by serial number")
+    public ResponseEntity<?> getBySerial(@PathVariable String serialNumber) {
+        return ResponseUtil.createSuccessResponse(
+                "Thiết bị theo serial",
+                "Thiết bị với serial " + serialNumber,
+                service.findBySerialNumber(serialNumber),
                 HttpStatus.OK
         );
     }
@@ -131,5 +188,17 @@ public class DeviceController {
                 page,
                 HttpStatus.OK
         );
+    }
+
+    private boolean hasRole(Authentication authentication, String role) {
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if (role.equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

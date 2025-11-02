@@ -33,16 +33,16 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
 
     @Override
     public ShippingAddressResponseDto create(ShippingAddressRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("ShippingAddressRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("ShippingAddressRequestDto không được để trống");
         if (request.getAddress() == null || request.getAddress().isBlank()) {
-            throw new IllegalArgumentException("address is required");
+            throw new IllegalArgumentException("Cần cung cấp địa chỉ");
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Customer customer = customerRepository.findByAccount_Username(auth.getName())
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
         if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
-            throw new IllegalArgumentException("Address is already exists");
+            throw new IllegalArgumentException("Địa chỉ đã tồn tại");
         }
 
         ShippingAddress entity = ShippingAddress.builder()
@@ -57,7 +57,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
     @Transactional(readOnly = true)
     public ShippingAddressResponseDto findById(Long id) {
         ShippingAddress entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("ShippingAddress not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy địa chỉ giao hàng: " + id));
         enforceOwnershipForCustomer(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null);
         return mapToDto(entity);
     }
@@ -80,18 +80,18 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
     @Override
     public ShippingAddressResponseDto update(Long id, ShippingAddressRequestDto request) {
         ShippingAddress existing = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("ShippingAddress not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy địa chỉ giao hàng: " + id));
         enforceOwnershipForCustomer(existing.getCustomer() != null ? existing.getCustomer().getCustomerId() : null);
 
-        if (request == null) throw new IllegalArgumentException("ShippingAddressRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("ShippingAddressRequestDto không được để trống");
         if (request.getAddress() != null && !request.getAddress().isBlank()) {
             existing.setAddress(request.getAddress());
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Customer customer = customerRepository.findByAccount_Username(auth.getName())
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
         if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
-            throw new IllegalArgumentException("Address is already exists");
+            throw new IllegalArgumentException("Địa chỉ đã tồn tại");
         }
 
         ShippingAddress saved = repository.save(existing);
@@ -101,7 +101,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
     @Override
     public void delete(Long id) {
         if (!repository.existsById(id)) {
-            throw new NoSuchElementException("ShippingAddress not found: " + id);
+            throw new NoSuchElementException("Không tìm thấy địa chỉ giao hàng: " + id);
         }
         repository.deleteById(id);
     }
@@ -117,7 +117,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
                 var customerOpt = customerRepository.findByAccount_Username(username);
                 Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
                 if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: not your shipping address");
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Không có quyền: địa chỉ giao hàng không thuộc về bạn");
                 }
             }
         }

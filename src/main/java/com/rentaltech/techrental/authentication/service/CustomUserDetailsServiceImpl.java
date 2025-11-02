@@ -19,7 +19,7 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String usernameOrEmail) {
         Account account = accountRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail);
         if (account == null) {
-            throw new UsernameNotFoundException("User not found: " + usernameOrEmail);
+            throw new UsernameNotFoundException("Không tìm thấy người dùng: " + usernameOrEmail);
         }
         return new CustomUserDetails(account);
     }

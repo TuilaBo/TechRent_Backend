@@ -4,6 +4,7 @@ import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.dto.BankInformationResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequestDto;
+import com.rentaltech.techrental.webapi.customer.model.dto.SaveFcmTokenRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressResponseDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
 import com.rentaltech.techrental.common.util.ResponseUtil;
@@ -144,6 +145,27 @@ public class CustomerController {
                 "Xóa khách hàng thành công",
                 "Khách hàng đã được xóa",
                 HttpStatus.NO_CONTENT
+        );
+    }
+
+    @PostMapping("/fcm-token")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Save FCM token", description = "Lưu token FCM cho khách hàng hiện tại")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Bad request"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<?> saveFcmToken(@AuthenticationPrincipal UserDetails principal,
+                                          @RequestBody @Valid SaveFcmTokenRequestDto request) {
+        if (principal == null) {
+            return ResponseUtil.unauthorized();
+        }
+        customerService.updateCustomerFcmToken(principal.getUsername(), request.getToken());
+        return ResponseUtil.createSuccessResponse(
+                "Lưu token thành công",
+                "Token FCM đã được cập nhật",
+                HttpStatus.OK
         );
     }
 

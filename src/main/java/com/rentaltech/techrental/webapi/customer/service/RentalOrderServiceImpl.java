@@ -1,11 +1,7 @@
 package com.rentaltech.techrental.webapi.customer.service;
 
 import com.rentaltech.techrental.device.model.DeviceModel;
-import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
-import com.rentaltech.techrental.device.repository.DeviceRepository;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
@@ -38,7 +34,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -53,8 +48,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final DeviceModelRepository deviceModelRepository;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
-    private final DeviceRepository deviceRepository;
-    private final AllocationRepository allocationRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,22 +75,22 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
     @Override
     public RentalOrderResponseDto create(RentalOrderRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto không được để trống");
         if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("startDate and endDate are required");
+            throw new IllegalArgumentException("Cần cung cấp startDate và endDate");
         }
         long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("endDate must be after startDate");
+            throw new IllegalArgumentException("endDate phải sau startDate");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
         if (authCreate == null || !authCreate.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không được phép");
         }
         String usernameCreate = authCreate.getName();
         Customer customer = customerRepository.findByAccount_Username(usernameCreate)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + usernameCreate));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + usernameCreate));
         if (customer.getKycStatus() != KYCStatus.VERIFIED) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa xác nhận thông tin KYC");
         }
@@ -125,16 +118,14 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         for (OrderDetail od : computed.details()) od.setRentalOrder(saved);
         List<OrderDetail> persistedDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
         // Create allocations for each order detail
-        createAllocations(persistedDetails);
-
         // Create QC task linked to this order
         LocalDateTime now = LocalDateTime.now();
         TaskCategory category = taskCategoryRepository.findByName("Pre rental QC")
-                .orElseThrow(() -> new NoSuchElementException("TaskCategory 'Pre rental QC' not found"));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pre rental QC'"));
         Task task = Task.builder()
                 .taskCategory(category)
                 .orderId(saved.getOrderId())
-                .type("Pre rental QC")
+                .type("PRE_RENTAL_QC")
                 .plannedStart(now)
                 .plannedEnd(now.plusDays(3))
                 .build();
@@ -148,7 +139,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     @Transactional(readOnly = true)
     public RentalOrderResponseDto findById(Long id) {
         RentalOrder order = rentalOrderRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("RentalOrder not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated()) {
@@ -161,7 +152,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
                 Long ownerCustomerId = order.getCustomer() != null ? order.getCustomer().getCustomerId() : null;
                 if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: not your order");
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Không có quyền: đơn hàng không thuộc về bạn");
                 }
             }
         }
@@ -195,24 +186,24 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     @Override
     public RentalOrderResponseDto update(Long id, RentalOrderRequestDto request) {
         RentalOrder existing = rentalOrderRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("RentalOrder not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
 
-        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto không được để trống");
         if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("startDate and endDate are required");
+            throw new IllegalArgumentException("Cần cung cấp startDate và endDate");
         }
         long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("endDate must be after startDate");
+            throw new IllegalArgumentException("endDate phải sau startDate");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
         if (authCreate == null || !authCreate.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không được phép");
         }
         String usernameCreate = authCreate.getName();
         Customer customer = customerRepository.findByAccount_Username(usernameCreate)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + usernameCreate));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + usernameCreate));
         if (customer.getKycStatus() != KYCStatus.VERIFIED) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa xác nhận thông tin KYC");
         }
@@ -237,15 +228,13 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         for (OrderDetail od : computed.details()) od.setRentalOrder(saved);
         List<OrderDetail> newDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
         // Create allocations for updated order details
-        createAllocations(newDetails);
-
         return mapToDto(saved, newDetails);
     }
 
     @Override
     public void delete(Long id) {
         if (!rentalOrderRepository.existsById(id)) {
-            throw new NoSuchElementException("RentalOrder not found: " + id);
+            throw new NoSuchElementException("Không tìm thấy đơn thuê: " + id);
         }
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
@@ -311,15 +300,15 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         BigDecimal totalDeposit = BigDecimal.ZERO;
 
         if (request.getOrderDetails() == null || request.getOrderDetails().isEmpty()) {
-            throw new IllegalArgumentException("orderDetails is required");
+            throw new IllegalArgumentException("Cần cung cấp orderDetails");
         }
 
         for (OrderDetailRequestDto d : request.getOrderDetails()) {
             if (d.getDeviceModelId() == null) {
-                throw new IllegalArgumentException("deviceModelId is required in OrderDetail");
+                throw new IllegalArgumentException("Cần cung cấp deviceModelId trong OrderDetail");
             }
             DeviceModel model = deviceModelRepository.findById(d.getDeviceModelId())
-                    .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + d.getDeviceModelId()));
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + d.getDeviceModelId()));
 
             // Validate stock and decrement amountAvailable
             if (model.getAmountAvailable() == null || d.getQuantity() == null) {
@@ -346,32 +335,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             details.add(detail);
         }
         return new Computed(details, totalPerDay, totalDeposit);
-    }
-
-    private void createAllocations(List<OrderDetail> details) {
-        if (details == null || details.isEmpty()) return;
-        List<Allocation> allocations = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
-        for (OrderDetail detail : details) {
-            if (detail.getQuantity() == null || detail.getDeviceModel() == null) continue;
-            long qty = detail.getQuantity();
-            Long modelId = detail.getDeviceModel().getDeviceModelId();
-            List<Device> candidates = deviceRepository.findByDeviceModel_DeviceModelId(modelId);
-            if (candidates == null || candidates.size() < qty) {
-                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
-            }
-            Collections.shuffle(candidates);
-            for (int i = 0; i < qty; i++) {
-                Device device = candidates.get(i);
-                allocations.add(Allocation.builder()
-                        .device(device)
-                        .orderDetail(detail)
-                        .status("ALLOCATED")
-                        .allocatedAt(now)
-                        .build());
-            }
-        }
-        if (!allocations.isEmpty()) allocationRepository.saveAll(allocations);
     }
 
     private RentalOrderResponseDto mapToDto(RentalOrder order, List<OrderDetail> details) {

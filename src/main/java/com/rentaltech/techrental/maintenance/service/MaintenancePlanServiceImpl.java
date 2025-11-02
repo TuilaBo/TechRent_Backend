@@ -34,7 +34,7 @@ public class MaintenancePlanServiceImpl implements MaintenancePlanService {
                                       LocalDate endDate,
                                       String scheduleStatus) {
         if (deviceIds == null || deviceIds.isEmpty()) {
-            throw new IllegalArgumentException("deviceIds is required and must not be empty");
+            throw new IllegalArgumentException("Danh sách deviceIds là bắt buộc và không được để trống");
         }
         MaintenancePlan plan = MaintenancePlan.builder()
                 .status(status)
@@ -50,7 +50,7 @@ public class MaintenancePlanServiceImpl implements MaintenancePlanService {
         if (deviceIds != null) {
             for (Long deviceId : deviceIds) {
                 Device device = deviceRepository.findById(deviceId)
-                        .orElseThrow(() -> new java.util.NoSuchElementException("Device not found: " + deviceId));
+                        .orElseThrow(() -> new java.util.NoSuchElementException("Không tìm thấy thiết bị: " + deviceId));
                 MaintenancePlanDevice link = MaintenancePlanDevice.builder()
                         .id(new MaintenancePlanDeviceId(plan.getMaintenancePlanId(), deviceId))
                         .maintenancePlan(plan)

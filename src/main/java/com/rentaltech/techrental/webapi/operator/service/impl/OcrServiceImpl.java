@@ -23,7 +23,7 @@ public class OcrServiceImpl implements OcrService {
 
     @Override
     public String extractText(MultipartFile imageFile, String language) {
-        if (imageFile == null || imageFile.isEmpty()) throw new IllegalArgumentException("Image file is required");
+        if (imageFile == null || imageFile.isEmpty()) throw new IllegalArgumentException("Cần cung cấp tệp hình ảnh");
         String lang = (language == null || language.isBlank()) ? "eng" : language;
         Tesseract tesseract = new Tesseract();
         if (tessDataPath != null && !tessDataPath.isBlank()) tesseract.setDatapath(tessDataPath);
@@ -43,7 +43,7 @@ public class OcrServiceImpl implements OcrService {
             Files.copy(imageFile.getInputStream(), p, StandardCopyOption.REPLACE_EXISTING);
             return tesseract.doOCR(temp);
         } catch (IOException | TesseractException e) {
-            throw new RuntimeException("OCR failed: " + e.getMessage(), e);
+            throw new RuntimeException("Nhận dạng OCR thất bại: " + e.getMessage(), e);
         } finally {
             if (temp != null) temp.delete();
         }

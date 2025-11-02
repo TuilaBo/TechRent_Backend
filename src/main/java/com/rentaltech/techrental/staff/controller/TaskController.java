@@ -1,34 +1,43 @@
 package com.rentaltech.techrental.staff.controller;
 
+import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskResponseDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
-import org.springframework.beans.factory.annotation.Autowired;
-import com.rentaltech.techrental.common.util.ResponseUtil;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/staff/tasks")
 @Tag(name = "Tasks", description = "Staff task management APIs")
+@RequiredArgsConstructor
 public class TaskController {
 
-    @Autowired
-    private TaskService taskService;
+    private final TaskService taskService;
 
-    // Tạo task mới (Job Ticket)
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Create task", description = "Create a new staff task")
@@ -36,8 +45,10 @@ public class TaskController {
             @ApiResponse(responseCode = "201", description = "Created"),
             @ApiResponse(responseCode = "400", description = "Bad request")
     })
-    public ResponseEntity<?> createTask(@RequestBody @Valid TaskCreateRequestDto request) {
-        Task savedTask = taskService.createTask(request);
+    public ResponseEntity<?> createTask(@RequestBody @Valid TaskCreateRequestDto request,
+                                        Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Task savedTask = taskService.createTask(request, username);
         return ResponseUtil.createSuccessResponse(
                 "Tạo tác vụ thành công",
                 "Tác vụ đã được tạo",
@@ -46,20 +57,20 @@ public class TaskController {
         );
     }
 
-    // Lấy tasks với filter options
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "List tasks", description = "Get tasks with optional filters")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success")
     })
-    public ResponseEntity<?> getTasks(
-            @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) Long orderId,
-            @RequestParam(required = false) Long assignedStaffId,
-            @RequestParam(required = false) String status) {
+    public ResponseEntity<?> getTasks(@RequestParam(required = false) Long categoryId,
+                                      @RequestParam(required = false) Long orderId,
+                                      @RequestParam(required = false) Long assignedStaffId,
+                                      @RequestParam(required = false) String status,
+                                      Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        List<Task> tasks = taskService.getTasks(categoryId, orderId, assignedStaffId, status, username);
 
-        List<Task> tasks = taskService.getTasks(categoryId, orderId, assignedStaffId, status);
         List<TaskResponseDto> responseDtos = tasks.stream()
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
@@ -71,7 +82,6 @@ public class TaskController {
         );
     }
 
-    // Lấy task theo ID
     @GetMapping("/{taskId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get task by ID", description = "Retrieve a task by ID")
@@ -79,8 +89,10 @@ public class TaskController {
             @ApiResponse(responseCode = "200", description = "Success"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<?> getTaskById(@PathVariable Long taskId) {
-        Task task = taskService.getTaskById(taskId);
+    public ResponseEntity<?> getTaskById(@PathVariable Long taskId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Task task = taskService.getTaskById(taskId, username);
+
         return ResponseUtil.createSuccessResponse(
                 "Lấy tác vụ thành công",
                 "Chi tiết tác vụ",
@@ -89,15 +101,13 @@ public class TaskController {
         );
     }
 
-    // Lấy tasks theo order ID
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get tasks by order", description = "Retrieve tasks by order ID")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success")
-    })
-    public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId) {
-        List<Task> tasks = taskService.getTasksByOrder(orderId);
+    public ResponseEntity<?> getTasksByOrder(@PathVariable Long orderId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        List<Task> tasks = taskService.getTasksByOrder(orderId, username);
+
         List<TaskResponseDto> responseDtos = tasks.stream()
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
@@ -109,18 +119,18 @@ public class TaskController {
         );
     }
 
-
-    // Cập nhật task
     @PutMapping("/{taskId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Update task", description = "Update a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
     public ResponseEntity<?> updateTask(@PathVariable Long taskId,
-                                                     @RequestBody @Valid TaskUpdateRequestDto request) {
-        Task updatedTask = taskService.updateTask(taskId, request);
+                                        @RequestBody @Valid TaskUpdateRequestDto request,
+                                        Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Task updatedTask = taskService.updateTask(taskId, request, username);
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật tác vụ thành công",
                 "Tác vụ đã được cập nhật",
@@ -129,7 +139,30 @@ public class TaskController {
         );
     }
 
-    // Xóa task
+    @PatchMapping("/{taskId}/assign")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Assign task", description = "Assign task to a staff member")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Updated"),
+            @ApiResponse(responseCode = "400", description = "Bad request"),
+            @ApiResponse(responseCode = "404", description = "Not found")
+    })
+    public ResponseEntity<?> assignTask(@PathVariable Long taskId,
+                                        @RequestParam Long assignedStaffId,
+                                        Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        TaskUpdateRequestDto request = TaskUpdateRequestDto.builder()
+                .assignedStaffId(assignedStaffId)
+                .build();
+        Task updatedTask = taskService.updateTask(taskId, request, username);
+        return ResponseUtil.createSuccessResponse(
+                "Gán tác vụ thành công",
+                "Tác vụ đã được gán cho nhân viên",
+                mapToResponseDto(updatedTask),
+                HttpStatus.OK
+        );
+    }
+
     @DeleteMapping("/{taskId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Delete task", description = "Delete a task by ID")
@@ -137,15 +170,15 @@ public class TaskController {
             @ApiResponse(responseCode = "204", description = "Deleted"),
             @ApiResponse(responseCode = "404", description = "Not found")
     })
-    public ResponseEntity<?> deleteTask(@PathVariable Long taskId) {
-        taskService.deleteTask(taskId);
+    public ResponseEntity<?> deleteTask(@PathVariable Long taskId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        taskService.deleteTask(taskId, username);
         return ResponseUtil.createSuccessResponse(
                 "Xóa tác vụ thành công",
                 "Tác vụ đã được xóa",
                 HttpStatus.NO_CONTENT
         );
     }
-
 
     private TaskResponseDto mapToResponseDto(Task task) {
         TaskResponseDto.TaskResponseDtoBuilder builder = TaskResponseDto.builder()
@@ -161,11 +194,10 @@ public class TaskController {
                 .createdAt(task.getCreatedAt())
                 .completedAt(task.getCompletedAt());
 
-        // Thêm thông tin staff nếu có
         if (task.getAssignedStaff() != null) {
             builder.assignedStaffId(task.getAssignedStaff().getStaffId())
-                   .assignedStaffName(task.getAssignedStaff().getAccount().getUsername())
-                   .assignedStaffRole(task.getAssignedStaff().getStaffRole().toString());
+                    .assignedStaffName(task.getAssignedStaff().getAccount().getUsername())
+                    .assignedStaffRole(task.getAssignedStaff().getStaffRole().toString());
         }
 
         return builder.build();

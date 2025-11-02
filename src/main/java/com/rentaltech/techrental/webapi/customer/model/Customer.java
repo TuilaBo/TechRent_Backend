@@ -47,6 +47,9 @@ public class Customer {
     @Column(name = "bank_account_holder", length = 100)
     private String bankAccountHolder;
 
+    @Column(name = "fcm_token", length = 500)
+    private String fcmToken;
+
     @OneToMany(mappedBy = "customer", fetch = FetchType.EAGER)
     private List<ShippingAddress> shippingAddresses;
 

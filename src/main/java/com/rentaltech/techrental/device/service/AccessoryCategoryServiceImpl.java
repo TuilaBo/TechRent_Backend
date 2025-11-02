@@ -30,7 +30,7 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     @Transactional(readOnly = true)
     public AccessoryCategoryResponseDto findById(Long id) {
         AccessoryCategory entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("AccessoryCategory not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy danh mục phụ kiện: " + id));
         return mapToDto(entity);
     }
 
@@ -43,19 +43,19 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     @Override
     public AccessoryCategoryResponseDto update(Long id, AccessoryCategoryRequestDto request) {
         AccessoryCategory entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("AccessoryCategory not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy danh mục phụ kiện: " + id));
         applyUpdates(entity, request);
         return mapToDto(repository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!repository.existsById(id)) throw new NoSuchElementException("AccessoryCategory not found: " + id);
+        if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy danh mục phụ kiện: " + id);
         repository.deleteById(id);
     }
 
     private AccessoryCategory mapToEntity(AccessoryCategoryRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("AccessoryCategoryRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("AccessoryCategoryRequestDto không được để trống");
         return AccessoryCategory.builder()
                 .accessoryCategoryName(request.getAccessoryCategoryName())
                 .description(request.getDescription())
@@ -64,7 +64,7 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     }
 
     private void applyUpdates(AccessoryCategory entity, AccessoryCategoryRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("AccessoryCategoryRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("AccessoryCategoryRequestDto không được để trống");
 
         entity.setAccessoryCategoryName(request.getAccessoryCategoryName());
         entity.setDescription(request.getDescription());

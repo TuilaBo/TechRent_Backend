@@ -25,18 +25,15 @@ public class DeviceModelRequestDto {
     @NotNull
     private Long brandId;
 
-    @Size(max = 300)
-    private String description;
-
     @Size(max = 500)
     private String imageURL;
 
     @Size(max = 1000)
     private String specifications;
 
-//    @NotBlank
-//    @Size(max = 300)
-//    private String description;
+    @NotBlank
+    @Size(max = 300)
+    private String description;
 
     private boolean isActive;
 

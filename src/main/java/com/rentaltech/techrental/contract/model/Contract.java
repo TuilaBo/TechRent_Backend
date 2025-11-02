@@ -19,13 +19,13 @@ public class Contract {
     @Column(name = "contract_id")
     private Long contractId;
     
-    @Column(name = "contract_number", nullable = false, unique = true, columnDefinition = "TEXT")
+    @Column(name = "contract_number", nullable = false, unique = true, columnDefinition = "text")
     private String contractNumber;
     
-    @Column(name = "title", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "title", nullable = false, columnDefinition = "text")
     private String title;
     
-    @Column(name = "description", columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "text")
     private String description;
     
     @Column(name = "contract_type", nullable = false, length = 50)
@@ -46,10 +46,10 @@ public class Contract {
     @Column(name = "order_id")
     private Long orderId; // Link to RentalOrder
     
-    @Column(name = "contract_content", columnDefinition = "TEXT")
+    @Column(name = "contract_content", columnDefinition = "text")
     private String contractContent; // Nội dung contract HTML/PDF
     
-    @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
+    @Column(name = "terms_and_conditions", columnDefinition = "text")
     private String termsAndConditions;
     
     @Column(name = "rental_period_days")

@@ -33,7 +33,7 @@ public class BrandServiceImpl implements BrandService {
     @Transactional(readOnly = true)
     public BrandResponseDto findById(Long id) {
         Brand entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + id));
         return mapToDto(entity);
     }
 
@@ -53,19 +53,19 @@ public class BrandServiceImpl implements BrandService {
     @Override
     public BrandResponseDto update(Long id, BrandRequestDto request) {
         Brand entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + id));
         applyUpdates(entity, request);
         return mapToDto(repository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!repository.existsById(id)) throw new NoSuchElementException("Brand not found: " + id);
+        if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy thương hiệu: " + id);
         repository.deleteById(id);
     }
 
     private Brand mapToEntity(BrandRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("BrandRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("BrandRequestDto không được để trống");
         return Brand.builder()
                 .brandName(request.getBrandName())
                 .description(request.getDescription())
@@ -74,7 +74,7 @@ public class BrandServiceImpl implements BrandService {
     }
 
     private void applyUpdates(Brand entity, BrandRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("BrandRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("BrandRequestDto không được để trống");
         entity.setBrandName(request.getBrandName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());
