@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class TaskUpdateRequestDto {
     private Long taskCategoryId;
+    private Long assignedStaffId;
     private String type;
     private String description;
     private LocalDateTime plannedStart;

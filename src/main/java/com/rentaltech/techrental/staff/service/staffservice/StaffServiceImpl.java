@@ -38,7 +38,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public Staff getStaffByIdOrThrow(Long staffId) {
         return staffRepository.findById(staffId)
-                .orElseThrow(() -> new NoSuchElementException("Staff not found with id: " + staffId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với id: " + staffId));
     }
 
     @Override
@@ -49,7 +49,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public Staff getStaffByAccountIdOrThrow(Long accountId) {
         return staffRepository.findByAccount_AccountId(accountId)
-                .orElseThrow(() -> new NoSuchElementException("Staff not found for account id: " + accountId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên cho account id: " + accountId));
     }
 
     @Override
@@ -66,11 +66,11 @@ public class StaffServiceImpl implements StaffService {
     public Staff createStaff(StaffCreateRequestDto request) {
         // Kiểm tra Account có tồn tại không
         Account account = accountService.getAccountById(request.getAccountId())
-                .orElseThrow(() -> new NoSuchElementException("Account not found with id: " + request.getAccountId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản với id: " + request.getAccountId()));
 
         // Kiểm tra Staff đã tồn tại chưa
         if (staffRepository.findByAccount_AccountId(request.getAccountId()).isPresent()) {
-            throw new IllegalStateException("Staff profile already exists for this account");
+            throw new IllegalStateException("Hồ sơ nhân viên đã tồn tại cho tài khoản này");
         }
 
         Staff staff = Staff.builder()
@@ -105,7 +105,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public Staff updateStaffStatus(Long staffId, Boolean isActive) {
         Staff staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new NoSuchElementException("Staff not found with id: " + staffId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với id: " + staffId));
         staff.setIsActive(isActive);
         return staffRepository.save(staff);
     }
@@ -113,7 +113,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public Staff updateStaffRole(Long staffId, StaffRole staffRole) {
         Staff staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new NoSuchElementException("Staff not found with id: " + staffId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với id: " + staffId));
         
         // Cập nhật Staff Role
         staff.setStaffRole(staffRole);
@@ -143,7 +143,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public void deleteStaff(Long staffId) {
         Staff staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new NoSuchElementException("Staff not found with id: " + staffId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với id: " + staffId));
         staff.setIsActive(false); // Soft delete
         staffRepository.save(staff);
     }

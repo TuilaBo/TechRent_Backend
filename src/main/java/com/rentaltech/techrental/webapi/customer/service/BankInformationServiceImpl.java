@@ -33,18 +33,18 @@ public class BankInformationServiceImpl implements BankInformationService {
 
     @Override
     public BankInformationResponseDto create(BankInformationRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("BankInformationRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("BankInformationRequestDto không được để trống");
         if (request.getBankName() == null || request.getBankName().isBlank()) {
-            throw new IllegalArgumentException("bankName is required");
+            throw new IllegalArgumentException("Cần cung cấp tên ngân hàng");
         }
         if (request.getCardNumber() == null || request.getCardNumber().isBlank()) {
-            throw new IllegalArgumentException("cardNumber is required");
+            throw new IllegalArgumentException("Cần cung cấp số thẻ");
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Customer customer = customerRepository.findByAccount_Username(auth.getName())
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + auth.getName()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
         if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customer.getCustomerId())) {
-            throw new IllegalArgumentException("Card with this number is already in use");
+            throw new IllegalArgumentException("Thẻ với số này đã được sử dụng");
         }
 
         BankInformation entity = BankInformation.builder()
@@ -61,7 +61,7 @@ public class BankInformationServiceImpl implements BankInformationService {
     @Transactional(readOnly = true)
     public BankInformationResponseDto findById(Long id) {
         BankInformation entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("BankInformation not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thông tin ngân hàng: " + id));
         enforceOwnershipForCustomer(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null);
         return mapToDto(entity);
     }
@@ -84,10 +84,10 @@ public class BankInformationServiceImpl implements BankInformationService {
     @Override
     public BankInformationResponseDto update(Long id, BankInformationRequestDto request) {
         BankInformation existing = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("BankInformation not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thông tin ngân hàng: " + id));
         enforceOwnershipForCustomer(existing.getCustomer() != null ? existing.getCustomer().getCustomerId() : null);
 
-        if (request == null) throw new IllegalArgumentException("BankInformationRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("BankInformationRequestDto không được để trống");
         if (request.getBankName() != null && !request.getBankName().isBlank()) {
             existing.setBankName(request.getBankName());
         }
@@ -100,10 +100,10 @@ public class BankInformationServiceImpl implements BankInformationService {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long customerId = customerRepository.findByAccount_Username(username)
                 .map(Customer::getCustomerId)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found: " + username));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + username));
 
         if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customerId)) {
-            throw new IllegalArgumentException("Card with this number is already in use");
+            throw new IllegalArgumentException("Thẻ với số này đã được sử dụng");
         }
 
         BankInformation saved = repository.save(existing);
@@ -113,7 +113,7 @@ public class BankInformationServiceImpl implements BankInformationService {
     @Override
     public void delete(Long id) {
         if (!repository.existsById(id)) {
-            throw new NoSuchElementException("BankInformation not found: " + id);
+            throw new NoSuchElementException("Không tìm thấy thông tin ngân hàng: " + id);
         }
         repository.deleteById(id);
     }
@@ -129,7 +129,7 @@ public class BankInformationServiceImpl implements BankInformationService {
                 var customerOpt = customerRepository.findByAccount_Username(username);
                 Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
                 if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: not your bank information");
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Không có quyền: thông tin ngân hàng không thuộc về bạn");
                 }
             }
         }

@@ -16,8 +16,8 @@ public class VerificationEmailService {
     public void sendVerificationEmail(String to, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
-        message.setSubject("Verify your email");
-        message.setText("Your verification code is: " + code + "\nThis code expires in 10 minutes.");
+        message.setSubject("Xác thực email của bạn");
+        message.setText("Mã xác thực của bạn là: " + code + "\nMã sẽ hết hạn sau 10 phút.");
         mailSender.send(message);
     }
 }

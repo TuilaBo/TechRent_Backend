@@ -35,7 +35,7 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public Customer getCustomerByIdOrThrow(Long customerId) {
         return customerRepository.findById(customerId)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found with id: " + customerId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng với id: " + customerId));
     }
     
     @Transactional(readOnly = true)
@@ -46,7 +46,7 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public Customer getCustomerByAccountIdOrThrow(Long accountId) {
         return customerRepository.findByAccount_AccountId(accountId)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found for account id: " + accountId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng cho account id: " + accountId));
     }
     
     @Transactional(readOnly = true)
@@ -57,21 +57,21 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public Customer getCustomerByUsernameOrThrow(String username) {
         return customerRepository.findByAccount_Username(username)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found for username: " + username));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng với username: " + username));
     }
     
     public Customer createCustomer(Long accountId, CustomerCreateRequestDto request) {
         // Kiểm tra Account có tồn tại và có role Customer không
         Account account = accountService.getAccountById(accountId)
-                .orElseThrow(() -> new NoSuchElementException("Account not found with id: " + accountId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản với id: " + accountId));
         
         if (!account.getRole().name().equals("CUSTOMER")) {
-            throw new IllegalStateException("Account is not a Customer");
+            throw new IllegalStateException("Tài khoản không phải khách hàng");
         }
         
         // Kiểm tra Customer đã tồn tại chưa
         if (customerRepository.existsByAccount_AccountId(accountId)) {
-            throw new IllegalStateException("Customer profile already exists for this account");
+            throw new IllegalStateException("Hồ sơ khách hàng đã tồn tại cho tài khoản này");
         }
         
         Customer customer = Customer.builder()
@@ -90,7 +90,7 @@ public class CustomerService {
     
     public Customer updateCustomer(Long customerId, CustomerUpdateRequestDto request) {
         Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found with id: " + customerId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng với id: " + customerId));
         
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
@@ -105,7 +105,7 @@ public class CustomerService {
     
     public Customer updateCustomerByAccountId(Long accountId, CustomerUpdateRequestDto request) {
         Customer customer = customerRepository.findByAccount_AccountId(accountId)
-                .orElseThrow(() -> new NoSuchElementException("Customer not found for account id: " + accountId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng cho account id: " + accountId));
         
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
@@ -120,7 +120,7 @@ public class CustomerService {
     
     public void deleteCustomer(Long customerId) {
         if (!customerRepository.existsById(customerId)) {
-            throw new NoSuchElementException("Customer not found with id: " + customerId);
+            throw new NoSuchElementException("Không tìm thấy khách hàng với id: " + customerId);
         }
         customerRepository.deleteById(customerId);
     }
@@ -128,7 +128,13 @@ public class CustomerService {
     public Customer updateCustomerByUsername(String username, CustomerUpdateRequestDto request) {
         Long accountId = accountService.getByUsername(username)
                 .map(Account::getAccountId)
-                .orElseThrow(() -> new NoSuchElementException("Account not found for username: " + username));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản với username: " + username));
         return updateCustomerByAccountId(accountId, request);
+    }
+
+    public void updateCustomerFcmToken(String username, String token) {
+        Customer customer = getCustomerByUsernameOrThrow(username);
+        customer.setFcmToken(token);
+        customerRepository.save(customer);
     }
 }

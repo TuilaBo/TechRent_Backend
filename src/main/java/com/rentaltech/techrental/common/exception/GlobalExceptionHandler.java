@@ -3,6 +3,7 @@ package com.rentaltech.techrental.common.exception;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,6 +60,16 @@ public class GlobalExceptionHandler {
                 "AUTHORIZATION_FAILED",
                 "Xác thực thất bại",
                 "Bạn không thể thực hiện hành động này: " + ex.getMessage(),
+                HttpStatus.FORBIDDEN
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseUtil.createErrorResponse(
+                "ACCESS_DENIED",
+                "Không có quyền truy cập",
+                ex.getMessage(),
                 HttpStatus.FORBIDDEN
         );
     }

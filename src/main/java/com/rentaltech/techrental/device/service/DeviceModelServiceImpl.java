@@ -40,7 +40,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     @Transactional(readOnly = true)
     public DeviceModelResponseDto findById(Long id) {
         DeviceModel entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + id));
         return mapToDto(entity);
     }
 
@@ -66,29 +66,29 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     @Override
     public DeviceModelResponseDto update(Long id, DeviceModelRequestDto request) {
         DeviceModel entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + id));
         applyUpdates(entity, request);
         return mapToDto(repository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!repository.existsById(id)) throw new NoSuchElementException("DeviceModel not found: " + id);
+        if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy DeviceModel: " + id);
         repository.deleteById(id);
     }
 
     private DeviceModel mapToEntity(DeviceModelRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceModelRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceModelRequestDto không được để trống");
         if (request.getDeviceCategoryId() == null) {
-            throw new IllegalArgumentException("deviceCategoryId is required");
+            throw new IllegalArgumentException("Cần cung cấp deviceCategoryId");
         }
         if (request.getBrandId() == null) {
-            throw new IllegalArgumentException("brandId is required");
+            throw new IllegalArgumentException("Cần cung cấp brandId");
         }
         DeviceCategory category = deviceCategoryRepository.findById(request.getDeviceCategoryId())
-                .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + request.getDeviceCategoryId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + request.getDeviceCategoryId()));
         Brand brand = brandRepository.findById(request.getBrandId())
-                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + request.getBrandId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + request.getBrandId()));
 
         return DeviceModel.builder()
                 .deviceName(request.getDeviceName())
@@ -106,17 +106,17 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     }
 
     private void applyUpdates(DeviceModel entity, DeviceModelRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceModelRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceModelRequestDto không được để trống");
         if (request.getDeviceCategoryId() == null) {
-            throw new IllegalArgumentException("deviceCategoryId is required");
+            throw new IllegalArgumentException("Cần cung cấp deviceCategoryId");
         }
         if (request.getBrandId() == null) {
-            throw new IllegalArgumentException("brandId is required");
+            throw new IllegalArgumentException("Cần cung cấp brandId");
         }
         DeviceCategory category = deviceCategoryRepository.findById(request.getDeviceCategoryId())
-                .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + request.getDeviceCategoryId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + request.getDeviceCategoryId()));
         Brand brand = brandRepository.findById(request.getBrandId())
-                .orElseThrow(() -> new NoSuchElementException("Brand not found: " + request.getBrandId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + request.getBrandId()));
 
         entity.setDeviceName(request.getDeviceName());
         entity.setBrand(brand);

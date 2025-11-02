@@ -32,7 +32,7 @@ public class ChatMessage {
     @Column(name = "sender_id", nullable = false)
     private Long senderId;  // customerId hoặc staffId tùy senderType
 
-    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
 
     @Column(name = "is_read", nullable = false)

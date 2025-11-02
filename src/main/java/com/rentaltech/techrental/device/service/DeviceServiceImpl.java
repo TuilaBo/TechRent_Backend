@@ -1,10 +1,12 @@
 package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.Device;
+import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import org.springframework.data.domain.Page;
@@ -15,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Map;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -23,17 +25,20 @@ public class DeviceServiceImpl implements DeviceService {
 
     private final DeviceRepository repository;
     private final DeviceModelRepository deviceModelRepository;
+    private final AllocationRepository allocationRepository;
 
     public DeviceServiceImpl(DeviceRepository repository,
-                             DeviceModelRepository deviceModelRepository) {
+                             DeviceModelRepository deviceModelRepository,
+                             AllocationRepository allocationRepository) {
         this.repository = repository;
         this.deviceModelRepository = deviceModelRepository;
+        this.allocationRepository = allocationRepository;
     }
 
     @Override
     public DeviceResponseDto create(DeviceRequestDto request) {
         if (repository.findBySerialNumber(request.getSerialNumber()).isPresent()) {
-            throw new IllegalArgumentException("Serial number already exists: " + request.getSerialNumber());
+            throw new IllegalArgumentException("Số serial đã tồn tại: " + request.getSerialNumber());
         }
         Device entity = mapToEntity(request);
         Device saved = repository.save(entity);
@@ -55,7 +60,7 @@ public class DeviceServiceImpl implements DeviceService {
     @Transactional(readOnly = true)
     public DeviceResponseDto findById(Long id) {
         Device entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị: " + id));
         return mapToDto(entity);
     }
 
@@ -63,6 +68,32 @@ public class DeviceServiceImpl implements DeviceService {
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findAll() {
         return repository.findAll().stream().map(this::mapToDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeviceResponseDto> findByModelId(Long deviceModelId) {
+        return repository.findByDeviceModel_DeviceModelId(deviceModelId).stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeviceResponseDto> findByOrderDetail(Long orderDetailId) {
+        return allocationRepository.findByOrderDetail_OrderDetailId(orderDetailId).stream()
+                .map(Allocation::getDevice)
+                .filter(Objects::nonNull)
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DeviceResponseDto findBySerialNumber(String serialNumber) {
+        return repository.findBySerialNumber(serialNumber)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị với serial: " + serialNumber));
     }
 
     @Override
@@ -81,7 +112,7 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     public DeviceResponseDto update(Long id, DeviceRequestDto request) {
         Device entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị: " + id));
         // Capture old status and model for adjustments
         DeviceStatus oldStatus = entity.getStatus();
         Long oldModelId = entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null;
@@ -112,18 +143,18 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public void delete(Long id) {
-        if (!repository.existsById(id)) throw new NoSuchElementException("Device not found: " + id);
+        if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy thiết bị: " + id);
         repository.deleteById(id);
     }
 
     private Device mapToEntity(DeviceRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceRequestDto không được để trống");
         if (request.getDeviceModelId() == null) {
-            throw new IllegalArgumentException("deviceModelId is required");
+            throw new IllegalArgumentException("Cần cung cấp deviceModelId");
         }
 
         DeviceModel model = deviceModelRepository.findById(request.getDeviceModelId())
-                .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + request.getDeviceModelId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + request.getDeviceModelId()));
 
         return Device.builder()
                 .serialNumber(request.getSerialNumber())
@@ -135,17 +166,17 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     private void applyUpdates(Device entity, DeviceRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceRequestDto không được để trống");
         if (request.getDeviceModelId() == null) {
-            throw new IllegalArgumentException("deviceModelId is required");
+            throw new IllegalArgumentException("Cần cung cấp deviceModelId");
         }
         if (repository.findBySerialNumber(request.getSerialNumber()).isPresent() &&
                 !repository.findBySerialNumber(request.getSerialNumber()).get().getDeviceId().equals(entity.getDeviceId())) {
-            throw new IllegalArgumentException("Serial number already exists: " + request.getSerialNumber());
+            throw new IllegalArgumentException("Số serial đã tồn tại: " + request.getSerialNumber());
         }
 
         DeviceModel model = deviceModelRepository.findById(request.getDeviceModelId())
-                .orElseThrow(() -> new NoSuchElementException("DeviceModel not found: " + request.getDeviceModelId()));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + request.getDeviceModelId()));
 
 //        entity.setShelfCode(request.getShelfCode());
         entity.setSerialNumber(request.getSerialNumber());

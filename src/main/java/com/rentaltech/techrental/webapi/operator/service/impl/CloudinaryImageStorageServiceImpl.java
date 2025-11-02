@@ -18,7 +18,7 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
 
     @Override
     public String uploadKycImage(MultipartFile file, Long customerId, String documentType) {
-        if (file == null || file.isEmpty()) throw new IllegalArgumentException("File is empty");
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("Tệp rỗng");
         try {
             Map<String, Object> options = new HashMap<>();
             options.put("folder", String.format("techrental/kyc/customer_%d", customerId));
@@ -26,10 +26,10 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
             options.put("overwrite", true);
             Map<String, Object> upload = cloudinary.uploader().upload(file.getBytes(), options);
             Object secureUrl = upload.get("secure_url");
-            if (secureUrl == null) throw new IllegalStateException("Cloudinary upload missing secure_url");
+            if (secureUrl == null) throw new IllegalStateException("Cloudinary không trả về secure_url");
             return secureUrl.toString();
         } catch (IOException e) {
-            throw new RuntimeException("Cloudinary upload failed: " + e.getMessage(), e);
+            throw new RuntimeException("Tải lên Cloudinary thất bại: " + e.getMessage(), e);
         }
     }
 }

@@ -34,7 +34,7 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     @Transactional(readOnly = true)
     public DeviceCategoryResponseDto findById(Long id) {
         DeviceCategory entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + id));
         return mapToDto(entity);
     }
 
@@ -54,19 +54,19 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     @Override
     public DeviceCategoryResponseDto update(Long id, DeviceCategoryRequestDto request) {
         DeviceCategory entity = repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("DeviceCategory not found: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + id));
         applyUpdates(entity, request);
         return mapToDto(repository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!repository.existsById(id)) throw new NoSuchElementException("DeviceCategory not found: " + id);
+        if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy DeviceCategory: " + id);
         repository.deleteById(id);
     }
 
     private DeviceCategory mapToEntity(DeviceCategoryRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceCategoryRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceCategoryRequestDto không được để trống");
         return DeviceCategory.builder()
                 .deviceCategoryName(request.getDeviceCategoryName())
                 .description(request.getDescription())
@@ -75,7 +75,7 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     }
 
     private void applyUpdates(DeviceCategory entity, DeviceCategoryRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("DeviceCategoryRequestDto is null");
+        if (request == null) throw new IllegalArgumentException("DeviceCategoryRequestDto không được để trống");
         entity.setDeviceCategoryName(request.getDeviceCategoryName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());

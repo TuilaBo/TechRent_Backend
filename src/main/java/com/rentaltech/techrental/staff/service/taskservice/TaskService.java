@@ -7,13 +7,14 @@ import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 import java.util.List;
 
 public interface TaskService {
-    Task createTask(TaskCreateRequestDto request);
+    Task createTask(TaskCreateRequestDto request, String username);
     List<Task> getAllTasks();
     Task getTaskById(Long taskId);
+    Task getTaskById(Long taskId, String username);
     List<Task> getTasksByCategory(Long categoryId);
-    List<Task> getTasksByOrder(Long orderId);
-    List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status);
-    Task updateTask(Long taskId, TaskUpdateRequestDto request);
-    void deleteTask(Long taskId);
+    List<Task> getTasksByOrder(Long orderId, String username);
+    List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status, String username);
+    Task updateTask(Long taskId, TaskUpdateRequestDto request, String username);
+    void deleteTask(Long taskId, String username);
     List<Task> getOverdueTasks();
 }

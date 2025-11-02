@@ -12,6 +12,9 @@ public interface DeviceService {
     DeviceResponseDto create(DeviceRequestDto request);
     DeviceResponseDto findById(Long id);
     List<DeviceResponseDto> findAll();
+    List<DeviceResponseDto> findByModelId(Long deviceModelId);
+    List<DeviceResponseDto> findByOrderDetail(Long orderDetailId);
+    DeviceResponseDto findBySerialNumber(String serialNumber);
     Page<DeviceResponseDto> search(String serialNumber,
                                    String shelfCode,
                                    String status,

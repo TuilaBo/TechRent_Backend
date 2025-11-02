@@ -54,14 +54,14 @@ public class AccountServiceImpl implements AccountService {
     public Account addAccount(Account account) {
         // Kiểm tra username đã tồn tại chưa
         if (accountRepository.findByUsername(account.getUsername()) != null) {
-            throw new IllegalArgumentException("Username already exists!");
+            throw new IllegalArgumentException("Tên đăng nhập đã tồn tại!");
         }
         
         // Kiểm tra email đã tồn tại chưa (chỉ với accounts đã verified)
         if (account.getEmail() != null) {
             Account existingEmailAccount = accountRepository.findByEmail(account.getEmail());
             if (existingEmailAccount != null && existingEmailAccount.getIsActive()) {
-                throw new IllegalArgumentException("Email already exists!");
+                throw new IllegalArgumentException("Email đã tồn tại!");
             }
             // Nếu email tồn tại nhưng chưa verified, xóa account cũ
             if (existingEmailAccount != null && !existingEmailAccount.getIsActive()) {
@@ -73,7 +73,7 @@ public class AccountServiceImpl implements AccountService {
         if (account.getPhoneNumber() != null) {
             Account existingPhoneAccount = accountRepository.findByPhoneNumber(account.getPhoneNumber());
             if (existingPhoneAccount != null && existingPhoneAccount.getIsActive()) {
-                throw new IllegalArgumentException("Phone number already exists!");
+                throw new IllegalArgumentException("Số điện thoại đã tồn tại!");
             }
             // Nếu phone tồn tại nhưng chưa verified, xóa account cũ
             if (existingPhoneAccount != null && !existingPhoneAccount.getIsActive()) {
@@ -96,7 +96,7 @@ public class AccountServiceImpl implements AccountService {
                 customerRepository.save(customer);
             } catch (Exception e) {
                 // Log error nhưng không fail register
-                System.err.println("Failed to create customer profile: " + e.getMessage());
+                System.err.println("Không thể tạo hồ sơ khách hàng: " + e.getMessage());
             }
         }
         
@@ -178,9 +178,9 @@ public class AccountServiceImpl implements AccountService {
         for (Account account : unverifiedAccounts) {
             try {
                 accountRepository.delete(account);
-                System.out.println("Cleaned up unverified account: " + account.getEmail());
+                System.out.println("Đã dọn dẹp tài khoản chưa xác thực: " + account.getEmail());
             } catch (Exception e) {
-                System.err.println("Failed to cleanup account " + account.getEmail() + ": " + e.getMessage());
+                System.err.println("Không thể dọn dẹp tài khoản " + account.getEmail() + ": " + e.getMessage());
             }
         }
     }
