@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Notification Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        label { display: inline-block; width: 140px; }
+        input, select { padding: 4px; margin-bottom: 10px; }
+        button { margin-right: 10px; }
+        #log { border: 1px solid #ccc; height: 260px; overflow-y: auto; padding: 10px; }
+        .log-entry { margin: 6px 0; }
+        .system { color: #666; }
+        .incoming { color: #0066cc; }
+        .error { color: #cc0000; }
+    </style>
+</head>
+<body>
+    <h1>Notification WebSocket Tester</h1>
+
+    <div>
+        <div>
+            <label for="wsUrl">WebSocket URL:</label>
+            <input type="text" id="wsUrl" value="http://localhost:8080/ws" size="40">
+        </div>
+        <div>
+            <label for="customerId">Customer ID:</label>
+            <input type="number" id="customerId" value="1" min="1">
+        </div>
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <hr>
+
+    <div>
+        <h3>Send Notification</h3>
+        <div>
+            <label for="notificationType">Notification Type:</label>
+            <select id="notificationType">
+                <option value="ORDER_REJECTED">ORDER_REJECTED</option>
+                <option value="ORDER_PROCESSING" selected>ORDER_PROCESSING</option>
+                <option value="ORDER_CONFIRMED">ORDER_CONFIRMED</option>
+                <option value="ORDER_IN_DELIVERY">ORDER_IN_DELIVERY</option>
+                <option value="ORDER_ACTIVE">ORDER_ACTIVE</option>
+                <option value="ORDER_NEAR_DUE">ORDER_NEAR_DUE</option>
+            </select>
+        </div>
+        <div>
+            <label for="title">Title:</label>
+            <input type="text" id="title" value="Test notification title" size="40">
+        </div>
+        <div>
+            <label for="message">Message:</label>
+            <input type="text" id="message" value="Body of the notification" size="40">
+        </div>
+        <button onclick="sendNotification()">Send Notification</button>
+    </div>
+
+    <hr>
+
+    <h3>Log</h3>
+    <div id="log"><div class="system log-entry">Waiting for connection...</div></div>
+
+    <script>
+        let stompClient = null;
+        let currentCustomerId = null;
+
+        function connect() {
+            const url = document.getElementById('wsUrl').value.trim();
+            currentCustomerId = document.getElementById('customerId').value.trim();
+
+            if (!url) {
+                appendLog('System', 'WebSocket URL is required', 'error');
+                return;
+            }
+            if (!currentCustomerId) {
+                appendLog('System', 'Customer ID is required before connecting', 'error');
+                return;
+            }
+
+            const socket = new SockJS(url);
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null; // Silence console spam; set to console.log to debug
+
+            stompClient.connect({}, () => {
+                appendLog('System', 'Connected to ' + url, 'system');
+                subscribeToNotifications();
+            }, (error) => {
+                appendLog('System', 'Connection error: ' + error, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect(() => {
+                    appendLog('System', 'Disconnected', 'system');
+                });
+                stompClient = null;
+            }
+        }
+
+        function subscribeToNotifications() {
+            if (!stompClient) {
+                appendLog('System', 'Cannot subscribe without an active connection', 'error');
+                return;
+            }
+            const destination = '/topic/customers/' + currentCustomerId + '/notifications';
+            stompClient.subscribe(destination, (message) => {
+                try {
+                    const payload = JSON.parse(message.body);
+                    appendLog('Incoming', JSON.stringify(payload), 'incoming');
+                } catch (e) {
+                    appendLog('Incoming', message.body, 'incoming');
+                }
+            });
+            appendLog('System', 'Subscribed to ' + destination, 'system');
+        }
+
+        function sendNotification() {
+            if (!stompClient || !stompClient.connected) {
+                appendLog('System', 'Connect before sending notifications', 'error');
+                return;
+            }
+
+            const payload = {
+                customerId: Number(document.getElementById('customerId').value),
+                type: document.getElementById('notificationType').value,
+                title: document.getElementById('title').value,
+                message: document.getElementById('message').value
+            };
+
+            stompClient.send('/app/notifications.send', {}, JSON.stringify(payload));
+            appendLog('System', 'Notification sent: ' + JSON.stringify(payload), 'system');
+        }
+
+        function appendLog(source, message, cssClass) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + cssClass;
+            entry.innerHTML = '<strong>' + source + ':</strong> ' + message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>

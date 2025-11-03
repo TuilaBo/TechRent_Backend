@@ -21,7 +21,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
-                .setAllowedOrigins("*")  // Cho phép file:// protocol và localhost
                 .addInterceptors(new WebSocketInterceptor())  // Thêm CORS headers
                 .withSockJS()
                 .setSessionCookieNeeded(false);  // Không cần session cookie

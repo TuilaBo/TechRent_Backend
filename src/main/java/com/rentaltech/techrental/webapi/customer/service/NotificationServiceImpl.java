@@ -1,6 +1,5 @@
 package com.rentaltech.techrental.webapi.customer.service;
 
-import com.rentaltech.techrental.notification.service.FirebaseNotificationService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.Notification;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;

@@ -23,7 +23,14 @@ public class WebSocketCorsFilter implements Filter {
         
         // Chỉ apply cho WebSocket endpoints
         if (path.startsWith("/ws")) {
-            httpResponse.setHeader("Access-Control-Allow-Origin", "*");
+            String origin = httpRequest.getHeader("Origin");
+            if (origin != null && !origin.isBlank()) {
+                httpResponse.setHeader("Access-Control-Allow-Origin", origin);
+                httpResponse.setHeader("Access-Control-Allow-Credentials", "true");
+                httpResponse.setHeader("Vary", "Origin");
+            } else {
+                httpResponse.setHeader("Access-Control-Allow-Origin", "*");
+            }
             httpResponse.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
             httpResponse.setHeader("Access-Control-Allow-Headers", "*");
             httpResponse.setHeader("Access-Control-Max-Age", "3600");
