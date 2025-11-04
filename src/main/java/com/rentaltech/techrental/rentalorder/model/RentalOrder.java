@@ -2,7 +2,10 @@ package com.rentaltech.techrental.rentalorder.model;
 
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;

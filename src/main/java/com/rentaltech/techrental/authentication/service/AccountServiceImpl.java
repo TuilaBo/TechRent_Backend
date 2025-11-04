@@ -2,9 +2,10 @@ package com.rentaltech.techrental.authentication.service;
 
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
-import com.rentaltech.techrental.authentication.repository.AccountRepository;
-import com.rentaltech.techrental.authentication.model.dto.LoginDto;
 import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
+import com.rentaltech.techrental.authentication.model.dto.LoginDto;
+import com.rentaltech.techrental.authentication.repository.AccountRepository;
+import com.rentaltech.techrental.security.JwtTokenProvider;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,11 +15,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import com.rentaltech.techrental.security.JwtTokenProvider;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 @Service
 public class AccountServiceImpl implements AccountService {

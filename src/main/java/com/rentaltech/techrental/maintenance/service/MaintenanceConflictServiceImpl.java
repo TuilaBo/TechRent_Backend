@@ -1,6 +1,9 @@
 package com.rentaltech.techrental.maintenance.service;
 
-import com.rentaltech.techrental.maintenance.model.*;
+import com.rentaltech.techrental.maintenance.model.MaintenanceConflict;
+import com.rentaltech.techrental.maintenance.model.MaintenanceConflictId;
+import com.rentaltech.techrental.maintenance.model.MaintenanceConflictSource;
+import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceConflictRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepository;
 import lombok.RequiredArgsConstructor;

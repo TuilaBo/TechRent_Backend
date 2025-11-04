@@ -1,13 +1,13 @@
 package com.rentaltech.techrental.device.service;
 
+import com.rentaltech.techrental.device.model.Brand;
 import com.rentaltech.techrental.device.model.DeviceCategory;
 import com.rentaltech.techrental.device.model.DeviceModel;
-import com.rentaltech.techrental.device.model.Brand;
 import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
+import com.rentaltech.techrental.device.repository.BrandRepository;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
-import com.rentaltech.techrental.device.repository.BrandRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

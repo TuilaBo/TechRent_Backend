@@ -1,7 +1,6 @@
 package com.rentaltech.techrental.finance.service;
 
 import com.rentaltech.techrental.finance.model.*;
-import com.rentaltech.techrental.payment.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentResponse;
 import com.rentaltech.techrental.finance.model.dto.InvoiceResponseDto;

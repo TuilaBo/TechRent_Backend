@@ -1,10 +1,6 @@
 package com.rentaltech.techrental.staff.service.disputeservice;
 
-import com.rentaltech.techrental.staff.model.Dispute;
-import com.rentaltech.techrental.staff.model.DisputeOpenBy;
-import com.rentaltech.techrental.staff.model.DisputeStatus;
-import com.rentaltech.techrental.staff.model.Settlement;
-import com.rentaltech.techrental.staff.model.Staff;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.DisputeCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.DisputeUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.DisputeRepository;

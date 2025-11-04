@@ -3,11 +3,7 @@ package com.rentaltech.techrental.contract.model.dto;
 import com.rentaltech.techrental.contract.model.ContractType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

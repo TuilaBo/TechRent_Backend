@@ -1,7 +1,7 @@
 package com.rentaltech.techrental.device.service;
 
-import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
