@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.notification.service;
+package com.rentaltech.techrental.webapi.customer.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auth.oauth2.AccessToken;

@@ -1,7 +1,6 @@
 package com.rentaltech.techrental.webapi.customer.repository;
 
 import com.rentaltech.techrental.webapi.customer.model.BankInformation;
-import com.rentaltech.techrental.webapi.customer.model.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

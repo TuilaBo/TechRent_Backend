@@ -2,23 +2,20 @@ package com.rentaltech.techrental.webapi.admin.controller;
 
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
-import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffResponseDto;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/admin/staff")

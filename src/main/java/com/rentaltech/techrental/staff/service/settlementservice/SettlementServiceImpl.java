@@ -1,12 +1,12 @@
 package com.rentaltech.techrental.staff.service.settlementservice;
 
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.Settlement;
 import com.rentaltech.techrental.staff.model.SettlementState;
 import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
-import com.rentaltech.techrental.webapi.customer.model.RentalOrder;
-import com.rentaltech.techrental.webapi.customer.repository.RentalOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

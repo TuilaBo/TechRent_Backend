@@ -1,6 +1,6 @@
 package com.rentaltech.techrental.device.model;
 
-import com.rentaltech.techrental.webapi.customer.model.OrderDetail;
+import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.webapi.technician.model.QCReport;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
