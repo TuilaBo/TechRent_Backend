@@ -1,8 +1,8 @@
-package com.rentaltech.techrental.webapi.customer.controller;
+package com.rentaltech.techrental.rentalorder.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
-import com.rentaltech.techrental.webapi.customer.model.dto.RentalOrderRequestDto;
-import com.rentaltech.techrental.webapi.customer.service.RentalOrderService;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
+import com.rentaltech.techrental.rentalorder.service.RentalOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

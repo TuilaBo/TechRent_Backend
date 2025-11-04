@@ -1,6 +1,6 @@
 package com.rentaltech.techrental.staff.model;
 
-import com.rentaltech.techrental.webapi.customer.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

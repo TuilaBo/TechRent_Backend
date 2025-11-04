@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.webapi.customer.model;
+package com.rentaltech.techrental.rentalorder.model;
 
 import com.rentaltech.techrental.device.model.DeviceModel;
 import jakarta.persistence.*;

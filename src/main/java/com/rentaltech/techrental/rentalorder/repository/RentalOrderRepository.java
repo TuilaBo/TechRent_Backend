@@ -1,7 +1,6 @@
-package com.rentaltech.techrental.webapi.customer.repository;
+package com.rentaltech.techrental.rentalorder.repository;
 
-import com.rentaltech.techrental.webapi.customer.model.Customer;
-import com.rentaltech.techrental.webapi.customer.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;

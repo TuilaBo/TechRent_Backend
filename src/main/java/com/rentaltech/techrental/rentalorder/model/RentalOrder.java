@@ -1,5 +1,6 @@
-package com.rentaltech.techrental.webapi.customer.model;
+package com.rentaltech.techrental.rentalorder.model;
 
+import com.rentaltech.techrental.webapi.customer.model.Customer;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
