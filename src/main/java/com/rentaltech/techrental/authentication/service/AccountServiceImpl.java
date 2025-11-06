@@ -6,6 +6,7 @@ import com.rentaltech.techrental.authentication.repository.AccountRepository;
 import com.rentaltech.techrental.authentication.model.dto.LoginDto;
 import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.model.CustomerStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -87,11 +88,17 @@ public class AccountServiceImpl implements AccountService {
         // Tự động tạo Customer profile nếu Account có role Customer
         if (savedAccount.getRole() == Role.CUSTOMER) {
             try {
+                // Set status INACTIVE nếu account chưa được verify
+                CustomerStatus customerStatus = Boolean.TRUE.equals(savedAccount.getIsActive()) 
+                    ? CustomerStatus.ACTIVE 
+                    : CustomerStatus.INACTIVE;
+                
                 Customer customer = Customer.builder()
                         .account(savedAccount)
                         .email(savedAccount.getEmail())
                         .phoneNumber(savedAccount.getPhoneNumber())
                         .fullName("Chưa cập nhật") // Giá trị mặc định
+                        .status(customerStatus) // Set status dựa trên isActive của account
                         .build();
                 customerRepository.save(customer);
             } catch (Exception e) {
@@ -141,6 +148,20 @@ public class AccountServiceImpl implements AccountService {
         account.setVerificationCode(null);
         account.setVerificationExpiry(null);
         accountRepository.save(account);
+        
+        // Update Customer status thành ACTIVE khi verify email thành công
+        if (account.getRole() == Role.CUSTOMER) {
+            try {
+                Customer customer = customerRepository.findByAccount_AccountId(account.getAccountId())
+                        .orElse(null);
+                if (customer != null) {
+                    customer.setStatus(CustomerStatus.ACTIVE);
+                    customerRepository.save(customer);
+                }
+            } catch (Exception e) {
+                System.err.println("Không thể cập nhật trạng thái Customer: " + e.getMessage());
+            }
+        }
     }
 
     @Override

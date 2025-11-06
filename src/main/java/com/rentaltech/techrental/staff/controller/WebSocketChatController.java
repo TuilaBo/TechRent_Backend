@@ -10,6 +10,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import  com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 
 @Controller
 @RequiredArgsConstructor
@@ -23,8 +24,8 @@ public class WebSocketChatController {
     public void sendMessage(@Payload ChatMessagePayload payload) {
         log.info("Received message: {}", payload);
 
-        com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto createDto =
-                com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto.builder()
+             ChatMessageCreateRequestDto createDto =
+             ChatMessageCreateRequestDto.builder()
                         .conversationId(payload.getConversationId())
                         .senderType(payload.getSenderType())
                         .senderId(payload.getSenderId())

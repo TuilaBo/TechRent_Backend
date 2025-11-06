@@ -256,7 +256,7 @@ public class ContractServiceImpl implements ContractService {
     // ========== DIGITAL SIGNATURE PROCESS ==========
     
     /**
-     * Quy trình ký chữ ký điện tử hoàn chỉnh
+     * Quy trình ký chữ ký điện tử hoàn chỉnh (cho Customer)
      */
     @Override
     public DigitalSignatureResponseDto signContract(DigitalSignatureRequestDto request) {
@@ -269,6 +269,16 @@ public class ContractServiceImpl implements ContractService {
             // Bước 2: Lấy thông tin hợp đồng
             Contract contract = contractRepository.findById(request.getContractId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng"));
+            
+            // Kiểm tra hợp đồng phải ở trạng thái PENDING_SIGNATURE (chờ customer ký)
+            if (contract.getStatus() != ContractStatus.PENDING_SIGNATURE) {
+                throw new RuntimeException("Hợp đồng chưa sẵn sàng để khách hàng ký. Trạng thái hiện tại: " + contract.getStatus());
+            }
+            
+            // Kiểm tra admin đã ký chưa
+            if (contract.getAdminSignedAt() == null || contract.getAdminSignedBy() == null) {
+                throw new RuntimeException("Admin chưa ký hợp đồng. Vui lòng đợi admin ký trước.");
+            }
             
             // Bước 3: Tạo hash của nội dung hợp đồng
             String contractHash = generateContractHash(contract);
@@ -287,12 +297,17 @@ public class ContractServiceImpl implements ContractService {
             // Bước 5: Tạo signature hash để lưu trữ
             String signatureHash = generateSignatureHash(request.getDigitalSignature());
             
-            // Bước 6: Cập nhật trạng thái hợp đồng
-            contract.setStatus(ContractStatus.SIGNED);
-            contract.setSignedAt(LocalDateTime.now());
+            // Bước 6: Lưu thông tin customer ký
+            LocalDateTime now = LocalDateTime.now();
+            contract.setCustomerSignedAt(now);
+            contract.setCustomerSignedBy(contract.getCustomerId()); // Customer ID từ contract
+            contract.setSignedAt(now); // Thời gian ký cuối cùng
+            
+            // Bước 7: Cập nhật trạng thái hợp đồng thành ACTIVE khi cả 2 đã ký
+            contract.setStatus(ContractStatus.ACTIVE);
             contractRepository.save(contract);
             
-            // Bước 7: Lưu thông tin chữ ký
+            // Bước 8: Lưu thông tin chữ ký
             DigitalSignatureResponseDto response = DigitalSignatureResponseDto.builder()
                     .signatureId(System.currentTimeMillis()) // Temporary ID
                     .contractId(request.getContractId())
@@ -300,19 +315,81 @@ public class ContractServiceImpl implements ContractService {
                     .signatureMethod(request.getSignatureMethod())
                     .deviceInfo(request.getDeviceInfo())
                     .ipAddress(request.getIpAddress())
-                    .signedAt(LocalDateTime.now())
+                    .signedAt(now)
                     .signatureStatus("VALID")
                     .certificateInfo("Chứng thư số đã được xác thực")
                     .auditTrail(generateAuditTrail(request))
                     .build();
             
-            // Bước 8: Xóa PIN code đã sử dụng
+            // Bước 9: Xóa PIN code đã sử dụng
             deletePINCode(request.getContractId());
             
             return response;
             
         } catch (Exception e) {
             throw new RuntimeException("Ký hợp đồng thất bại: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Admin ký hợp đồng trước
+     */
+    @Override
+    public DigitalSignatureResponseDto signContractByAdmin(Long contractId, Long adminId, DigitalSignatureRequestDto request) {
+        try {
+            // Bước 1: Lấy thông tin hợp đồng
+            Contract contract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng"));
+            
+            // Kiểm tra hợp đồng phải ở trạng thái PENDING_ADMIN_SIGNATURE
+            if (contract.getStatus() != ContractStatus.PENDING_ADMIN_SIGNATURE) {
+                throw new RuntimeException("Hợp đồng không ở trạng thái chờ admin ký. Trạng thái hiện tại: " + contract.getStatus());
+            }
+            
+            // Bước 2: Tạo hash của nội dung hợp đồng
+            String contractHash = generateContractHash(contract);
+            
+            // Bước 3: Xác thực chữ ký điện tử (admin có thể không cần PIN)
+            boolean signatureValid = digitalSignatureService.verifySignature(
+                    request.getDigitalSignature(),
+                    contractHash,
+                    request.getSignatureMethod() != null ? request.getSignatureMethod() : "ADMIN_SIGNATURE"
+            );
+            
+            if (!signatureValid) {
+                throw new RuntimeException("Chữ ký điện tử không hợp lệ");
+            }
+            
+            // Bước 4: Tạo signature hash để lưu trữ
+            String signatureHash = generateSignatureHash(request.getDigitalSignature());
+            
+            // Bước 5: Lưu thông tin admin ký
+            LocalDateTime now = LocalDateTime.now();
+            contract.setAdminSignedAt(now);
+            contract.setAdminSignedBy(adminId);
+            
+            // Bước 6: Chuyển sang trạng thái chờ customer ký
+            contract.setStatus(ContractStatus.PENDING_SIGNATURE);
+            contractRepository.save(contract);
+            
+            // Bước 7: Lưu thông tin chữ ký
+            DigitalSignatureResponseDto response = DigitalSignatureResponseDto.builder()
+                    .signatureId(System.currentTimeMillis())
+                    .contractId(contractId)
+                    .signatureHash(signatureHash)
+                    .signatureMethod(request.getSignatureMethod() != null ? request.getSignatureMethod() : "ADMIN_SIGNATURE")
+                    .deviceInfo(request.getDeviceInfo())
+                    .ipAddress(request.getIpAddress())
+                    .signedAt(now)
+                    .signatureStatus("VALID")
+                    .certificateInfo("Chữ ký admin đã được xác thực")
+                    .auditTrail(generateAuditTrail(request))
+                    .build();
+            
+            return response;
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Admin ký hợp đồng thất bại: " + e.getMessage());
         }
     }
     
@@ -587,8 +664,8 @@ public class ContractServiceImpl implements ContractService {
                 throw new RuntimeException("Chỉ có thể gửi hợp đồng ở trạng thái DRAFT để ký");
             }
             
-            // Cập nhật trạng thái thành PENDING_SIGNATURE
-            contract.setStatus(ContractStatus.PENDING_SIGNATURE);
+            // Chuyển sang trạng thái chờ admin ký trước
+            contract.setStatus(ContractStatus.PENDING_ADMIN_SIGNATURE);
             contract.setUpdatedBy(sentBy);
             
             return contractRepository.save(contract);
@@ -640,8 +717,13 @@ public class ContractServiceImpl implements ContractService {
             Contract contract = contractRepository.findById(contractId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + contractId));
             
-            // Kiểm tra trạng thái hợp đồng
+            // Kiểm tra trạng thái hợp đồng (chờ customer ký)
             if (contract.getStatus() != ContractStatus.PENDING_SIGNATURE) {
+                return false;
+            }
+            
+            // Kiểm tra admin đã ký chưa
+            if (contract.getAdminSignedAt() == null || contract.getAdminSignedBy() == null) {
                 return false;
             }
             

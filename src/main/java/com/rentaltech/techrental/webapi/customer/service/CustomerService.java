@@ -3,6 +3,7 @@ package com.rentaltech.techrental.webapi.customer.service;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.model.CustomerStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerCreateRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequestDto;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
@@ -83,6 +84,9 @@ public class CustomerService {
                 .bankAccountNumber(request.getBankAccountNumber())
                 .bankName(request.getBankName())
                 .bankAccountHolder(request.getBankAccountHolder())
+                .status(Boolean.TRUE.equals(account.getIsActive()) 
+                    ? CustomerStatus.ACTIVE 
+                    : CustomerStatus.INACTIVE) // Set status dựa trên isActive của account
                 .build();
         
         return customerRepository.save(customer);

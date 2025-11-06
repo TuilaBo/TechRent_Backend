@@ -7,6 +7,7 @@ import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequest
 import com.rentaltech.techrental.webapi.customer.model.dto.SaveFcmTokenRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressResponseDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
+import com.rentaltech.techrental.webapi.operator.service.KYCService;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -22,16 +23,24 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/customer")
+@RequestMapping("/api/customers")
 @AllArgsConstructor
 @Tag(name = "Customers", description = "Customer profile APIs")
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final KYCService kycService;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
@@ -207,6 +216,94 @@ public class CustomerController {
                 .createdAt(customer.getCreatedAt())
                 .updatedAt(customer.getUpdatedAt())
                 .build();
+    }
+
+    // ========== KYC Endpoints ==========
+
+    /**
+     * Get my KYC info
+     * GET /api/customers/me/kyc
+     */
+    @GetMapping("/me/kyc")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Get my KYC info", description = "Get current customer's KYC information")
+    public ResponseEntity<?> getMyKyc(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) {
+            return ResponseUtil.unauthorized();
+        }
+        Map<String, Object> data = kycService.getMyKyc(principal.getUsername());
+        return ResponseUtil.createSuccessResponse(
+                "Lấy thông tin KYC thành công",
+                "Thông tin KYC hiện tại",
+                data,
+                HttpStatus.OK
+        );
+    }
+
+
+
+    /**
+     * Upload multiple KYC documents with personal information
+     * POST /api/customers/me/kyc/documents/batch
+     */
+    @PostMapping(value = "/me/kyc/documents/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Upload KYC documents batch", description = "Upload multiple KYC documents with personal information")
+    public ResponseEntity<?> uploadKycDocumentsBatch(
+            @Parameter(description = "Ảnh CCCD mặt trước", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "front", required = false) MultipartFile front,
+            @Parameter(description = "Ảnh CCCD mặt sau", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "back", required = false) MultipartFile back,
+            @Parameter(description = "Ảnh selfie", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "selfie", required = false) MultipartFile selfie,
+            @Parameter(description = "Họ và tên")
+            @RequestPart(value = "fullName", required = false) String fullName,
+            @Parameter(description = "Số CCCD/CMND/Passport")
+            @RequestPart(value = "identificationCode", required = false) String identificationCode,
+            @Parameter(description = "Loại giấy tờ")
+            @RequestPart(value = "typeOfIdentification", required = false) String typeOfIdentification,
+            @Parameter(description = "Ngày sinh (yyyy-MM-dd)")
+            @RequestPart(value = "birthday", required = false) String birthday,
+            @Parameter(description = "Ngày hết hạn (yyyy-MM-dd)")
+            @RequestPart(value = "expirationDate", required = false) String expirationDate,
+            @Parameter(description = "Địa chỉ thường trú")
+            @RequestPart(value = "permanentAddress", required = false) String permanentAddress,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        if (principal == null) {
+            return ResponseUtil.unauthorized();
+        }
+        
+        java.time.LocalDate birthdayDate = null;
+        java.time.LocalDate expirationDateObj = null;
+        
+        try {
+            if (birthday != null && !birthday.isBlank()) {
+                birthdayDate = java.time.LocalDate.parse(birthday);
+            }
+            if (expirationDate != null && !expirationDate.isBlank()) {
+                expirationDateObj = java.time.LocalDate.parse(expirationDate);
+            }
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "INVALID_DATE_FORMAT",
+                    "Định dạng ngày không hợp lệ",
+                    "Ngày phải theo định dạng yyyy-MM-dd",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+        
+        Map<String, Object> data = kycService.customerUploadDocumentsWithInfo(
+                principal.getUsername(), front, back, selfie,
+                fullName, identificationCode, typeOfIdentification,
+                birthdayDate, expirationDateObj, permanentAddress
+        );
+        return ResponseUtil.createSuccessResponse(
+                "Upload KYC thành công",
+                "Đã lưu các ảnh KYC và thông tin",
+                data,
+                HttpStatus.OK
+        );
     }
 }
 

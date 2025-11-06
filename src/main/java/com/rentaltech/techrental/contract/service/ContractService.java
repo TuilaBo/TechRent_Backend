@@ -37,6 +37,7 @@ public interface ContractService {
     
     // Digital Signature
     DigitalSignatureResponseDto signContract(DigitalSignatureRequestDto request);
+    DigitalSignatureResponseDto signContractByAdmin(Long contractId, Long adminId, DigitalSignatureRequestDto request);
     boolean verifySignature(Long contractId);
     DigitalSignatureResponseDto getSignatureInfo(Long contractId);
     

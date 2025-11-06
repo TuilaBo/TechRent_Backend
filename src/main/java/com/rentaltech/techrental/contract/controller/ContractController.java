@@ -202,7 +202,7 @@ public class ContractController {
             
             return ResponseUtil.createSuccessResponse(
                     "Gửi hợp đồng để ký thành công!",
-                    "Hợp đồng đã được gửi cho khách hàng để ký",
+                    "Hợp đồng đã được chuyển sang trạng thái chờ admin ký",
                     contract,
                     HttpStatus.OK
             );
@@ -294,7 +294,12 @@ public class ContractController {
 
     // ========== DIGITAL SIGNATURE ==========
     
+    /**
+     * Customer ký hợp đồng
+     * POST /api/contracts/{contractId}/sign
+     */
     @PostMapping("/{contractId}/sign")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> signContract(
             @PathVariable Long contractId,
             @RequestBody @Valid DigitalSignatureRequestDto request) {
@@ -304,7 +309,7 @@ public class ContractController {
                 return ResponseUtil.createErrorResponse(
                         "CONTRACT_NOT_READY",
                         "Hợp đồng chưa sẵn sàng để ký",
-                        "Hợp đồng phải ở trạng thái 'Chờ ký' để có thể ký",
+                        "Hợp đồng phải ở trạng thái 'Chờ khách hàng ký' và admin đã ký trước",
                         HttpStatus.BAD_REQUEST
                 );
             }
@@ -331,6 +336,47 @@ public class ContractController {
             return ResponseUtil.createErrorResponse(
                     "SIGN_CONTRACT_FAILED",
                     "Ký hợp đồng thất bại",
+                    "Có lỗi xảy ra: " + e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Admin ký hợp đồng trước
+     * POST /api/contracts/{contractId}/admin/sign
+     */
+    @PostMapping("/{contractId}/admin/sign")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    public ResponseEntity<?> signContractByAdmin(
+            @PathVariable Long contractId,
+            @RequestBody @Valid DigitalSignatureRequestDto request,
+            @AuthenticationPrincipal UserDetails principal) {
+        try {
+            Long adminId = getAccountIdFromPrincipal(principal);
+            
+            // Validate signature data
+            if (!contractService.validateSignatureData(request)) {
+                return ResponseUtil.createErrorResponse(
+                        "INVALID_SIGNATURE_DATA",
+                        "Dữ liệu chữ ký không hợp lệ",
+                        "Vui lòng kiểm tra lại thông tin chữ ký",
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+            
+            DigitalSignatureResponseDto signatureResponse = contractService.signContractByAdmin(contractId, adminId, request);
+            
+            return ResponseUtil.createSuccessResponse(
+                    "Admin ký hợp đồng thành công!",
+                    "Hợp đồng đã được admin ký và chờ khách hàng ký",
+                    signatureResponse,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "ADMIN_SIGN_CONTRACT_FAILED",
+                    "Admin ký hợp đồng thất bại",
                     "Có lỗi xảy ra: " + e.getMessage(),
                     HttpStatus.BAD_REQUEST
             );

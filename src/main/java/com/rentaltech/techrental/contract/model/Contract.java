@@ -70,6 +70,18 @@ public class Contract {
     @Column(name = "signed_at")
     private LocalDateTime signedAt;
     
+    @Column(name = "admin_signed_at")
+    private LocalDateTime adminSignedAt;
+    
+    @Column(name = "admin_signed_by")
+    private Long adminSignedBy;
+    
+    @Column(name = "customer_signed_at")
+    private LocalDateTime customerSignedAt;
+    
+    @Column(name = "customer_signed_by")
+    private Long customerSignedBy;
+
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
     

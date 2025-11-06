@@ -19,6 +19,9 @@ public interface KYCService {
     Map<String, Object> operatorUploadDocument(Long customerId, MultipartFile file, String documentType);
     Map<String, Object> customerUploadDocument(String username, MultipartFile file, String documentType);
     Map<String, Object> customerUploadDocuments(String username, MultipartFile front, MultipartFile back, MultipartFile selfie);
+    Map<String, Object> customerUploadDocumentsWithInfo(String username, MultipartFile front, MultipartFile back, MultipartFile selfie,
+                                                         String fullName, String identificationCode, String typeOfIdentification,
+                                                         java.time.LocalDate birthday, java.time.LocalDate expirationDate, String permanentAddress);
     Map<String, Object> getMyKyc(String username);
     
     /**

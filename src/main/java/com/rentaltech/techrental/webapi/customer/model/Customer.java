@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -59,7 +60,7 @@ public class Customer {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private CustomerStatus status = CustomerStatus.ACTIVE;
+    private CustomerStatus status = CustomerStatus.INACTIVE;
 
     // KYC fields
     @Enumerated(EnumType.STRING)
@@ -84,6 +85,22 @@ public class Customer {
 
     @Column(name = "kyc_rejection_reason", length = 1000)
     private String kycRejectionReason; // Lý do từ chối
+
+    // KYC personal information fields
+    @Column(name = "identification_code", length = 20)
+    private String identificationCode; // Số CCCD/CMND/Passport
+
+    @Column(name = "type_of_identification", length = 20)
+    private String typeOfIdentification; // Loại giấy tờ
+
+    @Column(name = "birthday")
+    private LocalDate birthday; // Ngày sinh
+
+    @Column(name = "expiration_date")
+    private LocalDate expirationDate; // Ngày hết hạn
+
+    @Column(name = "permanent_address", length = 500)
+    private String permanentAddress; // Địa chỉ thường trú
 
     @Column(name = "created_at", nullable = false)
     @Builder.Default
