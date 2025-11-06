@@ -1,8 +1,11 @@
-package com.rentaltech.techrental.webapi.customer.model;
+package com.rentaltech.techrental.rentalorder.model;
 
 import com.rentaltech.techrental.device.model.DeviceModel;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 

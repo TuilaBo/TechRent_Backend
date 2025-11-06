@@ -8,14 +8,14 @@ import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.rentalorder.model.OrderDetail;
+import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
-import com.rentaltech.techrental.webapi.customer.model.OrderDetail;
-import com.rentaltech.techrental.webapi.customer.repository.OrderDetailRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCReport;
@@ -30,15 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service

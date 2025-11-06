@@ -3,13 +3,9 @@ package com.rentaltech.techrental.webapi.technician.model.dto;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCResult;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
 import jakarta.validation.constraints.Size;
+import lombok.*;
+
 import java.util.List;
 import java.util.Map;
 

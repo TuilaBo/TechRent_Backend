@@ -1,13 +1,12 @@
-package com.rentaltech.techrental.webapi.customer.service;
+package com.rentaltech.techrental.rentalorder.service;
 
-import com.rentaltech.techrental.webapi.customer.model.dto.RentalOrderRequestDto;
-import com.rentaltech.techrental.webapi.customer.model.dto.RentalOrderResponseDto;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 public interface RentalOrderService {
     RentalOrderResponseDto create(RentalOrderRequestDto request);

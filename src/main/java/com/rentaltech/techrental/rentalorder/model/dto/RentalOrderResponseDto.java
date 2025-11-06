@@ -1,6 +1,6 @@
-package com.rentaltech.techrental.webapi.customer.model.dto;
+package com.rentaltech.techrental.rentalorder.model.dto;
 
-import com.rentaltech.techrental.webapi.customer.model.OrderStatus;
+import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

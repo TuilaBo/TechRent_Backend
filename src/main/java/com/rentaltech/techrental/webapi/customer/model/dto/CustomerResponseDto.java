@@ -2,11 +2,7 @@ package com.rentaltech.techrental.webapi.customer.model.dto;
 
 import com.rentaltech.techrental.webapi.customer.model.CustomerStatus;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;

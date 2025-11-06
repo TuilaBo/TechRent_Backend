@@ -3,22 +3,23 @@ package com.rentaltech.techrental.staff.service.taskservice;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.service.AccountService;
+import com.rentaltech.techrental.common.exception.TaskCreationException;
+import com.rentaltech.techrental.common.exception.TaskNotFoundException;
+import com.rentaltech.techrental.rentalorder.model.OrderStatus;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
-import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
+import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskCustomRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
-import com.rentaltech.techrental.staff.repository.StaffRepository;
-import com.rentaltech.techrental.common.exception.TaskNotFoundException;
-import com.rentaltech.techrental.common.exception.TaskCreationException;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
-import com.rentaltech.techrental.webapi.customer.model.RentalOrder;
-import com.rentaltech.techrental.webapi.customer.repository.RentalOrderRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class TaskServiceImpl implements TaskService {
+
+    private static final String PRE_RENTAL_QC = "PRE_RENTAL_QC";
 
     @Autowired
     private TaskRepository taskRepository;
@@ -85,19 +88,8 @@ public class TaskServiceImpl implements TaskService {
                     .build();
 
             Task saved = taskRepository.save(task);
-
-            if (assignedStaff != null && request.getOrderId() != null) {
-                rentalOrderRepository.findById(request.getOrderId())
-                        .map(RentalOrder::getCustomer)
-                        .filter(customer -> customer != null && customer.getCustomerId() != null)
-                        .ifPresent(customer ->
-                                notificationService.notifyCustomer(
-                                        customer.getCustomerId(),
-                                        NotificationType.ORDER_PROCESSING,
-                                        "Đơn hàng đang được xử lý",
-                                        "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.")
-                        );
-            }
+            promoteOrderStatusIfNeeded(saved);
+            notifyCustomerOrderProcessing(saved);
 
             return saved;
             
@@ -227,7 +219,10 @@ public class TaskServiceImpl implements TaskService {
         if (request.getPlannedEnd() != null) task.setPlannedEnd(request.getPlannedEnd());
         if (request.getStatus() != null) task.setStatus(request.getStatus());
 
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+        promoteOrderStatusIfNeeded(saved);
+        notifyCustomerOrderProcessing(saved);
+        return saved;
     }
 
     @Override
@@ -320,5 +315,35 @@ public class TaskServiceImpl implements TaskService {
         boolean isRestricted() {
             return staffId != null;
         }
+    }
+
+    private void promoteOrderStatusIfNeeded(Task task) {
+        if (task == null || task.getOrderId() == null || task.getType() == null) {
+            return;
+        }
+        if (!PRE_RENTAL_QC.equalsIgnoreCase(task.getType())) {
+            return;
+        }
+        rentalOrderRepository.findById(task.getOrderId())
+                .filter(order -> order.getOrderStatus() == OrderStatus.PENDING)
+                .ifPresent(order -> {
+                    order.setOrderStatus(OrderStatus.PROCESSING);
+                    rentalOrderRepository.save(order);
+                });
+    }
+
+    private void notifyCustomerOrderProcessing(Task task) {
+        if (task == null || task.getAssignedStaff() == null || task.getOrderId() == null) {
+            return;
+        }
+        rentalOrderRepository.findById(task.getOrderId())
+                .map(RentalOrder::getCustomer)
+                .filter(customer -> customer != null && customer.getCustomerId() != null)
+                .ifPresent(customer -> notificationService.notifyCustomer(
+                        customer.getCustomerId(),
+                        NotificationType.ORDER_PROCESSING,
+                        "Đơn hàng đang được xử lý",
+                        "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.")
+                );
     }
 }

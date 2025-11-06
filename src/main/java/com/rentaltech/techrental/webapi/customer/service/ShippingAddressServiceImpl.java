@@ -1,6 +1,5 @@
 package com.rentaltech.techrental.webapi.customer.service;
 
-import com.rentaltech.techrental.webapi.customer.model.BankInformation;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.ShippingAddress;
 import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressRequestDto;

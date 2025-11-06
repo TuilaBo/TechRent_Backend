@@ -1,8 +1,8 @@
 package com.rentaltech.techrental.common.util;
 
 import com.rentaltech.techrental.common.dto.AuthErrorResponseDto;
-import com.rentaltech.techrental.common.dto.SuccessResponseDto;
 import com.rentaltech.techrental.common.dto.PagedResponseDto;
+import com.rentaltech.techrental.common.dto.SuccessResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

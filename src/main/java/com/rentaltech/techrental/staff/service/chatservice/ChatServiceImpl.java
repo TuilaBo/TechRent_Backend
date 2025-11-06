@@ -2,7 +2,10 @@ package com.rentaltech.techrental.staff.service.chatservice;
 
 import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
-import com.rentaltech.techrental.staff.repository.*;
+import com.rentaltech.techrental.staff.repository.ChatMessageRepository;
+import com.rentaltech.techrental.staff.repository.ConversationRepository;
+import com.rentaltech.techrental.staff.repository.DisputeRepository;
+import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.webapi.customer.model;
+package com.rentaltech.techrental.rentalorder.model;
 
 public enum OrderStatus {
     PENDING,
