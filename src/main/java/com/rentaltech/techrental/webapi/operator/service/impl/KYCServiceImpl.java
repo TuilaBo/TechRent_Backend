@@ -93,6 +93,44 @@ public class KYCServiceImpl implements KYCService {
     }
 
     @Override
+    public Map<String, Object> customerUploadDocumentsWithInfo(String username, MultipartFile front, MultipartFile back, MultipartFile selfie,
+                                                                 String fullName, String identificationCode, String typeOfIdentification,
+                                                                 java.time.LocalDate birthday, java.time.LocalDate expirationDate, String permanentAddress) {
+        try {
+            Customer me = customerRepository.findAll().stream()
+                    .filter(c -> c.getAccount() != null && c.getAccount().getUsername().equals(username))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Customer không tồn tại"));
+            
+            Customer updated = uploadDocuments(me.getCustomerId(), front, back, selfie);
+            
+            // Update personal information
+            if (fullName != null && !fullName.isBlank()) {
+                updated.setFullName(fullName);
+            }
+            if (identificationCode != null && !identificationCode.isBlank()) {
+                updated.setIdentificationCode(identificationCode);
+            }
+            if (typeOfIdentification != null && !typeOfIdentification.isBlank()) {
+                updated.setTypeOfIdentification(typeOfIdentification);
+            }
+            if (birthday != null) {
+                updated.setBirthday(birthday);
+            }
+            if (expirationDate != null) {
+                updated.setExpirationDate(expirationDate);
+            }
+            if (permanentAddress != null && !permanentAddress.isBlank()) {
+                updated.setPermanentAddress(permanentAddress);
+            }
+            
+            updated = customerRepository.save(updated);
+            return buildKYCMap(updated);
+        } catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new RuntimeException("Upload KYC với thông tin thất bại: " + e.getMessage(), e); }
+    }
+
+    @Override
     public Customer uploadDocuments(Long customerId, MultipartFile front, MultipartFile back, MultipartFile selfie) {
         try {
             Customer customer = customerRepository.findById(customerId)
@@ -221,6 +259,11 @@ public class KYCServiceImpl implements KYCService {
         Map<String, Object> map = new HashMap<>();
         map.put("customerId", customer.getCustomerId());
         map.put("fullName", customer.getFullName());
+        map.put("identificationCode", customer.getIdentificationCode());
+        map.put("typeOfIdentification", customer.getTypeOfIdentification());
+        map.put("birthday", customer.getBirthday());
+        map.put("expirationDate", customer.getExpirationDate());
+        map.put("permanentAddress", customer.getPermanentAddress());
         map.put("kycStatus", customer.getKycStatus());
         map.put("frontCCCDUrl", customer.getKycFrontCCCDUrl());
         map.put("backCCCDUrl", customer.getKycBackCCCDUrl());

@@ -30,7 +30,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/operator/kyc")
 @RequiredArgsConstructor
-@Tag(name = "KYC Management", description = "APIs để quản lý KYC cho customer")
+@Tag(name = "KYC Management", description = "APIs để quản lý KYC cho operator")
 public class KYCController {
 
     private final KYCService kycService;
@@ -39,59 +39,6 @@ public class KYCController {
     
 
 
-
-    /**
-     * Customer upload KYC document (current user)
-     * POST /api/customers/me/kyc/documents?type=front_cccd|back_cccd|selfie
-     */
-    @PostMapping(path = "/api/customers/me/kyc/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Customer upload KYC document (me)")
-    public ResponseEntity<?> uploadMyKycDocument(
-            @RequestParam("type") String documentType,
-            @Parameter(description = "File ảnh KYC", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
-            @RequestPart("file") MultipartFile file,
-            @AuthenticationPrincipal UserDetails principal
-    ) {
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        Map<String, Object> data = kycService.customerUploadDocument(principal.getUsername(), file, documentType);
-        return ResponseUtil.createSuccessResponse(
-                "Upload KYC thành công",
-                "Ảnh " + documentType + " đã được lưu",
-                data,
-                HttpStatus.OK
-        );
-    }
-
-    /**
-     * Customer upload 1 lần nhiều ảnh KYC (front/back/selfie)
-     * POST /api/customers/me/kyc/documents/batch
-     */
-    @PostMapping(path = "/api/customers/me/kyc/documents/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Customer upload nhiều ảnh KYC (me)")
-    public ResponseEntity<?> uploadMyKycDocumentsBatch(
-            @Parameter(description = "Ảnh CCCD mặt trước", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
-            @RequestPart(value = "front", required = false) MultipartFile front,
-            @Parameter(description = "Ảnh CCCD mặt sau", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
-            @RequestPart(value = "back", required = false) MultipartFile back,
-            @Parameter(description = "Ảnh selfie", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
-            @RequestPart(value = "selfie", required = false) MultipartFile selfie,
-            @AuthenticationPrincipal UserDetails principal
-    ) {
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        Map<String, Object> data = kycService.customerUploadDocuments(principal.getUsername(), front, back, selfie);
-        return ResponseUtil.createSuccessResponse(
-                "Upload KYC nhiều ảnh thành công",
-                "Đã lưu các ảnh KYC được chọn",
-                data,
-                HttpStatus.OK
-        );
-    }
 
     /**
      * OCR CCCD image to extract text (front/back/selfie)
@@ -130,7 +77,8 @@ public class KYCController {
     }
 
     /**
-     * Update KYC status (RESTful: PATCH)
+     * Update KYC status
+     * PATCH /api/operator/kyc/customers/{customerId}
      */
     @PatchMapping("/customers/{customerId}")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
@@ -155,6 +103,7 @@ public class KYCController {
 
     /**
      * Get customers pending verification
+     * GET /api/operator/kyc/pending
      */
     @GetMapping("/pending")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
@@ -171,6 +120,7 @@ public class KYCController {
 
     /**
      * Get KYC info for customer
+     * GET /api/operator/kyc/customers/{customerId}
      */
     @GetMapping("/customers/{customerId}")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
@@ -188,6 +138,7 @@ public class KYCController {
 
     /**
      * Get all KYC statuses (for dropdown/select)
+     * GET /api/operator/kyc/statuses
      */
     @GetMapping("/statuses")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
@@ -201,28 +152,6 @@ public class KYCController {
                 HttpStatus.OK
         );
     }
-
-    /**
-     * Customer xem trạng thái KYC của chính mình
-     * GET /api/customers/me/kyc
-     */
-    @GetMapping("/api/customers/me/kyc")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Get my KYC info (me)")
-    public ResponseEntity<?> getMyKyc(@AuthenticationPrincipal UserDetails principal) {
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        Map<String, Object> data = kycService.getMyKyc(principal.getUsername());
-        return ResponseUtil.createSuccessResponse(
-                "Lấy thông tin KYC của tôi thành công",
-                "Thông tin KYC hiện tại",
-                data,
-                HttpStatus.OK
-        );
-    }
-
-    
 
     // Helper methods
     

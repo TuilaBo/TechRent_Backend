@@ -2,7 +2,8 @@ package com.rentaltech.techrental.contract.model;
 
 public enum ContractStatus {
     DRAFT("Nháp"),
-    PENDING_SIGNATURE("Chờ ký"),
+    PENDING_ADMIN_SIGNATURE("Chờ admin ký"),
+    PENDING_SIGNATURE("Chờ khách hàng ký"),
     SIGNED("Đã ký"),
     ACTIVE("Có hiệu lực"),
     EXPIRED("Hết hạn"),
