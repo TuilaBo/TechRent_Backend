@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -30,8 +31,15 @@ public class EncodingConfig implements WebMvcConfigurer {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         objectMapper.configure(SerializationFeature.INDENT_OUTPUT, true);
-        
+
         converter.setObjectMapper(objectMapper);
+        converter.setSupportedMediaTypes(List.of(
+                MediaType.APPLICATION_JSON,
+                MediaType.APPLICATION_PROBLEM_JSON,
+                MediaType.valueOf("application/*+json"),
+                MediaType.TEXT_PLAIN,
+                MediaType.APPLICATION_OCTET_STREAM
+        ));
         return converter;
     }
 

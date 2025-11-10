@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.rentalorder.model;
 
 public enum OrderStatus {
+    PENDING_KYC,
     PENDING,
     PROCESSING,
     DELIVERY_CONFIRMED,

@@ -8,13 +8,16 @@ import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
+import com.rentaltech.techrental.staff.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class StaffServiceImpl implements StaffService {
@@ -24,6 +27,9 @@ public class StaffServiceImpl implements StaffService {
 
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private TaskRepository taskRepository;
 
     @Override
     public List<Staff> getAllStaff() {
@@ -60,6 +66,32 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public List<Staff> getActiveStaff() {
         return staffRepository.findByIsActiveTrue();
+    }
+
+    @Override
+    public List<Staff> searchStaff(LocalDateTime startTime, LocalDateTime endTime, Boolean available, StaffRole staffRole) {
+        List<Staff> base = (staffRole != null)
+                ? staffRepository.findByStaffRole(staffRole)
+                : staffRepository.findAll();
+
+        List<Staff> activeStaff = base.stream()
+                .filter(staff -> staff.getIsActive() == null || Boolean.TRUE.equals(staff.getIsActive()))
+                .collect(Collectors.toList());
+
+        boolean requireAvailability = available == null || available;
+        if (!requireAvailability) {
+            return activeStaff;
+        }
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("Cần cung cấp startTime và endTime khi tìm nhân viên còn trống");
+        }
+        if (endTime.isBefore(startTime)) {
+            throw new IllegalArgumentException("endTime phải sau startTime");
+        }
+
+        return activeStaff.stream()
+                .filter(staff -> !taskRepository.existsOverlappingTaskForStaff(staff.getStaffId(), startTime, endTime))
+                .collect(Collectors.toList());
     }
 
     @Override

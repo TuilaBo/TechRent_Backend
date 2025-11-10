@@ -9,6 +9,13 @@ import com.rentaltech.techrental.finance.repository.TransactionRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
+import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.webapi.customer.model.NotificationType;
+import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -24,16 +31,22 @@ import vn.payos.model.webhooks.WebhookData;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
+    private static final String DELIVERY_CATEGORY_NAME = "DELIVERY";
+
     private final PayOS payOS;
     private final InvoiceRepository invoiceRepository;
     private final TransactionRepository transactionRepository;
     private final RentalOrderRepository rentalOrderRepository;
+    private final NotificationService notificationService;
+    private final TaskRepository taskRepository;
+    private final TaskCategoryRepository taskCategoryRepository;
 
     @Override
     @Transactional
@@ -64,6 +77,7 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal depositApplied = BigDecimal.ZERO;
         BigDecimal totalAmount = expectedSubTotal.add(taxAmount).subtract(discountAmount);
+        long payosOrderCode = generateUniquePayosOrderCode();
         Invoice invoice = Invoice.builder()
                 .rentalOrder(rentalOrder)
                 .invoiceType(invoiceType)
@@ -78,6 +92,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .invoiceStatus(InvoiceStatus.PROCESSING)
                 .pdfUrl(null)
                 .issueDate(null)
+                .payosOrderCode(payosOrderCode)
                 .build();
 
         invoice = invoiceRepository.save(invoice);
@@ -115,20 +130,21 @@ public class PaymentServiceImpl implements PaymentService {
 
         InvoiceStatus newStatus = targetStatus.get();
 
-        Invoice invoice = invoiceRepository.findById(orderCode)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + orderCode));
+        Invoice invoice = invoiceRepository.findByPayosOrderCode(orderCode)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found for PayOS order code: " + orderCode));
+        RentalOrder rentalOrder = invoice.getRentalOrder();
 
         invoice.setInvoiceStatus(newStatus);
 
         if (newStatus == InvoiceStatus.SUCCEEDED) {
             invoice.setPaymentDate(LocalDateTime.now());
 
-            RentalOrder rentalOrder = invoice.getRentalOrder();
             if (rentalOrder != null) {
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
             }
 
+            boolean transactionCreated = false;
             if (!transactionRepository.existsByInvoice(invoice)) {
                 BigDecimal transactionAmount = Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO);
 
@@ -139,6 +155,12 @@ public class PaymentServiceImpl implements PaymentService {
                         .build();
 
                 transactionRepository.save(transaction);
+                transactionCreated = true;
+            }
+
+            if (transactionCreated && rentalOrder != null) {
+                notifyPaymentSuccess(rentalOrder);
+                createDeliveryTaskIfNeeded(rentalOrder);
             }
 
         } else {
@@ -149,6 +171,47 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
 
+    private void notifyPaymentSuccess(RentalOrder rentalOrder) {
+        if (rentalOrder.getCustomer() == null || rentalOrder.getCustomer().getCustomerId() == null) {
+            return;
+        }
+        String title = "Thanh toán thành công";
+        String message = String.format("Đơn thuê #%d đã được xác nhận thanh toán.", rentalOrder.getOrderId());
+        notificationService.notifyCustomer(
+                rentalOrder.getCustomer().getCustomerId(),
+                NotificationType.ORDER_CONFIRMED,
+                title,
+                message
+        );
+    }
+
+    private void createDeliveryTaskIfNeeded(RentalOrder rentalOrder) {
+        if (rentalOrder.getOrderId() == null) {
+            return;
+        }
+        TaskCategory deliveryCategory = taskCategoryRepository.findByNameIgnoreCase(DELIVERY_CATEGORY_NAME)
+                .orElseGet(() -> taskCategoryRepository.findByName(DELIVERY_CATEGORY_NAME).orElse(null));
+        if (deliveryCategory == null) {
+            log.warn("Không thể tạo task giao hàng vì không tìm thấy category '{}'", DELIVERY_CATEGORY_NAME);
+            return;
+        }
+        boolean alreadyExists = taskRepository.findByOrderId(rentalOrder.getOrderId()).stream()
+                .anyMatch(task -> task.getTaskCategory() != null
+                        && task.getTaskCategory().getTaskCategoryId().equals(deliveryCategory.getTaskCategoryId()));
+        if (alreadyExists) {
+            return;
+        }
+        Task deliveryTask = Task.builder()
+                .taskCategory(deliveryCategory)
+                .orderId(rentalOrder.getOrderId())
+                .type(DELIVERY_CATEGORY_NAME)
+                .description(String.format("Chuẩn bị giao đơn hàng #%d cho khách.", rentalOrder.getOrderId()))
+                .plannedStart(LocalDateTime.now())
+                .status(TaskStatus.PENDING)
+                .build();
+        taskRepository.save(deliveryTask);
+    }
+
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
         if (request.getReturnUrl() == null) {
             throw new IllegalStateException("Return URL not configured for PayOS payment");
@@ -158,13 +221,13 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         PaymentLinkItem itemData = PaymentLinkItem.builder()
-                .name("Mỳ tôm Hảo Hảo ly")
+                .name("Đơn hàng TechRent: " + invoice.getRentalOrder().getOrderId())
                 .quantity(1)
-                .price(2000L)
+                .price(invoice.getTotalAmount().longValueExact())
                 .build();
 
         return CreatePaymentLinkRequest.builder()
-                        .orderCode(invoice.getInvoiceId())
+                        .orderCode(invoice.getPayosOrderCode())
                         .amount(request.getAmount().longValueExact())
                         .description("Thanh toan")
                         .returnUrl("https://your-url.com/success")
@@ -193,5 +256,15 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal left = Optional.ofNullable(first).orElse(BigDecimal.ZERO);
         BigDecimal right = Optional.ofNullable(second).orElse(BigDecimal.ZERO);
         return left.add(right);
+    }
+
+    private static final long PAYOS_SAFE_MAX = 9_007_199_254_740_991L;
+
+    private long generateUniquePayosOrderCode() {
+        long code;
+        do {
+            code = ThreadLocalRandom.current().nextLong(1, PAYOS_SAFE_MAX);
+        } while (invoiceRepository.existsByPayosOrderCode(code));
+        return code;
     }
 }

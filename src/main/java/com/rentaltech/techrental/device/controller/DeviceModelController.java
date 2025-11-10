@@ -5,6 +5,8 @@ import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.service.DeviceModelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,9 +14,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 
@@ -26,7 +30,7 @@ public class DeviceModelController {
 
     private final DeviceModelService service;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create device model", description = "Create a new device model")
     @ApiResponses({
@@ -34,11 +38,13 @@ public class DeviceModelController {
             @ApiResponse(responseCode = "400", description = "Invalid data"),
             @ApiResponse(responseCode = "500", description = "Server error")
     })
-    public ResponseEntity<?> create(@Valid @RequestBody DeviceModelRequestDto request) {
+    public ResponseEntity<?> create(@RequestPart("request") @Valid DeviceModelRequestDto request,
+                                    @Parameter(description = "Ành thiết bị", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+                                    @RequestPart(value = "image", required = false) MultipartFile imageFile) {
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị được tạo thành công",
                 "Mẫu thiết bị đã được thêm vào hệ thống",
-                service.create(request),
+                service.create(request, imageFile),
                 HttpStatus.CREATED
         );
     }
@@ -74,7 +80,7 @@ public class DeviceModelController {
         );
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update device model", description = "Update device model by ID")
     @ApiResponses({
@@ -84,11 +90,12 @@ public class DeviceModelController {
             @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<?> update(@Parameter(description = "Device model ID") @PathVariable Long id,
-                                    @Valid @RequestBody DeviceModelRequestDto request) {
+                                    @RequestPart("request") @Valid DeviceModelRequestDto request,
+                                    @RequestPart(value = "image", required = false) MultipartFile imageFile) {
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị được cập nhật thành công",
                 "Mẫu thiết bị với id " + id + " đã được cập nhật",
-                service.update(id, request),
+                service.update(id, request, imageFile),
                 HttpStatus.OK
         );
     }

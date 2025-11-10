@@ -1,5 +1,9 @@
 package com.rentaltech.techrental.webapi.operator.service.impl;
 
+import com.rentaltech.techrental.rentalorder.model.OrderStatus;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.KYCVerificationDto;
@@ -25,6 +29,8 @@ public class KYCServiceImpl implements KYCService {
     private final CustomerRepository customerRepository;
     private final ImageStorageService imageStorageService;
     private final com.rentaltech.techrental.webapi.customer.repository.CustomerRepository custRepo; // alias if needed
+    private final RentalOrderRepository rentalOrderRepository;
+    private final PreRentalQcTaskCreator preRentalQcTaskCreator;
     
     @Override
     public Customer uploadDocument(Long customerId, MultipartFile file, String documentType) {
@@ -176,7 +182,11 @@ public class KYCServiceImpl implements KYCService {
                 customer.setKycRejectionReason(request.getRejectionReason());
             }
 
-            return customerRepository.save(customer);
+            Customer saved = customerRepository.save(customer);
+            if (request.getStatus() == KYCStatus.VERIFIED) {
+                activatePendingKycOrders(saved);
+            }
+            return saved;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -188,6 +198,20 @@ public class KYCServiceImpl implements KYCService {
     public Map<String, Object> updateKycStatusAndBuild(Long customerId, KYCVerificationDto request, Long operatorId) {
         Customer c = updateKYCStatus(customerId, request, operatorId);
         return buildKYCMap(c);
+    }
+
+    private void activatePendingKycOrders(Customer customer) {
+        if (customer == null || customer.getCustomerId() == null) {
+            return;
+        }
+        List<RentalOrder> pendingOrders = rentalOrderRepository.findByCustomer_CustomerIdAndOrderStatus(
+                customer.getCustomerId(), OrderStatus.PENDING_KYC);
+        if (pendingOrders.isEmpty()) {
+            return;
+        }
+        pendingOrders.forEach(order -> order.setOrderStatus(OrderStatus.PENDING));
+        rentalOrderRepository.saveAll(pendingOrders);
+        pendingOrders.forEach(order -> preRentalQcTaskCreator.createIfNeeded(order.getOrderId()));
     }
     
     @Override

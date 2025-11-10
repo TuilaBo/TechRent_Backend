@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface TaskCategoryRepository extends JpaRepository<TaskCategory, Long> {
     
     Optional<TaskCategory> findByName(String name);
+
+    Optional<TaskCategory> findByNameIgnoreCase(String name);
     
     List<TaskCategory> findByNameContainingIgnoreCase(String name);
     
