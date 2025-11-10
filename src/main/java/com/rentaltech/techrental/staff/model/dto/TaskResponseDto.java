@@ -4,6 +4,7 @@ import com.rentaltech.techrental.staff.model.TaskStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -15,9 +16,7 @@ public class TaskResponseDto {
     private Long taskCategoryId;
     private String taskCategoryName;
     private Long orderId;
-    private Long assignedStaffId;
-    private String assignedStaffName;
-    private String assignedStaffRole;
+    private List<AssignedStaffSummary> assignedStaff;
     private String type;
     private String description;
     private LocalDateTime plannedStart;
@@ -25,4 +24,15 @@ public class TaskResponseDto {
     private TaskStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
+
+    @Getter
+    @Setter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class AssignedStaffSummary {
+        private Long staffId;
+        private String staffName;
+        private String staffRole;
+    }
 }

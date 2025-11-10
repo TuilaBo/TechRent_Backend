@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "invoice")
@@ -22,6 +23,9 @@ public class Invoice {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "invoice_id", nullable = false)
     private Long invoiceId;
+
+    @Column(name = "payos_order_code", unique = true)
+    private Long payosOrderCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
@@ -65,5 +69,20 @@ public class Invoice {
 
     @Column(name = "issue_date")
     private LocalDateTime issueDate;
+
+    @PrePersist
+    public void ensurePayosOrderCode() {
+        if (payosOrderCode == null || payosOrderCode == 0) {
+            payosOrderCode = generatePositiveLongFromUuid();
+        }
+    }
+
+    private long generatePositiveLongFromUuid() {
+        long value;
+        do {
+            value = Math.abs(UUID.randomUUID().getMostSignificantBits());
+        } while (value == 0);
+        return value;
+    }
 
 }

@@ -139,11 +139,11 @@ public class TaskController {
             @ApiResponse(responseCode = "404", description = "Not found")
     })
     public ResponseEntity<?> assignTask(@PathVariable Long taskId,
-                                        @RequestParam Long assignedStaffId,
+                                        @RequestParam List<Long> assignedStaffIds,
                                         Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         TaskUpdateRequestDto request = TaskUpdateRequestDto.builder()
-                .assignedStaffId(assignedStaffId)
+                .assignedStaffIds(assignedStaffIds)
                 .build();
         Task updatedTask = taskService.updateTask(taskId, request, username);
         return ResponseUtil.createSuccessResponse(
@@ -172,25 +172,29 @@ public class TaskController {
     }
 
     private TaskResponseDto mapToResponseDto(Task task) {
-        TaskResponseDto.TaskResponseDtoBuilder builder = TaskResponseDto.builder()
+        List<TaskResponseDto.AssignedStaffSummary> assignedStaff = task.getAssignedStaff() == null
+                ? List.of()
+                : task.getAssignedStaff().stream()
+                .map(staff -> TaskResponseDto.AssignedStaffSummary.builder()
+                        .staffId(staff.getStaffId())
+                        .staffName(staff.getAccount() != null ? staff.getAccount().getUsername() : null)
+                        .staffRole(staff.getStaffRole() != null ? staff.getStaffRole().name() : null)
+                        .build())
+                .collect(Collectors.toList());
+
+        return TaskResponseDto.builder()
                 .taskId(task.getTaskId())
                 .taskCategoryId(task.getTaskCategory().getTaskCategoryId())
                 .taskCategoryName(task.getTaskCategory().getName())
                 .orderId(task.getOrderId())
+                .assignedStaff(assignedStaff)
                 .type(task.getType())
                 .description(task.getDescription())
                 .plannedStart(task.getPlannedStart())
                 .plannedEnd(task.getPlannedEnd())
                 .status(task.getStatus())
                 .createdAt(task.getCreatedAt())
-                .completedAt(task.getCompletedAt());
-
-        if (task.getAssignedStaff() != null) {
-            builder.assignedStaffId(task.getAssignedStaff().getStaffId())
-                    .assignedStaffName(task.getAssignedStaff().getAccount().getUsername())
-                    .assignedStaffRole(task.getAssignedStaff().getStaffRole().toString());
-        }
-
-        return builder.build();
+                .completedAt(task.getCompletedAt())
+                .build();
     }
 }

@@ -3,7 +3,6 @@ package com.rentaltech.techrental.webapi.technician.model.dto;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCResult;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.util.List;
@@ -28,7 +27,4 @@ public class QCReportCreateRequestDto {
     private QCResult result;
 
     private String findings;
-
-    @Size(max = 500)
-    private String accessorySnapShotUrl;
 }

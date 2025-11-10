@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "Task")
@@ -25,9 +27,14 @@ public class Task {
     @Column(name = "order_id", nullable = false)
     private Long orderId; // Foreign key to Order table
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_staff_id")
-    private Staff assignedStaff; // Staff được assign task này
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "task_assigned_staff",
+            joinColumns = @JoinColumn(name = "task_id"),
+            inverseJoinColumns = @JoinColumn(name = "staff_id")
+    )
+    @Builder.Default
+    private Set<Staff> assignedStaff = new LinkedHashSet<>();
 
     @Column(name = "type", length = 100)
     private String type;

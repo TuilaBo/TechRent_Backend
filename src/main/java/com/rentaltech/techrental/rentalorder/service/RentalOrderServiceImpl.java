@@ -11,10 +11,7 @@ import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
-import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
-import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
@@ -46,8 +43,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final OrderDetailRepository orderDetailRepository;
     private final CustomerRepository customerRepository;
     private final DeviceModelRepository deviceModelRepository;
-    private final TaskRepository taskRepository;
-    private final TaskCategoryRepository taskCategoryRepository;
+    private final PreRentalQcTaskCreator preRentalQcTaskCreator;
 
     @Override
     @Transactional(readOnly = true)
@@ -91,9 +87,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         String usernameCreate = authCreate.getName();
         Customer customer = customerRepository.findByAccount_Username(usernameCreate)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + usernameCreate));
-        if (customer.getKycStatus() != KYCStatus.VERIFIED) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa xác nhận thông tin KYC");
-        }
+        boolean kycVerified = customer.getKycStatus() == KYCStatus.VERIFIED;
 
         // Build details from device models and compute totals
         Computed computed = computeFromDetails(request);
@@ -102,7 +96,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .shippingAddress(request.getShippingAddress())
-                .orderStatus(OrderStatus.PENDING)
+                .orderStatus(kycVerified ? OrderStatus.PENDING : OrderStatus.PENDING_KYC)
                 .depositAmount(computed.totalDeposit())
                 .depositAmountHeld(BigDecimal.ZERO)
                 .depositAmountUsed(BigDecimal.ZERO)
@@ -119,17 +113,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         List<OrderDetail> persistedDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
         // Create allocations for each order detail
         // Create QC task linked to this order
-        LocalDateTime now = LocalDateTime.now();
-        TaskCategory category = taskCategoryRepository.findByName("Pre rental QC")
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pre rental QC'"));
-        Task task = Task.builder()
-                .taskCategory(category)
-                .orderId(saved.getOrderId())
-                .type("PRE_RENTAL_QC")
-                .plannedStart(now)
-                .plannedEnd(now.plusDays(3))
-                .build();
-        taskRepository.save(task);
+        if (kycVerified) {
+            preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
+        }
 
 
         return mapToDto(saved, persistedDetails);
@@ -204,16 +190,14 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         String usernameCreate = authCreate.getName();
         Customer customer = customerRepository.findByAccount_Username(usernameCreate)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + usernameCreate));
-        if (customer.getKycStatus() != KYCStatus.VERIFIED) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa xác nhận thông tin KYC");
-        }
+        boolean kycVerified = customer.getKycStatus() == KYCStatus.VERIFIED;
 
         Computed computed = computeFromDetails(request);
 
         existing.setStartDate(request.getStartDate());
         existing.setEndDate(request.getEndDate());
         existing.setShippingAddress(request.getShippingAddress());
-        existing.setOrderStatus(OrderStatus.PENDING);
+        existing.setOrderStatus(kycVerified ? OrderStatus.PENDING : OrderStatus.PENDING_KYC);
         existing.setDepositAmount(computed.totalDeposit());
         existing.setDepositAmountHeld(BigDecimal.ZERO);
         existing.setDepositAmountUsed(BigDecimal.ZERO);
@@ -227,6 +211,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         for (OrderDetail od : computed.details()) od.setRentalOrder(saved);
         List<OrderDetail> newDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
+        if (kycVerified) {
+            preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
+        }
         // Create allocations for updated order details
         return mapToDto(saved, newDetails);
     }

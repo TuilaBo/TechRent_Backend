@@ -17,6 +17,7 @@ import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCReport;
 import com.rentaltech.techrental.webapi.technician.model.QCResult;
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -45,16 +47,16 @@ public class QCReportServiceImpl implements QCReportService {
     private final AccountService accountService;
     private final StaffService staffService;
     private final NotificationService notificationService;
+    private final ImageStorageService imageStorageService;
 
     @Override
     @Transactional
-    public QCReportResponseDto createReport(QCReportCreateRequestDto request, String username) {
+    public QCReportResponseDto createReport(QCReportCreateRequestDto request, MultipartFile accessorySnapshot, String username) {
         Account account = getAccountByUsername(username);
         Task task = getTaskById(request.getTaskId());
-        Staff assignedStaff = task.getAssignedStaff();
         Staff currentStaff = staffService.getStaffByAccountIdOrThrow(account.getAccountId());
 
-        if (assignedStaff == null || !assignedStaff.getStaffId().equals(currentStaff.getStaffId())) {
+        if (!isStaffAssignedToTask(task, currentStaff)) {
             throw new AccessDeniedException("Kỹ thuật viên không được phân công cho công việc này");
         }
 
@@ -70,11 +72,11 @@ public class QCReportServiceImpl implements QCReportService {
                 .phase(request.getPhase())
                 .result(request.getResult())
                 .findings(request.getFindings())
-                .accessorySnapShotUrl(request.getAccessorySnapShotUrl())
                 .createdBy(username)
                 .task(task)
                 .build();
 
+        maybeUploadAccessorySnapshot(accessorySnapshot, qcReport);
         QCReport saved = qcReportRepository.save(qcReport);
 
         List<Allocation> allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
@@ -97,7 +99,7 @@ public class QCReportServiceImpl implements QCReportService {
 
     @Override
     @Transactional
-    public QCReportResponseDto updateReport(Long reportId, QCReportUpdateRequestDto request, String username) {
+    public QCReportResponseDto updateReport(Long reportId, QCReportUpdateRequestDto request, MultipartFile accessorySnapshot, String username) {
         QCReport report = qcReportRepository.findById(reportId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy báo cáo QC với id: " + reportId));
 
@@ -106,8 +108,7 @@ public class QCReportServiceImpl implements QCReportService {
 
         if (!isAdmin) {
             Staff currentStaff = staffService.getStaffByAccountIdOrThrow(account.getAccountId());
-            Staff assignedStaff = report.getTask().getAssignedStaff();
-            if (assignedStaff == null || !assignedStaff.getStaffId().equals(currentStaff.getStaffId())) {
+            if (!isStaffAssignedToTask(report.getTask(), currentStaff)) {
                 throw new AccessDeniedException("Kỹ thuật viên không được phân công cho công việc này");
             }
         }
@@ -117,7 +118,7 @@ public class QCReportServiceImpl implements QCReportService {
         report.setPhase(request.getPhase());
         report.setResult(request.getResult());
         report.setFindings(request.getFindings());
-        report.setAccessorySnapShotUrl(request.getAccessorySnapShotUrl());
+        maybeUploadAccessorySnapshot(accessorySnapshot, report);
 
         if (report.getResult() == QCResult.READY_FOR_SHIPPING) {
             Map<Long, List<String>> serialNumbersByOrderDetail = request.getOrderDetailSerialNumbers();
@@ -282,6 +283,18 @@ public class QCReportServiceImpl implements QCReportService {
         }
     }
 
+    private void maybeUploadAccessorySnapshot(MultipartFile accessorySnapshot, QCReport report) {
+        if (accessorySnapshot == null || accessorySnapshot.isEmpty()) {
+            return;
+        }
+        Long taskId = null;
+        if (report.getTask() != null) {
+            taskId = report.getTask().getTaskId();
+        }
+        String uploadedUrl = imageStorageService.uploadQcAccessorySnapshot(accessorySnapshot, taskId);
+        report.setAccessorySnapShotUrl(uploadedUrl);
+    }
+
     private void validatePhaseAndResult(QCPhase phase, QCResult result) {
         if (phase == QCPhase.PRE_RENTAL) {
             if (result != QCResult.READY_FOR_SHIPPING && result != QCResult.PRE_RENTAL_FAILED) {
@@ -304,6 +317,17 @@ public class QCReportServiceImpl implements QCReportService {
     private Task getTaskById(Long taskId) {
         return taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc với id: " + taskId));
+    }
+
+    private boolean isStaffAssignedToTask(Task task, Staff staff) {
+        if (task == null || staff == null) {
+            return false;
+        }
+        if (task.getAssignedStaff() == null || task.getAssignedStaff().isEmpty()) {
+            return false;
+        }
+        return task.getAssignedStaff().stream()
+                .anyMatch(assigned -> assigned != null && staff.getStaffId().equals(assigned.getStaffId()));
     }
 
     private QCReportResponseDto mapToResponseDto(QCReport report) {

@@ -9,12 +9,14 @@ import com.rentaltech.techrental.device.repository.BrandRepository;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,10 +31,12 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     private final DeviceModelRepository repository;
     private final DeviceCategoryRepository deviceCategoryRepository;
     private final BrandRepository brandRepository;
+    private final ImageStorageService imageStorageService;
 
     @Override
-    public DeviceModelResponseDto create(DeviceModelRequestDto request) {
+    public DeviceModelResponseDto create(DeviceModelRequestDto request, MultipartFile imageFile) {
         DeviceModel entity = mapToEntity(request);
+        maybeUploadDeviceModelImage(imageFile, request, entity);
         return mapToDto(repository.save(entity));
     }
 
@@ -64,10 +68,11 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     }
 
     @Override
-    public DeviceModelResponseDto update(Long id, DeviceModelRequestDto request) {
+    public DeviceModelResponseDto update(Long id, DeviceModelRequestDto request, MultipartFile imageFile) {
         DeviceModel entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + id));
         applyUpdates(entity, request);
+        maybeUploadDeviceModelImage(imageFile, request, entity);
         return mapToDto(repository.save(entity));
     }
 
@@ -94,7 +99,6 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .deviceName(request.getDeviceName())
                 .brand(brand)
                 .description(request.getDescription())
-                .imageURL(request.getImageURL())
                 .amountAvailable(0L)
                 .specifications(request.getSpecifications())
                 .isActive(request.isActive())
@@ -121,7 +125,6 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         entity.setDeviceName(request.getDeviceName());
         entity.setBrand(brand);
         entity.setDescription(request.getDescription());
-        entity.setImageURL(request.getImageURL());
         entity.setSpecifications(request.getSpecifications());
         entity.setAmountAvailable(deviceRepository.countByDeviceModel_DeviceModelId(entity.getDeviceModelId()));
         entity.setActive(request.isActive());
@@ -146,6 +149,18 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .pricePerDay(entity.getPricePerDay())
                 .depositPercent(entity.getDepositPercent())
                 .build();
+    }
+
+    private void maybeUploadDeviceModelImage(MultipartFile imageFile, DeviceModelRequestDto request, DeviceModel entity) {
+        if (imageFile == null || imageFile.isEmpty()) {
+            return;
+        }
+        String uploadedUrl = imageStorageService.uploadDeviceModelImage(
+                imageFile,
+                request.getBrandId(),
+                request.getDeviceName()
+        );
+        entity.setImageURL(uploadedUrl);
     }
 
     private Specification<DeviceModel> buildSpecification(String deviceName,
