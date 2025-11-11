@@ -4,6 +4,7 @@ import com.rentaltech.techrental.staff.model.TaskStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -12,7 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class TaskUpdateRequestDto {
     private Long taskCategoryId;
-    private Long assignedStaffId;
+    private List<Long> assignedStaffIds;
     private String type;
     private String description;
     private LocalDateTime plannedStart;

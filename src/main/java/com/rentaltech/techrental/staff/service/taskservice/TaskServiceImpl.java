@@ -26,8 +26,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -70,12 +72,8 @@ public class TaskServiceImpl implements TaskService {
             TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
                     .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
 
-            // Tìm staff được assign (nếu có)
-            Staff assignedStaff = null;
-            if (request.getAssignedStaffId() != null) {
-                assignedStaff = staffRepository.findById(request.getAssignedStaffId())
-                        .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên"));
-            }
+            // Tìm danh sách staff được assign (nếu có)
+            Set<Staff> assignedStaff = resolveStaffMembers(request.getAssignedStaffIds());
 
             Task task = Task.builder()
                     .taskCategory(category)
@@ -182,8 +180,7 @@ public class TaskServiceImpl implements TaskService {
         }
         if (effectiveAssignedStaffId != null) {
             tasks = tasks.stream()
-                    .filter(task -> task.getAssignedStaff() != null
-                            && effectiveAssignedStaffId.equals(task.getAssignedStaff().getStaffId()))
+                    .filter(task -> isTaskAssignedTo(task, effectiveAssignedStaffId))
                     .collect(Collectors.toList());
         }
         if (status != null) {
@@ -202,10 +199,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
 
-        if (request.getAssignedStaffId() != null) {
-            Staff staff = staffRepository.findById(request.getAssignedStaffId())
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên"));
-            task.setAssignedStaff(staff);
+        if (request.getAssignedStaffIds() != null) {
+            Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
+            task.setAssignedStaff(staffMembers);
         }
 
         if (request.getTaskCategoryId() != null) {
@@ -264,7 +260,7 @@ public class TaskServiceImpl implements TaskService {
         if (!access.isRestricted()) {
             return;
         }
-        if (task.getAssignedStaff() == null || !access.staffId().equals(task.getAssignedStaff().getStaffId())) {
+        if (!isTaskAssignedTo(task, access.staffId())) {
             throw new AccessDeniedException("Không có quyền truy cập tác vụ này");
         }
     }
@@ -275,8 +271,7 @@ public class TaskServiceImpl implements TaskService {
         }
         Long staffId = access.staffId();
         return tasks.stream()
-                .filter(task -> task.getAssignedStaff() != null
-                        && staffId.equals(task.getAssignedStaff().getStaffId()))
+                .filter(task -> isTaskAssignedTo(task, staffId))
                 .collect(Collectors.toList());
     }
 
@@ -317,6 +312,33 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    private boolean isTaskAssignedTo(Task task, Long staffId) {
+        if (task == null || staffId == null) {
+            return false;
+        }
+        Set<Staff> assignees = task.getAssignedStaff();
+        if (assignees == null || assignees.isEmpty()) {
+            return false;
+        }
+        return assignees.stream().anyMatch(staff -> staff != null && staffId.equals(staff.getStaffId()));
+    }
+
+    private Set<Staff> resolveStaffMembers(List<Long> staffIds) {
+        if (staffIds == null || staffIds.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+        Set<Staff> members = new LinkedHashSet<>();
+        staffIds.stream()
+                .filter(id -> id != null)
+                .distinct()
+                .forEach(id -> {
+                    Staff staff = staffRepository.findById(id)
+                            .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với id: " + id));
+                    members.add(staff);
+                });
+        return members;
+    }
+
     private void promoteOrderStatusIfNeeded(Task task) {
         if (task == null || task.getOrderId() == null || task.getType() == null) {
             return;
@@ -333,7 +355,10 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void notifyCustomerOrderProcessing(Task task) {
-        if (task == null || task.getAssignedStaff() == null || task.getOrderId() == null) {
+        if (task == null || task.getOrderId() == null) {
+            return;
+        }
+        if (task.getAssignedStaff() == null || task.getAssignedStaff().isEmpty()) {
             return;
         }
         rentalOrderRepository.findById(task.getOrderId())

@@ -21,9 +21,6 @@ public class DeviceModelRequestDto {
     @NotNull
     private Long brandId;
 
-    @Size(max = 500)
-    private String imageURL;
-
     @Size(max = 1000)
     private String specifications;
 

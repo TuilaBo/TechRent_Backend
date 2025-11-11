@@ -9,10 +9,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/technician/qc-reports")
@@ -23,12 +25,13 @@ public class QCReportController {
 
     private final QCReportService qcReportService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Create QC report", description = "Technician creates QC report for assigned task")
-    public ResponseEntity<?> createReport(@Valid @RequestBody QCReportCreateRequestDto request,
+    public ResponseEntity<?> createReport(@RequestPart("request") @Valid QCReportCreateRequestDto request,
+                                          @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
                                           Authentication authentication) {
         String username = authentication.getName();
-        var response = qcReportService.createReport(request, username);
+        var response = qcReportService.createReport(request, accessorySnapshot, username);
         return ResponseUtil.createSuccessResponse(
                 "Tạo báo cáo QC thành công!",
                 "Báo cáo QC đã được tạo cho task " + response.getTaskId(),
@@ -49,13 +52,14 @@ public class QCReportController {
         );
     }
 
-    @PutMapping("/{reportId}")
+    @PutMapping(value = "/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Update QC report", description = "Cập nhật kết quả báo cáo QC")
     public ResponseEntity<?> updateReport(@PathVariable Long reportId,
-                                          @Valid @RequestBody QCReportUpdateRequestDto request,
+                                          @RequestPart("request") @Valid QCReportUpdateRequestDto request,
+                                          @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
                                           Authentication authentication) {
         String username = authentication.getName();
-        var response = qcReportService.updateReport(reportId, request, username);
+        var response = qcReportService.updateReport(reportId, request, accessorySnapshot, username);
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật báo cáo QC thành công!",
                 "Báo cáo QC đã được cập nhật",

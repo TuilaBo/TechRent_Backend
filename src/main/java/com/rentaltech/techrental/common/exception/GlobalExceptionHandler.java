@@ -3,6 +3,7 @@ package com.rentaltech.techrental.common.exception;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -15,6 +16,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -125,6 +127,21 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<?> handleConstraintViolationException(ConstraintViolationException ex) {
+        String details = ex.getConstraintViolations().isEmpty()
+                ? ex.getMessage()
+                : ex.getConstraintViolations().stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                .collect(Collectors.joining("; "));
+        return ResponseUtil.createErrorResponse(
+                "VALIDATION_FAILED",
+                "Dữ liệu không hợp lệ",
+                details,
+                HttpStatus.BAD_REQUEST
+        );
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntimeException(RuntimeException ex, WebRequest request) {
         return ResponseUtil.createErrorResponse(
@@ -150,7 +167,7 @@ public class GlobalExceptionHandler {
         return ResponseUtil.createErrorResponse(
                 "UNKNOWN_ERROR",
                 "Lỗi không xác định",
-                "Có lỗi không mong muốn xảy ra",
+                "Có lỗi không mong muốn xảy ra: " + ex.getMessage(),
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }
