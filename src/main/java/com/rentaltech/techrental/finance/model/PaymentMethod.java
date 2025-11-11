@@ -2,6 +2,7 @@ package com.rentaltech.techrental.finance.model;
 
 public enum PaymentMethod {
     PAYOS("PayOS"),
+    VNPAY("VNPAY"),
     MOMO("MoMo"),
     BANK_ACCOUNT("Bank Account");
 

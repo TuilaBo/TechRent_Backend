@@ -27,6 +27,9 @@ public class Invoice {
     @Column(name = "payos_order_code", unique = true)
     private Long payosOrderCode;
 
+    @Column(name = "vnpay_transaction_id")
+    private String vnpayTransactionId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
     private RentalOrder rentalOrder;
@@ -69,6 +72,12 @@ public class Invoice {
 
     @Column(name = "issue_date")
     private LocalDateTime issueDate;
+
+    @Column(name = "frontend_success_url", length = 500)
+    private String frontendSuccessUrl;
+
+    @Column(name = "frontend_failure_url", length = 500)
+    private String frontendFailureUrl;
 
     @PrePersist
     public void ensurePayosOrderCode() {
