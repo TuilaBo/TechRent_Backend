@@ -161,6 +161,11 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Received PayOS webhook: orderCode={}, desc={}, amount={}, code={}",
                 orderCode, eventDesc, amount, code);
 
+        if (orderCode != null && orderCode == 123L) {
+            log.info("PayOS connectivity ping received, skipping business processing.");
+            return;
+        }
+
         Optional<InvoiceStatus> targetStatus = code.equals("00") ? Optional.of(InvoiceStatus.SUCCEEDED) : Optional.of(InvoiceStatus.FAILED);
 
         InvoiceStatus newStatus = targetStatus.get();
