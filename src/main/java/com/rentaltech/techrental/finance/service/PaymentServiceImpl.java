@@ -1,11 +1,13 @@
 package com.rentaltech.techrental.finance.service;
 
+import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentResponse;
 import com.rentaltech.techrental.finance.model.dto.InvoiceResponseDto;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.repository.TransactionRepository;
+import com.rentaltech.techrental.finance.util.VnpayUtil;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
@@ -30,7 +32,8 @@ import vn.payos.model.webhooks.WebhookData;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -41,6 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
     private static final String DELIVERY_CATEGORY_NAME = "DELIVERY";
 
     private final PayOS payOS;
+    private final VnpayConfig vnpayConfig;
     private final InvoiceRepository invoiceRepository;
     private final TransactionRepository transactionRepository;
     private final RentalOrderRepository rentalOrderRepository;
@@ -61,7 +65,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new UnsupportedOperationException("TODO: unsupported payment method " + paymentMethod);
         }
 
-        if (paymentMethod != PaymentMethod.PAYOS) {
+        if (paymentMethod != PaymentMethod.PAYOS && paymentMethod != PaymentMethod.VNPAY) {
             throw new IllegalArgumentException("Unsupported payment method: " + paymentMethod);
         }
 
@@ -77,39 +81,70 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal depositApplied = BigDecimal.ZERO;
         BigDecimal totalAmount = expectedSubTotal.add(taxAmount).subtract(discountAmount);
-        long payosOrderCode = generateUniquePayosOrderCode();
-        Invoice invoice = Invoice.builder()
-                .rentalOrder(rentalOrder)
-                .invoiceType(invoiceType)
-                .paymentMethod(paymentMethod)
-                .paymentDate(null)
-                .subTotal(expectedSubTotal)
-                .taxAmount(taxAmount)
-                .discountAmount(discountAmount)
-                .totalAmount(totalAmount)
-                .depositApplied(depositApplied)
-                .dueDate(LocalDateTime.now().plusDays(3))
-                .invoiceStatus(InvoiceStatus.PROCESSING)
-                .pdfUrl(null)
-                .issueDate(null)
-                .payosOrderCode(payosOrderCode)
-                .build();
-
-        invoice = invoiceRepository.save(invoice);
-
-        CreatePaymentLinkRequest paymentLinkRequest = buildCreatePaymentRequest(request, invoice);
-        try {
-            CreatePaymentLinkResponse response = payOS.paymentRequests().create(paymentLinkRequest);
-
-            return CreatePaymentResponse.builder()
-                    .paymentLinkId(response.getPaymentLinkId())
-                    .checkoutUrl(response.getCheckoutUrl())
-                    .qrCodeUrl(response.getQrCode())
-                    .orderCode(response.getOrderCode())
-                    .status(response.getStatus().getValue())
+        
+        Invoice invoice;
+        if (paymentMethod == PaymentMethod.VNPAY) {
+            String vnpayTransactionId = generateVnpayTransactionId();
+            invoice = Invoice.builder()
+                    .rentalOrder(rentalOrder)
+                    .invoiceType(invoiceType)
+                    .paymentMethod(paymentMethod)
+                    .paymentDate(null)
+                    .subTotal(expectedSubTotal)
+                    .taxAmount(taxAmount)
+                    .discountAmount(discountAmount)
+                    .totalAmount(totalAmount)
+                    .depositApplied(depositApplied)
+                    .dueDate(LocalDateTime.now().plusDays(3))
+                    .invoiceStatus(InvoiceStatus.PROCESSING)
+                    .pdfUrl(null)
+                    .issueDate(null)
+                    .vnpayTransactionId(vnpayTransactionId)
+                    .frontendSuccessUrl(request.getFrontendSuccessUrl())
+                    .frontendFailureUrl(request.getFrontendFailureUrl())
                     .build();
-        } catch (PayOSException ex) {
-            throw new IllegalStateException("Failed to create PayOS payment link", ex);
+            invoice = invoiceRepository.save(invoice);
+            
+            String paymentUrl = buildVnpayPaymentUrl(request, invoice);
+            return CreatePaymentResponse.builder()
+                    .checkoutUrl(paymentUrl)
+                    .orderCode(Long.parseLong(vnpayTransactionId))
+                    .status("PENDING")
+                    .build();
+        } else {
+            long payosOrderCode = generateUniquePayosOrderCode();
+            invoice = Invoice.builder()
+                    .rentalOrder(rentalOrder)
+                    .invoiceType(invoiceType)
+                    .paymentMethod(paymentMethod)
+                    .paymentDate(null)
+                    .subTotal(expectedSubTotal)
+                    .taxAmount(taxAmount)
+                    .discountAmount(discountAmount)
+                    .totalAmount(totalAmount)
+                    .depositApplied(depositApplied)
+                    .dueDate(LocalDateTime.now().plusDays(3))
+                    .invoiceStatus(InvoiceStatus.PROCESSING)
+                    .pdfUrl(null)
+                    .issueDate(null)
+                    .payosOrderCode(payosOrderCode)
+                    .build();
+            invoice = invoiceRepository.save(invoice);
+
+            CreatePaymentLinkRequest paymentLinkRequest = buildCreatePaymentRequest(request, invoice);
+            try {
+                CreatePaymentLinkResponse response = payOS.paymentRequests().create(paymentLinkRequest);
+
+                return CreatePaymentResponse.builder()
+                        .paymentLinkId(response.getPaymentLinkId())
+                        .checkoutUrl(response.getCheckoutUrl())
+                        .qrCodeUrl(response.getQrCode())
+                        .orderCode(response.getOrderCode())
+                        .status(response.getStatus().getValue())
+                        .build();
+            } catch (PayOSException ex) {
+                throw new IllegalStateException("Failed to create PayOS payment link", ex);
+            }
         }
     }
 
@@ -266,5 +301,119 @@ public class PaymentServiceImpl implements PaymentService {
             code = ThreadLocalRandom.current().nextLong(1, PAYOS_SAFE_MAX);
         } while (invoiceRepository.existsByPayosOrderCode(code));
         return code;
+    }
+
+    private String generateVnpayTransactionId() {
+        String transactionId;
+        do {
+            transactionId = String.valueOf(System.currentTimeMillis());
+        } while (invoiceRepository.findByVnpayTransactionId(transactionId).isPresent());
+        return transactionId;
+    }
+
+    private String buildVnpayPaymentUrl(CreatePaymentRequest request, Invoice invoice) {
+        Map<String, String> vnpParams = new HashMap<>();
+        vnpParams.put("vnp_Version", "2.1.0");
+        vnpParams.put("vnp_Command", "pay");
+        vnpParams.put("vnp_TmnCode", vnpayConfig.getTmnCode());
+        vnpParams.put("vnp_Amount", String.valueOf(invoice.getTotalAmount().multiply(BigDecimal.valueOf(100)).longValue()));
+        vnpParams.put("vnp_CurrCode", "VND");
+        vnpParams.put("vnp_TxnRef", invoice.getVnpayTransactionId());
+        // Use order info without spaces to avoid hash issues
+        vnpParams.put("vnp_OrderInfo", "Thanhtoandonhang" + invoice.getRentalOrder().getOrderId());
+        vnpParams.put("vnp_OrderType", "other");
+        vnpParams.put("vnp_Locale", "vn");
+        
+        // Use returnUrl from request if provided and valid, otherwise use IPN URL as fallback
+        // (VNPAY requires return URL, but we'll use IPN URL since both handle callbacks the same way)
+        String returnUrl = (request.getReturnUrl() != null 
+                && !request.getReturnUrl().trim().isEmpty() 
+                && !request.getReturnUrl().equals("string"))
+                ? request.getReturnUrl().trim()
+                : vnpayConfig.getIpnUrl(); // Use IPN URL as return URL fallback
+        vnpParams.put("vnp_ReturnUrl", returnUrl);
+        // VNPAY may require actual IP, but for sandbox 127.0.0.1 should work
+        // In production, get real client IP from request
+        vnpParams.put("vnp_IpAddr", "127.0.0.1");
+        vnpParams.put("vnp_CreateDate", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+        
+        // Create hash BEFORE adding vnp_SecureHash to params
+        String secureHash = VnpayUtil.hashAllFields(vnpParams, vnpayConfig.getHashSecret());
+        if (secureHash == null) {
+            throw new IllegalStateException("Failed to generate VNPAY secure hash");
+        }
+        
+        log.info("VNPAY params before hash: {}", vnpParams);
+        log.info("VNPAY hash secret: {}", vnpayConfig.getHashSecret());
+        log.info("VNPAY secure hash: {}", secureHash);
+        
+        // Add hash to params AFTER hashing
+        vnpParams.put("vnp_SecureHash", secureHash);
+        
+        return VnpayUtil.getPaymentUrl(vnpParams, vnpayConfig.getUrl());
+    }
+
+    @Transactional
+    public void handleVnpayCallback(Map<String, String> params) {
+        String vnp_SecureHash = params.get("vnp_SecureHash");
+        String vnp_TxnRef = params.get("vnp_TxnRef");
+        String vnp_ResponseCode = params.get("vnp_ResponseCode");
+        String vnp_TransactionStatus = params.get("vnp_TransactionStatus");
+        
+        log.info("VNPAY callback params received: {}", params);
+        log.info("VNPAY vnp_SecureHash from request: {}", vnp_SecureHash);
+        
+        Map<String, String> paramsForHash = new HashMap<>(params);
+        String secureHash = VnpayUtil.hashAllFields(paramsForHash, vnpayConfig.getHashSecret());
+        
+        log.info("VNPAY calculated hash: {}", secureHash);
+        log.info("VNPAY hash secret used: {}", vnpayConfig.getHashSecret());
+        
+        if (!secureHash.equals(vnp_SecureHash)) {
+            log.error("Invalid VNPAY checksum for transaction: {}. Expected: {}, Got: {}", vnp_TxnRef, secureHash, vnp_SecureHash);
+            log.error("All params for hash: {}", paramsForHash);
+            throw new IllegalStateException("Invalid VNPAY checksum");
+        }
+        
+        Invoice invoice = invoiceRepository.findByVnpayTransactionId(vnp_TxnRef)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found for VNPAY transaction: " + vnp_TxnRef));
+        
+        boolean isSuccess = "00".equals(vnp_ResponseCode) && "00".equals(vnp_TransactionStatus);
+        InvoiceStatus newStatus = isSuccess ? InvoiceStatus.SUCCEEDED : InvoiceStatus.FAILED;
+        
+        invoice.setInvoiceStatus(newStatus);
+        
+        if (newStatus == InvoiceStatus.SUCCEEDED) {
+            invoice.setPaymentDate(LocalDateTime.now());
+            
+            RentalOrder rentalOrder = invoice.getRentalOrder();
+            if (rentalOrder != null) {
+                rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
+                rentalOrderRepository.save(rentalOrder);
+            }
+            
+            boolean transactionCreated = false;
+            if (!transactionRepository.existsByInvoice(invoice)) {
+                BigDecimal transactionAmount = Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO);
+                
+                Transaction transaction = Transaction.builder()
+                        .amount(transactionAmount)
+                        .transactionType(TrasactionType.TRANSACTION_IN)
+                        .invoice(invoice)
+                        .build();
+                
+                transactionRepository.save(transaction);
+                transactionCreated = true;
+            }
+            
+            if (transactionCreated && rentalOrder != null) {
+                notifyPaymentSuccess(rentalOrder);
+                createDeliveryTaskIfNeeded(rentalOrder);
+            }
+        } else {
+            invoice.setPaymentDate(null);
+        }
+        
+        invoiceRepository.save(invoice);
     }
 }

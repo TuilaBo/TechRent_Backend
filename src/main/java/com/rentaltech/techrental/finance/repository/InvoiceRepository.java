@@ -11,4 +11,5 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findFirstByRentalOrder_OrderIdOrderByInvoiceIdDesc(Long rentalOrderId);
     Optional<Invoice> findByPayosOrderCode(Long payosOrderCode);
     boolean existsByPayosOrderCode(Long payosOrderCode);
+    Optional<Invoice> findByVnpayTransactionId(String vnpayTransactionId);
 }

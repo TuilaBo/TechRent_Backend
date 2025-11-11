@@ -31,4 +31,8 @@ public class CreatePaymentRequest {
     private String returnUrl;
 
     private String cancelUrl;
+
+    private String frontendSuccessUrl;
+
+    private String frontendFailureUrl;
 }
