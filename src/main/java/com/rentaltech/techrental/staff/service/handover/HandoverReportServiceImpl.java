@@ -4,6 +4,7 @@ import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
+import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
@@ -102,6 +103,11 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 .build();
 
         HandoverReport saved = handoverReportRepository.save(report);
+        
+        // Update rental order status to IN_USE after successful handover
+        rentalOrder.setOrderStatus(OrderStatus.IN_USE);
+        rentalOrderRepository.save(rentalOrder);
+        
         return HandoverReportResponseDto.fromEntity(saved);
     }
 
