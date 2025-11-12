@@ -4,6 +4,7 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffResponseDto;
+import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,7 +33,7 @@ public class StaffController {
 
     // Lấy staff theo ID
     @GetMapping("/{staffId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Get staff by ID", description = "Retrieve staff by ID")
     public ResponseEntity<?> getStaffById(@PathVariable Long staffId) {
         Staff staff = staffService.getStaffByIdOrThrow(staffId);
@@ -47,6 +48,7 @@ public class StaffController {
     // Lấy staff theo Account ID
     @GetMapping("/account/{accountId}")
     @Operation(summary = "Get staff by account ID", description = "Retrieve staff by account ID")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> getStaffByAccountId(@PathVariable Long accountId) {
         Staff staff = staffService.getStaffByAccountIdOrThrow(accountId);
         return ResponseUtil.createSuccessResponse(
@@ -59,6 +61,7 @@ public class StaffController {
 
     // Lấy staff theo role (chỉ active staff)
     @GetMapping("/role/{staffRole}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Get staff by role", description = "List staff by role")
     public ResponseEntity<?> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
@@ -75,6 +78,7 @@ public class StaffController {
 
     // Lấy active staff
     @GetMapping("/active")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Get active staff", description = "List active staff members")
     public ResponseEntity<?> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
@@ -90,7 +94,7 @@ public class StaffController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Search staff", description = "Search staff by role and availability within a time window")
     public ResponseEntity<?> searchStaff(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
@@ -105,6 +109,22 @@ public class StaffController {
                 "Tìm kiếm nhân viên thành công",
                 "Danh sách nhân viên phù hợp với tiêu chí",
                 responseDtos,
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/performance/completions")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Staff completion leaderboard", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên")
+    public ResponseEntity<?> getStaffCompletionLeaderboard(
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam(required = false) StaffRole staffRole) {
+        List<StaffTaskCompletionStatsDto> stats = staffService.getStaffCompletionStats(year, month, staffRole);
+        return ResponseUtil.createSuccessResponse(
+                "Thống kê task hoàn thành thành công",
+                "Danh sách nhân viên theo số lượng task hoàn thành",
+                stats,
                 HttpStatus.OK
         );
     }

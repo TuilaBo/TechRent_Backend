@@ -7,12 +7,14 @@ import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -92,6 +94,17 @@ public class StaffServiceImpl implements StaffService {
         return activeStaff.stream()
                 .filter(staff -> !taskRepository.existsOverlappingTaskForStaff(staff.getStaffId(), startTime, endTime))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole) {
+        if (month < 1 || month > 12) {
+            throw new IllegalArgumentException("Tháng phải nằm trong khoảng 1-12");
+        }
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDateTime startTime = startDate.atStartOfDay();
+        LocalDateTime endTime = startDate.plusMonths(1).atStartOfDay().minusNanos(1);
+        return taskRepository.findStaffCompletionsByPeriod(startTime, endTime, staffRole);
     }
 
     @Override

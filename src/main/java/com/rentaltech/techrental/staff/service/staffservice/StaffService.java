@@ -3,6 +3,7 @@ package com.rentaltech.techrental.staff.service.staffservice;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +21,8 @@ public interface StaffService {
     List<Staff> getStaffByRole(StaffRole staffRole);
     List<Staff> getActiveStaff();
     List<Staff> searchStaff(LocalDateTime startTime, LocalDateTime endTime, Boolean available, StaffRole staffRole);
+
+    List<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole);
 
     Staff createStaff(@Valid StaffCreateRequestDto request);
     Staff createStaffWithAccount(@jakarta.validation.Valid com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto request);
