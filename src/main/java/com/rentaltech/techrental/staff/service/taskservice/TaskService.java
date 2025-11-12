@@ -17,4 +17,5 @@ public interface TaskService {
     Task updateTask(Long taskId, TaskUpdateRequestDto request, String username);
     void deleteTask(Long taskId, String username);
     List<Task> getOverdueTasks();
+    Task confirmDelivery(Long taskId, String username);
 }

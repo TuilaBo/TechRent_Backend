@@ -5,11 +5,13 @@ import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentResponse;
 import com.rentaltech.techrental.finance.model.dto.InvoiceResponseDto;
+import com.rentaltech.techrental.finance.model.dto.TransactionResponseDto;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.repository.TransactionRepository;
 import com.rentaltech.techrental.finance.util.VnpayUtil;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Task;
@@ -55,6 +57,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final NotificationService notificationService;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
+    private final ReservationService reservationService;
 
     @Override
     @Transactional
@@ -186,6 +189,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (rentalOrder != null) {
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                reservationService.markConfirmed(rentalOrder.getOrderId());
             }
 
             boolean transactionCreated = false;
@@ -362,6 +366,15 @@ public class PaymentServiceImpl implements PaymentService {
         return VnpayUtil.getPaymentUrl(vnpParams, vnpayConfig.getUrl());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionResponseDto> getAllTransactions() {
+        return transactionRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(TransactionResponseDto::from)
+                .toList();
+    }
+
     @Transactional
     public void handleVnpayCallback(Map<String, String> params) {
         String vnp_SecureHash = params.get("vnp_SecureHash");
@@ -399,6 +412,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (rentalOrder != null) {
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                reservationService.markConfirmed(rentalOrder.getOrderId());
             }
             
             boolean transactionCreated = false;

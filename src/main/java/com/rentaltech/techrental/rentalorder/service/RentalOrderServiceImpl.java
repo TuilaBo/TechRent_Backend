@@ -44,6 +44,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final CustomerRepository customerRepository;
     private final DeviceModelRepository deviceModelRepository;
     private final PreRentalQcTaskCreator preRentalQcTaskCreator;
+    private final BookingCalendarService bookingCalendarService;
+    private final ReservationService reservationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -111,6 +113,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         // attach order to details then save
         for (OrderDetail od : computed.details()) od.setRentalOrder(saved);
         List<OrderDetail> persistedDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
+        reservationService.createPendingReservations(saved, persistedDetails);
         // Create allocations for each order detail
         // Create QC task linked to this order
         if (kycVerified) {
@@ -208,9 +211,11 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
         RentalOrder saved = rentalOrderRepository.save(existing);
 
+        reservationService.cancelReservations(id);
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         for (OrderDetail od : computed.details()) od.setRentalOrder(saved);
         List<OrderDetail> newDetails = computed.details().isEmpty() ? List.of() : orderDetailRepository.saveAll(computed.details());
+        reservationService.createPendingReservations(saved, newDetails);
         if (kycVerified) {
             preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
         }
@@ -223,6 +228,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         if (!rentalOrderRepository.existsById(id)) {
             throw new NoSuchElementException("Không tìm thấy đơn thuê: " + id);
         }
+        reservationService.cancelReservations(id);
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
     }
@@ -297,15 +303,26 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             DeviceModel model = deviceModelRepository.findById(d.getDeviceModelId())
                     .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + d.getDeviceModelId()));
 
-            // Validate stock and decrement amountAvailable
-            if (model.getAmountAvailable() == null || d.getQuantity() == null) {
-                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
+            // Validate availability by BookingCalendar within requested time window
+            if (d.getQuantity() == null) {
+                throw new IllegalArgumentException("Cần cung cấp số lượng trong OrderDetail");
             }
-            if (d.getQuantity() > model.getAmountAvailable()) {
-                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
+            long available = bookingCalendarService.getAvailableCountByModel(
+                    model.getDeviceModelId(), request.getStartDate(), request.getEndDate()
+            );
+            if (d.getQuantity() > available) {
+                throw new IllegalArgumentException("Số lượng thuê vượt quá số thiết bị khả dụng trong thời gian đã chọn");
             }
-            model.setAmountAvailable(model.getAmountAvailable() - d.getQuantity());
-            deviceModelRepository.save(model);
+//            /* Disabled old stock logic: using BookingCalendar availability
+//            if (model.getAmountAvailable() == null || d.getQuantity() == null) {
+//                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
+//            }
+//            if (d.getQuantity() > model.getAmountAvailable()) {
+//                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
+//            }
+//            model.setAmountAvailable(model.getAmountAvailable() - d.getQuantity());
+//            deviceModelRepository.save(model);
+//            */
 
             BigDecimal linePerDay = model.getPricePerDay().multiply(BigDecimal.valueOf(d.getQuantity()));
             BigDecimal depositPerUnit = model.getDeviceValue().multiply(model.getDepositPercent());
