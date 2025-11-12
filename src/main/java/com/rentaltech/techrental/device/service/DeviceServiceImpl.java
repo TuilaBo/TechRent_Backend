@@ -9,12 +9,17 @@ import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.rentalorder.model.BookingStatus;
+import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
+import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -26,13 +31,19 @@ public class DeviceServiceImpl implements DeviceService {
     private final DeviceRepository repository;
     private final DeviceModelRepository deviceModelRepository;
     private final AllocationRepository allocationRepository;
+    private final BookingCalendarRepository bookingCalendarRepository;
+    private final ReservationService reservationService;
 
     public DeviceServiceImpl(DeviceRepository repository,
                              DeviceModelRepository deviceModelRepository,
-                             AllocationRepository allocationRepository) {
+                             AllocationRepository allocationRepository,
+                             BookingCalendarRepository bookingCalendarRepository,
+                             ReservationService reservationService) {
         this.repository = repository;
         this.deviceModelRepository = deviceModelRepository;
         this.allocationRepository = allocationRepository;
+        this.bookingCalendarRepository = bookingCalendarRepository;
+        this.reservationService = reservationService;
     }
 
     @Override
@@ -74,6 +85,37 @@ public class DeviceServiceImpl implements DeviceService {
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findByModelId(Long deviceModelId) {
         return repository.findByDeviceModel_DeviceModelId(deviceModelId).stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeviceResponseDto> findAvailableByModelWithinRange(Long deviceModelId, LocalDateTime start, LocalDateTime end) {
+        if (deviceModelId == null || start == null || end == null || !start.isBefore(end)) {
+            return List.of();
+        }
+        List<Device> devices = repository.findByDeviceModel_DeviceModelId(deviceModelId);
+        if (devices.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> busyDeviceIds = bookingCalendarRepository.findBusyDeviceIdsByModelAndRange(
+                deviceModelId,
+                start,
+                end,
+                EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE)
+        );
+        List<Device> freeDevices = devices.stream()
+                .filter(device -> device.getDeviceId() != null && !busyDeviceIds.contains(device.getDeviceId()))
+                .sorted(Comparator.comparing(Device::getDeviceId))
+                .toList();
+        long reservedCount = reservationService.countActiveReservedQuantity(deviceModelId, start, end);
+        long limit = Math.max(freeDevices.size() - reservedCount, 0);
+        if (limit <= 0) {
+            return List.of();
+        }
+        return freeDevices.stream()
+                .limit(limit)
                 .map(this::mapToDto)
                 .toList();
     }

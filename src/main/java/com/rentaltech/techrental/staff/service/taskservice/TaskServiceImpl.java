@@ -8,12 +8,14 @@ import com.rentaltech.techrental.common.exception.TaskNotFoundException;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
+import com.rentaltech.techrental.staff.repository.*;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskCustomRepository;
@@ -48,6 +50,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Autowired
     private StaffRepository staffRepository;
+
+    @Autowired
+    private TaskDeliveryConfirmationRepository taskDeliveryConfirmationRepository;
 
     @Autowired
     private RentalOrderRepository rentalOrderRepository;
@@ -228,12 +233,38 @@ public class TaskServiceImpl implements TaskService {
         if (!taskRepository.existsById(taskId)) {
             throw new NoSuchElementException("Không tìm thấy công việc");
         }
+        taskDeliveryConfirmationRepository.deleteByTask_TaskId(taskId);
         taskRepository.deleteById(taskId);
     }
 
     @Override
     public List<Task> getOverdueTasks() {
         return taskCustomRepository.findOverdueTasks(LocalDateTime.now());
+    }
+
+    @Override
+    public Task confirmDelivery(Long taskId, String username) {
+        AccessContext access = resolveAccessContext(username);
+        if (!access.isRestricted()) {
+            throw new AccessDeniedException("Only technician or support staff can confirm delivery");
+        }
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Khong tim thay cong viec"));
+        enforceTaskVisibility(task, access);
+        Staff confirmer = staffRepository.findById(access.staffId())
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên"));
+
+        TaskDeliveryConfirmation confirmation = taskDeliveryConfirmationRepository
+                .findByTask_TaskIdAndStaff_StaffId(taskId, confirmer.getStaffId())
+                .orElseGet(() -> TaskDeliveryConfirmation.builder()
+                        .task(task)
+                        .staff(confirmer)
+                        .build());
+        confirmation.setConfirmedAt(LocalDateTime.now());
+        taskDeliveryConfirmationRepository.save(confirmation);
+
+        evaluateDeliveryConfirmation(task);
+        return taskRepository.save(task);
     }
 
     private AccessContext resolveAccessContext(String username) {
@@ -370,5 +401,41 @@ public class TaskServiceImpl implements TaskService {
                         "Đơn hàng đang được xử lý",
                         "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.")
                 );
+    }
+
+    private void evaluateDeliveryConfirmation(Task task) {
+        if (task.getTaskId() == null) {
+            return;
+        }
+        Set<Staff> assignedStaff = task.getAssignedStaff();
+        if (assignedStaff == null || assignedStaff.isEmpty()) {
+            return;
+        }
+        List<Long> assignedIds = assignedStaff.stream()
+                .map(Staff::getStaffId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (assignedIds.isEmpty()) {
+            return;
+        }
+        long confirmedCount = taskDeliveryConfirmationRepository
+                .countByTask_TaskIdAndStaff_StaffIdIn(task.getTaskId(), assignedIds);
+        if (confirmedCount < assignedIds.size()) {
+            return;
+        }
+        if (task.getStatus() != TaskStatus.IN_PROGRESS) {
+            task.setStatus(TaskStatus.IN_PROGRESS);
+            if (task.getPlannedStart() == null) {
+                task.setPlannedStart(LocalDateTime.now());
+            }
+        }
+        rentalOrderRepository.findById(task.getOrderId())
+                .ifPresent(order -> {
+                    if (order.getOrderStatus() != OrderStatus.DELIVERING) {
+                        order.setOrderStatus(OrderStatus.DELIVERING);
+                        rentalOrderRepository.save(order);
+                    }
+                });
     }
 }

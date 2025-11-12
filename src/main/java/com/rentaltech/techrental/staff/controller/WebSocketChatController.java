@@ -2,6 +2,7 @@ package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.staff.model.ChatMessage;
 import com.rentaltech.techrental.staff.model.ChatMessageSenderType;
+import com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.ChatMessageResponseDto;
 import com.rentaltech.techrental.staff.service.chatservice.ChatService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +11,6 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import  com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 
 @Controller
 @RequiredArgsConstructor

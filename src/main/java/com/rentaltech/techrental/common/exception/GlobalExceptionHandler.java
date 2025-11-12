@@ -1,9 +1,9 @@
 package com.rentaltech.techrental.common.exception;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;

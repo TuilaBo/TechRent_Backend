@@ -9,7 +9,9 @@ import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
+import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
@@ -48,6 +50,8 @@ public class QCReportServiceImpl implements QCReportService {
     private final StaffService staffService;
     private final NotificationService notificationService;
     private final ImageStorageService imageStorageService;
+    private final com.rentaltech.techrental.rentalorder.service.BookingCalendarService bookingCalendarService;
+    private final ReservationService reservationService;
 
     @Override
     @Transactional
@@ -82,6 +86,8 @@ public class QCReportServiceImpl implements QCReportService {
         List<Allocation> allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
         if (!allocations.isEmpty()) {
             saved.setAllocations(new ArrayList<>(allocations));
+            bookingCalendarService.createBookingsForAllocations(allocations);
+            extendReservationHold(task, allocations, saved.getResult());
         }
 
         markTaskCompleted(task);
@@ -122,18 +128,30 @@ public class QCReportServiceImpl implements QCReportService {
 
         if (report.getResult() == QCResult.READY_FOR_SHIPPING) {
             Map<Long, List<String>> serialNumbersByOrderDetail = request.getOrderDetailSerialNumbers();
+            List<Allocation> finalAllocations;
             if (serialNumbersByOrderDetail != null) {
                 Map<OrderDetail, List<String>> resolved = resolveOrderDetails(report.getTask(), serialNumbersByOrderDetail);
                 if (resolved.isEmpty()) {
                     throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation");
                 }
+                if (report.getTask() != null && report.getTask().getOrderId() != null) {
+                    bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
+                }
                 clearAllocations(report);
                 List<Allocation> allocations = createAllocations(report, resolved);
                 report.setAllocations(new ArrayList<>(allocations));
+                bookingCalendarService.createBookingsForAllocations(allocations);
+                finalAllocations = allocations;
             } else if (report.getAllocations() == null || report.getAllocations().isEmpty()) {
                 throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị khi kết quả READY_FOR_SHIPPING");
+            } else {
+                finalAllocations = report.getAllocations();
             }
+            extendReservationHold(report.getTask(), finalAllocations, report.getResult());
         } else {
+            if (report.getTask() != null && report.getTask().getOrderId() != null) {
+                bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
+            }
             clearAllocations(report);
         }
 
@@ -406,6 +424,26 @@ public class QCReportServiceImpl implements QCReportService {
                         "Đơn hàng #" + orderId + " đã hoàn tất kiểm tra và sẵn sàng giao."
                 );
             }
+        }
+    }
+
+    private void extendReservationHold(Task task, List<Allocation> allocations, QCResult result) {
+        if (result != QCResult.READY_FOR_SHIPPING) {
+            return;
+        }
+        Long orderId = Optional.ofNullable(task)
+                .map(Task::getOrderId)
+                .orElseGet(() -> allocations == null ? null : allocations.stream()
+                        .map(Allocation::getOrderDetail)
+                        .filter(Objects::nonNull)
+                        .map(OrderDetail::getRentalOrder)
+                        .filter(Objects::nonNull)
+                        .map(RentalOrder::getOrderId)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null));
+        if (orderId != null) {
+            reservationService.moveToUnderReview(orderId);
         }
     }
 }
