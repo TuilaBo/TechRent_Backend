@@ -81,7 +81,7 @@ public class VnpayController {
         }
     }
 
-    @PostMapping("/ipn")
+    @RequestMapping(value = "/ipn", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<?> ipnUrl(HttpServletRequest request) {
         try {
             Map<String, String> params = VnpayUtil.getRequestParams(request);
