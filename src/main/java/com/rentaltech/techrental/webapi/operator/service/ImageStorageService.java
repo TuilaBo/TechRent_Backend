@@ -8,4 +8,8 @@ public interface ImageStorageService {
     String uploadDeviceModelImage(MultipartFile file, Long brandId, String deviceName);
 
     String uploadQcAccessorySnapshot(MultipartFile file, Long taskId);
+
+    String uploadHandoverEvidence(MultipartFile file, Long taskId, String label);
 }
+
+

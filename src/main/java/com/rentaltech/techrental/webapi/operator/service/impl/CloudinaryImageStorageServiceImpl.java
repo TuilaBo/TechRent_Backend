@@ -42,12 +42,21 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
         return uploadFile(file, buildOptions(folder, "accessory-snapshot"));
     }
 
+    @Override
+    public String uploadHandoverEvidence(MultipartFile file, Long taskId, String label) {
+        String folder = taskId != null
+                ? String.format("techrental/handover/task_%d", taskId)
+                : "techrental/handover";
+        String safeName = slugify(label, "handover-evidence");
+        return uploadFile(file, buildOptions(folder, safeName));
+    }
+
     private String uploadFile(MultipartFile file, Map<String, Object> options) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Tệp rỗng");
         }
         try {
-            Map<String, Object> upload = cloudinary.uploader().upload(file.getBytes(), options);
+            Map<?, ?> upload = cloudinary.uploader().upload(file.getBytes(), options);
             Object secureUrl = upload.get("secure_url");
             if (secureUrl == null) throw new IllegalStateException("Cloudinary không trả về secure_url");
             return secureUrl.toString();
