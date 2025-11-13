@@ -84,6 +84,7 @@ public class QCReportServiceImpl implements QCReportService {
 
         maybeUploadAccessorySnapshot(accessorySnapshot, qcReport);
         QCReport saved = qcReportRepository.save(qcReport);
+        qcReportRepository.flush();
 
         List<Allocation> allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
         if (!allocations.isEmpty()) {
@@ -93,7 +94,7 @@ public class QCReportServiceImpl implements QCReportService {
         }
 
         markTaskCompleted(task);
-        maybeNotifyOrderConfirmed(saved);
+//        maybeNotifyOrderConfirmed(saved);
         return mapToResponseDto(saved);
     }
 
@@ -158,6 +159,7 @@ public class QCReportServiceImpl implements QCReportService {
         }
 
         QCReport updated = qcReportRepository.save(report);
+        qcReportRepository.flush();
         maybeNotifyOrderConfirmed(updated);
         return mapToResponseDto(updated);
     }
@@ -212,6 +214,7 @@ public class QCReportServiceImpl implements QCReportService {
             task.setCompletedAt(LocalDateTime.now());
         }
         taskRepository.save(task);
+        taskRepository.flush();
     }
 
     private List<Allocation> createAllocations(QCReport report, Map<OrderDetail, List<String>> orderDetailSerials) {
@@ -246,8 +249,11 @@ public class QCReportServiceImpl implements QCReportService {
         });
         if (!devicesToUpdate.isEmpty()) {
             deviceRepository.saveAll(devicesToUpdate);
+            deviceRepository.flush();
         }
-        return allocationRepository.saveAll(allocations);
+        List<Allocation> persisted = allocationRepository.saveAll(allocations);
+        allocationRepository.flush();
+        return persisted;
     }
 
     private Map<OrderDetail, List<String>> resolveOrderDetails(Task task, Map<Long, List<String>> orderDetailSerialNumbers) {
@@ -300,6 +306,7 @@ public class QCReportServiceImpl implements QCReportService {
         if (!devicesToRelease.isEmpty()) {
             devicesToRelease.forEach(device -> device.setStatus(DeviceStatus.AVAILABLE));
             deviceRepository.saveAll(devicesToRelease);
+            deviceRepository.flush();
         }
     }
 

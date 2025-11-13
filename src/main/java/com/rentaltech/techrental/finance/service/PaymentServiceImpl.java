@@ -194,6 +194,7 @@ public class PaymentServiceImpl implements PaymentService {
                 System.out.println("Updating rental order status for order " + rentalOrder);
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
                 createBookingsForOrder(rentalOrder);
             }
@@ -209,6 +210,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .build();
 
                 transactionRepository.save(transaction);
+                transactionRepository.flush();
                 transactionCreated = true;
             }
 
@@ -222,6 +224,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         invoiceRepository.save(invoice);
+        invoiceRepository.flush();
     }
 
 
@@ -264,6 +267,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(TaskStatus.PENDING)
                 .build();
         taskRepository.save(deliveryTask);
+        taskRepository.flush();
     }
 
     private void createBookingsForOrder(RentalOrder rentalOrder) {
