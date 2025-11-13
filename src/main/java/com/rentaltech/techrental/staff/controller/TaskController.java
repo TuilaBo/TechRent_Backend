@@ -171,6 +171,25 @@ public class TaskController {
         );
     }
 
+    @PatchMapping("/{taskId}/confirm-delivery")
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Confirm going to deliver", description = "Technician/support confirms they will deliver for the task")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Confirmed"),
+            @ApiResponse(responseCode = "403", description = "Forbidden"),
+            @ApiResponse(responseCode = "404", description = "Not found")
+    })
+    public ResponseEntity<?> confirmDelivery(@PathVariable Long taskId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Task updated = taskService.confirmDelivery(taskId, username);
+        return ResponseUtil.createSuccessResponse(
+                "Confirmed delivery",
+                "Task marked as IN_PROGRESS by assigned staff",
+                mapToResponseDto(updated),
+                HttpStatus.OK
+        );
+    }
+
     private TaskResponseDto mapToResponseDto(Task task) {
         List<TaskResponseDto.AssignedStaffSummary> assignedStaff = task.getAssignedStaff() == null
                 ? List.of()

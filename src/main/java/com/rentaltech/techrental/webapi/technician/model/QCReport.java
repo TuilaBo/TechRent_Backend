@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.webapi.technician.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.staff.model.Task;
 import jakarta.persistence.*;

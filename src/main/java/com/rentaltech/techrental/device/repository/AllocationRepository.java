@@ -11,5 +11,7 @@ public interface AllocationRepository extends JpaRepository<Allocation, Long> {
     List<Allocation> findByOrderDetail_OrderDetailId(Long orderDetailId);
 
     List<Allocation> findByQcReport_QcReportId(Long qcReportId);
+
+    List<Allocation> findByOrderDetail_RentalOrder_OrderId(Long orderId);
 }
 

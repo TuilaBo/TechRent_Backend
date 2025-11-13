@@ -21,6 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.NoSuchElementException;
 
 @RestController
@@ -82,12 +83,22 @@ public class DeviceController {
     }
 
     @GetMapping("/model/{deviceModelId}")
-    @Operation(summary = "Get devices by model", description = "Retrieve all devices belonging to a model id")
-    public ResponseEntity<?> getByModel(@PathVariable Long deviceModelId) {
+    @Operation(summary = "Get available devices by model within time range",
+            description = "Return devices of a model that remain available throughout the requested time window (uses the same availability buffer as /api/devices/models/{id}/availability).")
+    public ResponseEntity<?> getAvailableDevicesByModel(@PathVariable Long deviceModelId,
+                                                        @RequestParam("start") LocalDateTime start,
+                                                        @RequestParam("end") LocalDateTime end) {
+        if (start == null || end == null || !start.isBefore(end)) {
+            throw new IllegalArgumentException("start phải nhỏ hơn end");
+        }
+        LocalDateTime marginStart = start.minusDays(DeviceAvailabilityController.AVAILABILITY_MARGIN_DAYS);
+        LocalDateTime marginEnd = end.plusDays(DeviceAvailabilityController.AVAILABILITY_MARGIN_DAYS);
+        var devices = service.findAvailableByModelWithinRange(deviceModelId, marginStart, marginEnd);
         return ResponseUtil.createSuccessResponse(
-                "Danh sách thiết bị theo model",
-                "Danh sách thiết bị của model " + deviceModelId,
-                service.findByModelId(deviceModelId),
+                "Thiết bị khả dụng theo model",
+                "Danh sách thiết bị model %d khả dụng trong khung thời gian yêu cầu (đã áp dụng buffer %d ngày)"
+                        .formatted(deviceModelId, DeviceAvailabilityController.AVAILABILITY_MARGIN_DAYS),
+                devices,
                 HttpStatus.OK
         );
     }
