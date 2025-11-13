@@ -2,7 +2,12 @@ package com.rentaltech.techrental.staff.service.handover;
 
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
+import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
+import com.rentaltech.techrental.device.model.DeviceStatus;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
+import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
@@ -11,6 +16,7 @@ import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.HandoverReport;
 import com.rentaltech.techrental.staff.model.HandoverReportItem;
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.HandoverPinDeliveryDto;
 import com.rentaltech.techrental.staff.model.dto.HandoverReportCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.HandoverReportResponseDto;
@@ -51,6 +57,8 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final OrderDetailRepository orderDetailRepository;
     private final HandoverReportRepository handoverReportRepository;
     private final ImageStorageService imageStorageService;
+    private final AllocationRepository allocationRepository;
+    private final DeviceRepository deviceRepository;
     private final SMSService smsService;
     private final EmailService emailService;
 
@@ -103,11 +111,20 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 .build();
 
         HandoverReport saved = handoverReportRepository.save(report);
-        
-        // Update rental order status to IN_USE after successful handover
+
         rentalOrder.setOrderStatus(OrderStatus.IN_USE);
         rentalOrderRepository.save(rentalOrder);
-        
+
+        if (task.getStatus() != TaskStatus.COMPLETED) {
+            task.setStatus(TaskStatus.COMPLETED);
+            if (task.getCompletedAt() == null) {
+                task.setCompletedAt(LocalDateTime.now());
+            }
+            taskRepository.save(task);
+        }
+
+        markDevicesAsRenting(rentalOrder.getOrderId());
+
         return HandoverReportResponseDto.fromEntity(saved);
     }
 
@@ -341,6 +358,19 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     private String buildPinKeyForOrder(Long orderId) {
         return "handover_pin_order_" + orderId;
+    }
+
+    private void markDevicesAsRenting(Long orderId) {
+        List<Device> devices = allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId).stream()
+                .map(Allocation::getDevice)
+                .filter(Objects::nonNull)
+                .peek(device -> device.setStatus(DeviceStatus.RENTING))
+                .collect(Collectors.toList());
+        if (devices.isEmpty()) {
+            log.warn("No allocated devices found to mark as RENTING for order {}", orderId);
+            return;
+        }
+        deviceRepository.saveAll(devices);
     }
 
     private static class PinCacheEntry {

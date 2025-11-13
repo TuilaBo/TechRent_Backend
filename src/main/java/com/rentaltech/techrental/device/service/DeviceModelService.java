@@ -2,9 +2,9 @@ package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceModelResponseDto;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;

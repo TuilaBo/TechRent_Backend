@@ -5,12 +5,17 @@ import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentResponse;
 import com.rentaltech.techrental.finance.model.dto.InvoiceResponseDto;
+import com.rentaltech.techrental.finance.model.dto.TransactionResponseDto;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.repository.TransactionRepository;
 import com.rentaltech.techrental.finance.util.VnpayUtil;
+import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
+import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.TaskStatus;
@@ -33,7 +38,10 @@ import vn.payos.model.webhooks.WebhookData;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -51,6 +59,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final NotificationService notificationService;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
+    private final ReservationService reservationService;
+    private final BookingCalendarService bookingCalendarService;
+    private final AllocationRepository allocationRepository;
 
     @Override
     @Transactional
@@ -161,7 +172,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Received PayOS webhook: orderCode={}, desc={}, amount={}, code={}",
                 orderCode, eventDesc, amount, code);
 
-        if (orderCode != null && orderCode == 123L) {
+        if (orderCode == 123L) {
             log.info("PayOS connectivity ping received, skipping business processing.");
             return;
         }
@@ -180,8 +191,11 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setPaymentDate(LocalDateTime.now());
 
             if (rentalOrder != null) {
+                System.out.println("Updating rental order status for order " + rentalOrder);
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                reservationService.markConfirmed(rentalOrder.getOrderId());
+                createBookingsForOrder(rentalOrder);
             }
 
             boolean transactionCreated = false;
@@ -250,6 +264,18 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(TaskStatus.PENDING)
                 .build();
         taskRepository.save(deliveryTask);
+    }
+
+    private void createBookingsForOrder(RentalOrder rentalOrder) {
+        if (rentalOrder == null || rentalOrder.getOrderId() == null) {
+            return;
+        }
+        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(rentalOrder.getOrderId());
+        if (allocations == null || allocations.isEmpty()) {
+            log.debug("No allocations found to create bookings for order {}", rentalOrder.getOrderId());
+            return;
+        }
+        bookingCalendarService.createBookingsForAllocations(allocations);
     }
 
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
@@ -358,6 +384,15 @@ public class PaymentServiceImpl implements PaymentService {
         return VnpayUtil.getPaymentUrl(vnpParams, vnpayConfig.getUrl());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionResponseDto> getAllTransactions() {
+        return transactionRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(TransactionResponseDto::from)
+                .toList();
+    }
+
     @Transactional
     public void handleVnpayCallback(Map<String, String> params) {
         String vnp_SecureHash = params.get("vnp_SecureHash");
@@ -395,6 +430,8 @@ public class PaymentServiceImpl implements PaymentService {
             if (rentalOrder != null) {
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                reservationService.markConfirmed(rentalOrder.getOrderId());
+                createBookingsForOrder(rentalOrder);
             }
             
             boolean transactionCreated = false;

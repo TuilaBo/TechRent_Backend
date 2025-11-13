@@ -44,4 +44,14 @@ public class PaymentController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/transactions")
+    public ResponseEntity<?> getAllTransactions() {
+        return ResponseUtil.createSuccessResponse(
+                "Transactions retrieved successfully",
+                "List of recorded payment transactions",
+                paymentService.getAllTransactions(),
+                HttpStatus.OK
+        );
+    }
 }
