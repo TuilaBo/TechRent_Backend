@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,6 +28,7 @@ public class Task {
     @Column(name = "order_id", nullable = false)
     private Long orderId; // Foreign key to Order table
 
+    @JsonIgnore
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "task_assigned_staff",
