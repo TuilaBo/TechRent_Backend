@@ -34,6 +34,10 @@ public class VnpayUtil {
     }
 
     public static String hashAllFields(Map<String, String> fields, String secretKey) {
+        return hashAllFields(fields, secretKey, true);
+    }
+    
+    public static String hashAllFields(Map<String, String> fields, String secretKey, boolean encodeValues) {
         // Remove secure hash fields before processing
         Map<String, String> fieldsToHash = new HashMap<>(fields);
         fieldsToHash.remove("vnp_SecureHash");
@@ -44,7 +48,6 @@ public class VnpayUtil {
         Collections.sort(sortedKeys);
         
         // Build query string - VNPAY format: key1=value1&key2=value2&...
-        // IMPORTANT: When hashing, encode values and replace %20 with + (VNPAY requirement)
         StringBuilder queryString = new StringBuilder();
         boolean first = true;
         for (String key : sortedKeys) {
@@ -54,10 +57,11 @@ public class VnpayUtil {
                 if (!first) {
                     queryString.append("&");
                 }
-                // Encode value and replace %20 with + (VNPAY requirement)
-                String encodedValue = URLEncoder.encode(value, StandardCharsets.UTF_8)
-                        .replace("%20", "+");
-                queryString.append(key).append("=").append(encodedValue);
+                // When creating payment URL, encode values. When validating callback, use raw values (already decoded by servlet)
+                String finalValue = encodeValues 
+                    ? URLEncoder.encode(value, StandardCharsets.UTF_8).replace("%20", "+")
+                    : value;
+                queryString.append(key).append("=").append(finalValue);
                 first = false;
             }
         }
@@ -66,6 +70,7 @@ public class VnpayUtil {
         log.info("VNPAY hash query string: {}", query);
         log.info("VNPAY hash secret: {}", secretKey);
         log.info("VNPAY hash secret length: {}", secretKey != null ? secretKey.length() : 0);
+        log.info("VNPAY encode values: {}", encodeValues);
         
         String hash = hmacSHA512(secretKey, query);
         log.info("VNPAY generated hash: {}", hash);
