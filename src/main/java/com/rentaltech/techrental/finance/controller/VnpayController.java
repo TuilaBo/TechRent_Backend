@@ -45,10 +45,12 @@ public class VnpayController {
             // Get frontend URLs from Invoice if available, otherwise use config
             String frontendSuccessUrl = vnpayConfig.getFrontendSuccessUrl();
             String frontendFailureUrl = vnpayConfig.getFrontendFailureUrl();
+            Long orderId = null;
             
             if (vnp_TxnRef != null) {
                 Invoice invoice = invoiceRepository.findByVnpayTransactionId(vnp_TxnRef).orElse(null);
                 if (invoice != null) {
+                    orderId = invoice.getRentalOrder() != null ? invoice.getRentalOrder().getOrderId() : null;
                     if (StringUtils.hasText(invoice.getFrontendSuccessUrl())) {
                         frontendSuccessUrl = invoice.getFrontendSuccessUrl();
                     }
@@ -61,34 +63,55 @@ public class VnpayController {
             // Redirect to frontend based on payment result
             if ("00".equals(vnp_ResponseCode)) {
                 // Payment successful - redirect to success page
-                String redirectUrl = frontendSuccessUrl 
-                        + "?transactionId=" + URLEncoder.encode(vnp_TxnRef != null ? vnp_TxnRef : "", StandardCharsets.UTF_8)
-                        + "&status=success";
+                StringBuilder redirectUrl = new StringBuilder(frontendSuccessUrl);
+                String separator = frontendSuccessUrl.contains("?") ? "&" : "?";
+                redirectUrl.append(separator).append("transactionId=").append(URLEncoder.encode(vnp_TxnRef != null ? vnp_TxnRef : "", StandardCharsets.UTF_8));
+                redirectUrl.append("&status=success");
+                if (orderId != null) {
+                    redirectUrl.append("&orderId=").append(URLEncoder.encode(String.valueOf(orderId), StandardCharsets.UTF_8));
+                }
                 log.info("Redirecting to success page: {}", redirectUrl);
-                response.sendRedirect(redirectUrl);
+                response.sendRedirect(redirectUrl.toString());
             } else {
                 // Payment failed - redirect to failure page
-                String redirectUrl = frontendFailureUrl 
-                        + "?transactionId=" + URLEncoder.encode(vnp_TxnRef != null ? vnp_TxnRef : "", StandardCharsets.UTF_8)
-                        + "&status=failed"
-                        + "&code=" + URLEncoder.encode(vnp_ResponseCode != null ? vnp_ResponseCode : "", StandardCharsets.UTF_8);
+                StringBuilder redirectUrl = new StringBuilder(frontendFailureUrl);
+                String separator = frontendFailureUrl.contains("?") ? "&" : "?";
+                redirectUrl.append(separator).append("transactionId=").append(URLEncoder.encode(vnp_TxnRef != null ? vnp_TxnRef : "", StandardCharsets.UTF_8));
+                redirectUrl.append("&status=failed");
+                redirectUrl.append("&code=").append(URLEncoder.encode(vnp_ResponseCode != null ? vnp_ResponseCode : "", StandardCharsets.UTF_8));
+                if (orderId != null) {
+                    redirectUrl.append("&orderId=").append(URLEncoder.encode(String.valueOf(orderId), StandardCharsets.UTF_8));
+                }
                 log.info("Redirecting to failure page: {}", redirectUrl);
-                response.sendRedirect(redirectUrl);
+                response.sendRedirect(redirectUrl.toString());
             }
         } catch (Exception e) {
             log.error("Error processing VNPAY return URL", e);
             // Redirect to failure page on error
-            String redirectUrl = vnpayConfig.getFrontendFailureUrl() 
-                    + "?error=" + URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Unknown error", StandardCharsets.UTF_8);
-            response.sendRedirect(redirectUrl);
+            String frontendFailureUrl = vnpayConfig.getFrontendFailureUrl();
+            StringBuilder redirectUrl = new StringBuilder(frontendFailureUrl);
+            String separator = frontendFailureUrl.contains("?") ? "&" : "?";
+            redirectUrl.append(separator).append("error=").append(URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Unknown error", StandardCharsets.UTF_8));
+            response.sendRedirect(redirectUrl.toString());
         }
     }
 
     @RequestMapping(value = "/ipn", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<?> ipnUrl(HttpServletRequest request) {
         try {
+            // Log request details for debugging
+            log.info("VNPAY IPN request method: {}", request.getMethod());
+            log.info("VNPAY IPN query string: {}", request.getQueryString());
+            log.info("VNPAY IPN content type: {}", request.getContentType());
+            
             Map<String, String> params = VnpayUtil.getRequestParams(request);
             log.info("VNPAY IPN called with params: {}", params);
+            
+            if (params.isEmpty()) {
+                log.warn("VNPAY IPN received empty params - this might be a test ping or invalid request");
+                return ResponseEntity.ok().body("OK");
+            }
+            
             paymentService.handleVnpayCallback(params);
             return ResponseEntity.ok().body("OK");
         } catch (Exception e) {
