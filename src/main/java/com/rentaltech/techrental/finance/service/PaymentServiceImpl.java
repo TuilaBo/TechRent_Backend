@@ -1,5 +1,8 @@
 package com.rentaltech.techrental.finance.service;
 
+import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.model.Role;
+import com.rentaltech.techrental.authentication.repository.AccountRepository;
 import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
@@ -62,6 +65,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ReservationService reservationService;
     private final BookingCalendarService bookingCalendarService;
     private final AllocationRepository allocationRepository;
+    private final AccountRepository accountRepository;
 
     @Override
     @Transactional
@@ -314,12 +318,25 @@ public class PaymentServiceImpl implements PaymentService {
 
         RentalOrder rentalOrder = invoice.getRentalOrder();
 
-        String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
-        if (ownerUsername == null || !ownerUsername.equalsIgnoreCase(username)) {
-            throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
+        Account currentAccount = accountRepository.findByUsername(username);
+        if (currentAccount == null) {
+            throw new AccessDeniedException("Không thể xác định quyền truy cập của bạn");
         }
 
-        return InvoiceResponseDto.from(invoice);
+        Role currentRole = currentAccount.getRole();
+        String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
+        boolean isOwner = ownerUsername != null && ownerUsername.equalsIgnoreCase(username);
+
+        if (currentRole == Role.OPERATOR) {
+            return InvoiceResponseDto.from(invoice);
+        }
+
+        if (currentRole == Role.CUSTOMER && isOwner) {
+            return InvoiceResponseDto.from(invoice);
+        }
+
+        throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
+
     }
 
     private BigDecimal safeSum(BigDecimal first, BigDecimal second) {
