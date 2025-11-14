@@ -1,8 +1,5 @@
 package com.rentaltech.techrental.finance.service;
 
-import com.rentaltech.techrental.authentication.model.Account;
-import com.rentaltech.techrental.authentication.model.Role;
-import com.rentaltech.techrental.authentication.repository.AccountRepository;
 import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
@@ -65,7 +62,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final ReservationService reservationService;
     private final BookingCalendarService bookingCalendarService;
     private final AllocationRepository allocationRepository;
-    private final AccountRepository accountRepository;
 
     @Override
     @Transactional
@@ -198,7 +194,6 @@ public class PaymentServiceImpl implements PaymentService {
                 System.out.println("Updating rental order status for order " + rentalOrder);
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
-                rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
                 createBookingsForOrder(rentalOrder);
             }
@@ -214,7 +209,6 @@ public class PaymentServiceImpl implements PaymentService {
                         .build();
 
                 transactionRepository.save(transaction);
-                transactionRepository.flush();
                 transactionCreated = true;
             }
 
@@ -228,7 +222,6 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         invoiceRepository.save(invoice);
-        invoiceRepository.flush();
     }
 
 
@@ -271,7 +264,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(TaskStatus.PENDING)
                 .build();
         taskRepository.save(deliveryTask);
-        taskRepository.flush();
     }
 
     private void createBookingsForOrder(RentalOrder rentalOrder) {
@@ -318,25 +310,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         RentalOrder rentalOrder = invoice.getRentalOrder();
 
-        Account currentAccount = accountRepository.findByUsername(username);
-        if (currentAccount == null) {
-            throw new AccessDeniedException("Không thể xác định quyền truy cập của bạn");
-        }
-
-        Role currentRole = currentAccount.getRole();
         String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
-        boolean isOwner = ownerUsername != null && ownerUsername.equalsIgnoreCase(username);
-
-        if (currentRole == Role.OPERATOR) {
-            return InvoiceResponseDto.from(invoice);
+        if (ownerUsername == null || !ownerUsername.equalsIgnoreCase(username)) {
+            throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
         }
 
-        if (currentRole == Role.CUSTOMER && isOwner) {
-            return InvoiceResponseDto.from(invoice);
-        }
-
-        throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
-
+        return InvoiceResponseDto.from(invoice);
     }
 
     private BigDecimal safeSum(BigDecimal first, BigDecimal second) {
@@ -376,13 +355,12 @@ public class PaymentServiceImpl implements PaymentService {
         vnpParams.put("vnp_OrderType", "other");
         vnpParams.put("vnp_Locale", "vn");
         
-        // Use returnUrl from request if provided and valid, otherwise use IPN URL as fallback
-        // (VNPAY requires return URL, but we'll use IPN URL since both handle callbacks the same way)
+        // Use returnUrl from request if provided and valid, otherwise use return URL from config
         String returnUrl = (request.getReturnUrl() != null 
                 && !request.getReturnUrl().trim().isEmpty() 
                 && !request.getReturnUrl().equals("string"))
                 ? request.getReturnUrl().trim()
-                : vnpayConfig.getIpnUrl(); // Use IPN URL as return URL fallback
+                : vnpayConfig.getReturnUrl(); // Use return URL from config
         vnpParams.put("vnp_ReturnUrl", returnUrl);
         // VNPAY may require actual IP, but for sandbox 127.0.0.1 should work
         // In production, get real client IP from request
@@ -425,11 +403,16 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("VNPAY vnp_SecureHash from request: {}", vnp_SecureHash);
         
         Map<String, String> paramsForHash = new HashMap<>(params);
-        String secureHash = VnpayUtil.hashAllFields(paramsForHash, vnpayConfig.getHashSecret());
+        // Log params before hashing for debugging
+        log.info("VNPAY params for hash calculation: {}", paramsForHash);
+        // When validating callback, use raw values (already decoded by servlet), don't encode again
+        String secureHash = VnpayUtil.hashAllFields(paramsForHash, vnpayConfig.getHashSecret(), false);
         
         log.info("VNPAY calculated hash: {}", secureHash);
+        log.info("VNPAY received hash: {}", vnp_SecureHash);
         log.info("VNPAY hash secret used: {}", vnpayConfig.getHashSecret());
-        
+        log.info("VNPAY hash match: {}", secureHash.equals(vnp_SecureHash));
+
         if (!secureHash.equals(vnp_SecureHash)) {
             log.error("Invalid VNPAY checksum for transaction: {}. Expected: {}, Got: {}", vnp_TxnRef, secureHash, vnp_SecureHash);
             log.error("All params for hash: {}", paramsForHash);
@@ -449,10 +432,26 @@ public class PaymentServiceImpl implements PaymentService {
             
             RentalOrder rentalOrder = invoice.getRentalOrder();
             if (rentalOrder != null) {
+                log.info("VNPAY payment succeeded for order {} - updating status to DELIVERY_CONFIRMED", rentalOrder.getOrderId());
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
-                reservationService.markConfirmed(rentalOrder.getOrderId());
-                createBookingsForOrder(rentalOrder);
+                rentalOrderRepository.flush(); // Ensure order status is persisted before proceeding
+                log.info("VNPAY order {} status updated to DELIVERY_CONFIRMED successfully", rentalOrder.getOrderId());
+
+                // Wrap auxiliary operations in try-catch to prevent rollback if they fail
+                try {
+                    reservationService.markConfirmed(rentalOrder.getOrderId());
+                } catch (Exception e) {
+                    log.error("Failed to mark reservations as confirmed for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
+
+                try {
+                    createBookingsForOrder(rentalOrder);
+                } catch (Exception e) {
+                    log.error("Failed to create bookings for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
+            } else {
+                log.warn("VNPAY payment succeeded but rentalOrder is null for invoice {}", invoice.getInvoiceId());
             }
             
             boolean transactionCreated = false;
@@ -470,13 +469,23 @@ public class PaymentServiceImpl implements PaymentService {
             }
             
             if (transactionCreated && rentalOrder != null) {
-                notifyPaymentSuccess(rentalOrder);
-                createDeliveryTaskIfNeeded(rentalOrder);
+                try {
+                    notifyPaymentSuccess(rentalOrder);
+                } catch (Exception e) {
+                    log.error("Failed to send payment success notification for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
+
+                try {
+                    createDeliveryTaskIfNeeded(rentalOrder);
+                } catch (Exception e) {
+                    log.error("Failed to create delivery task for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
             }
         } else {
             invoice.setPaymentDate(null);
         }
         
         invoiceRepository.save(invoice);
+        invoiceRepository.flush(); // Ensure invoice status is persisted
     }
 }
