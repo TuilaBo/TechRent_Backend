@@ -29,6 +29,19 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
                              @Param("statuses") Collection<ReservationStatus> statuses,
                              @Param("referenceTime") LocalDateTime referenceTime);
 
+    @Query("""
+            select coalesce(sum(r.reservedQuantity), 0)
+            from Reservation r
+            where r.deviceModel.deviceModelId = :deviceModelId
+              and r.startTime < :endTime
+              and r.endTime > :startTime
+              and r.status in :statuses
+            """)
+    long sumReservedQuantityByStatus(@Param("deviceModelId") Long deviceModelId,
+                                     @Param("startTime") LocalDateTime startTime,
+                                     @Param("endTime") LocalDateTime endTime,
+                                     @Param("statuses") Collection<ReservationStatus> statuses);
+
     @Modifying(clearAutomatically = true)
     @Query("""
             update Reservation r

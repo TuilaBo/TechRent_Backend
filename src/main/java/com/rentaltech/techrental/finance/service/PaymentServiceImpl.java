@@ -1,5 +1,8 @@
 package com.rentaltech.techrental.finance.service;
 
+import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.model.Role;
+import com.rentaltech.techrental.authentication.repository.AccountRepository;
 import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
@@ -16,16 +19,17 @@ import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
-import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
-import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.repository.SettlementRepository;
+import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
@@ -38,10 +42,7 @@ import vn.payos.model.webhooks.WebhookData;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -62,6 +63,12 @@ public class PaymentServiceImpl implements PaymentService {
     private final ReservationService reservationService;
     private final BookingCalendarService bookingCalendarService;
     private final AllocationRepository allocationRepository;
+    private final AccountRepository accountRepository;
+    private final SettlementRepository settlementRepository;
+    private final StaffService staffService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
     @Override
     @Transactional
@@ -92,7 +99,7 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal depositApplied = BigDecimal.ZERO;
         BigDecimal totalAmount = expectedSubTotal.add(taxAmount).subtract(discountAmount);
-        
+
         Invoice invoice;
         if (paymentMethod == PaymentMethod.VNPAY) {
             String vnpayTransactionId = generateVnpayTransactionId();
@@ -115,7 +122,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .frontendFailureUrl(request.getFrontendFailureUrl())
                     .build();
             invoice = invoiceRepository.save(invoice);
-            
+            invoiceRepository.flush();
             String paymentUrl = buildVnpayPaymentUrl(request, invoice);
             return CreatePaymentResponse.builder()
                     .checkoutUrl(paymentUrl)
@@ -141,6 +148,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .payosOrderCode(payosOrderCode)
                     .build();
             invoice = invoiceRepository.save(invoice);
+            invoiceRepository.flush();
 
             CreatePaymentLinkRequest paymentLinkRequest = buildCreatePaymentRequest(request, invoice);
             try {
@@ -194,6 +202,7 @@ public class PaymentServiceImpl implements PaymentService {
                 System.out.println("Updating rental order status for order " + rentalOrder);
                 rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
+                rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
                 createBookingsForOrder(rentalOrder);
             }
@@ -209,6 +218,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .build();
 
                 transactionRepository.save(transaction);
+                transactionRepository.flush();
                 transactionCreated = true;
             }
 
@@ -222,6 +232,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         invoiceRepository.save(invoice);
+        invoiceRepository.flush();
     }
 
 
@@ -264,6 +275,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(TaskStatus.PENDING)
                 .build();
         taskRepository.save(deliveryTask);
+        taskRepository.flush();
     }
 
     private void createBookingsForOrder(RentalOrder rentalOrder) {
@@ -293,13 +305,13 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         return CreatePaymentLinkRequest.builder()
-                        .orderCode(invoice.getPayosOrderCode())
-                        .amount(request.getAmount().longValueExact())
-                        .description("Thanh toan")
-                        .returnUrl("https://your-url.com/success")
-                        .cancelUrl("https://your-url.com/cancel")
-                        .item(itemData)
-                        .build();
+                .orderCode(invoice.getPayosOrderCode())
+                .amount(request.getAmount().longValueExact())
+                .description("Thanh toan")
+                .returnUrl("https://your-url.com/success")
+                .cancelUrl("https://your-url.com/cancel")
+                .item(itemData)
+                .build();
     }
 
     @Override
@@ -310,12 +322,23 @@ public class PaymentServiceImpl implements PaymentService {
 
         RentalOrder rentalOrder = invoice.getRentalOrder();
 
-        String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
-        if (ownerUsername == null || !ownerUsername.equalsIgnoreCase(username)) {
-            throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
+        Account requester = Optional.ofNullable(accountRepository.findByUsername(username))
+                .orElseThrow(() -> new AccessDeniedException("Không tìm thấy tài khoản người dùng hiện tại"));
+
+        Role requesterRole = requester.getRole();
+        if (requesterRole == Role.OPERATOR) {
+            return InvoiceResponseDto.from(invoice);
         }
 
-        return InvoiceResponseDto.from(invoice);
+        if (requesterRole == Role.CUSTOMER) {
+            String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
+            if (ownerUsername == null || !ownerUsername.equalsIgnoreCase(username)) {
+                throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
+            }
+            return InvoiceResponseDto.from(invoice);
+        }
+
+        throw new AccessDeniedException("Bạn không có quyền truy cập hóa đơn này");
     }
 
     private BigDecimal safeSum(BigDecimal first, BigDecimal second) {
@@ -323,6 +346,46 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal right = Optional.ofNullable(second).orElse(BigDecimal.ZERO);
         return left.add(right);
     }
+
+    private void notifyCustomerDepositRefund(RentalOrder order) {
+        if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
+            return;
+        }
+        notificationService.notifyCustomer(
+                order.getCustomer().getCustomerId(),
+                NotificationType.ORDER_CONFIRMED,
+                "Đã hoàn tiền cọc",
+                "Đã hoàn tiền cọc cho đơn hàng #" + order.getOrderId()
+        );
+    }
+
+    private void notifyOperatorsDepositRefund(Long orderId, Long invoiceId) {
+        if (orderId == null) {
+            return;
+        }
+        List<Staff> operators = staffService.getStaffByRole(StaffRole.OPERATOR);
+        if (operators == null || operators.isEmpty()) {
+            return;
+        }
+        OperatorDepositRefundNotification payload = new OperatorDepositRefundNotification(
+                orderId,
+                invoiceId,
+                "Đơn hàng #" + orderId + " đã được hoàn cọc thành công."
+        );
+        operators.stream()
+                .map(Staff::getStaffId)
+                .filter(Objects::nonNull)
+                .forEach(staffId -> {
+                    String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
+                    try {
+                        messagingTemplate.convertAndSend(destination, payload);
+                    } catch (Exception ex) {
+                        log.warn("Không thể gửi thông báo hoàn cọc tới operator {}: {}", staffId, ex.getMessage());
+                    }
+                });
+    }
+
+    private record OperatorDepositRefundNotification(Long orderId, Long invoiceId, String message) {}
 
     private static final long PAYOS_SAFE_MAX = 9_007_199_254_740_991L;
 
@@ -354,10 +417,10 @@ public class PaymentServiceImpl implements PaymentService {
         vnpParams.put("vnp_OrderInfo", "Thanhtoandonhang" + invoice.getRentalOrder().getOrderId());
         vnpParams.put("vnp_OrderType", "other");
         vnpParams.put("vnp_Locale", "vn");
-        
+
         // Use returnUrl from request if provided and valid, otherwise use return URL from config
-        String returnUrl = (request.getReturnUrl() != null 
-                && !request.getReturnUrl().trim().isEmpty() 
+        String returnUrl = (request.getReturnUrl() != null
+                && !request.getReturnUrl().trim().isEmpty()
                 && !request.getReturnUrl().equals("string"))
                 ? request.getReturnUrl().trim()
                 : vnpayConfig.getReturnUrl(); // Use return URL from config
@@ -366,20 +429,19 @@ public class PaymentServiceImpl implements PaymentService {
         // In production, get real client IP from request
         vnpParams.put("vnp_IpAddr", "127.0.0.1");
         vnpParams.put("vnp_CreateDate", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
-        
+
         // Create hash BEFORE adding vnp_SecureHash to params
         String secureHash = VnpayUtil.hashAllFields(vnpParams, vnpayConfig.getHashSecret());
         if (secureHash == null) {
             throw new IllegalStateException("Failed to generate VNPAY secure hash");
         }
-        
+
         log.info("VNPAY params before hash: {}", vnpParams);
         log.info("VNPAY hash secret: {}", vnpayConfig.getHashSecret());
         log.info("VNPAY secure hash: {}", secureHash);
-        
+
         // Add hash to params AFTER hashing
         vnpParams.put("vnp_SecureHash", secureHash);
-        
         return VnpayUtil.getPaymentUrl(vnpParams, vnpayConfig.getUrl());
     }
 
@@ -392,44 +454,99 @@ public class PaymentServiceImpl implements PaymentService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public InvoiceResponseDto confirmDepositRefund(Long settlementId, String username) {
+        Account account = Optional.ofNullable(accountRepository.findByUsername(username))
+                .orElseThrow(() -> new AccessDeniedException("Không tìm thấy tài khoản xác thực"));
+        Role role = account.getRole();
+        if (role != Role.ADMIN && role != Role.OPERATOR && role != Role.TECHNICIAN && role != Role.CUSTOMER_SUPPORT_STAFF) {
+            throw new AccessDeniedException("Không có quyền xác nhận hoàn cọc");
+        }
+
+        Settlement settlement = settlementRepository.findById(settlementId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy settlement: " + settlementId));
+        RentalOrder order = settlement.getRentalOrder();
+        if (order == null) {
+            throw new IllegalStateException("Settlement chưa gắn với đơn thuê");
+        }
+
+        BigDecimal subTotal = Optional.ofNullable(settlement.getFinalAmount()).orElse(BigDecimal.ZERO);
+        BigDecimal depositApplied = Optional.ofNullable(settlement.getDepositUsed()).orElse(BigDecimal.ZERO);
+
+        Invoice invoice = Invoice.builder()
+                .rentalOrder(order)
+                .invoiceType(InvoiceType.DEPOSIT_REFUND)
+                .paymentMethod(PaymentMethod.BANK_ACCOUNT)
+                .subTotal(subTotal)
+                .taxAmount(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
+                .totalAmount(subTotal)
+                .depositApplied(depositApplied)
+                .invoiceStatus(InvoiceStatus.SUCCEEDED)
+                .paymentDate(LocalDateTime.now())
+                .issueDate(LocalDateTime.now())
+                .build();
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        settlement.setState(SettlementState.Closed);
+        if (settlement.getIssuedAt() == null) {
+            settlement.setIssuedAt(LocalDateTime.now());
+        }
+        settlementRepository.save(settlement);
+
+        Transaction transaction = Transaction.builder()
+                .amount(subTotal)
+                .transactionType(TrasactionType.TRANSACTION_OUT)
+                .invoice(savedInvoice)
+                .createdBy(username)
+                .build();
+        transactionRepository.save(transaction);
+
+        notifyCustomerDepositRefund(order);
+        notifyOperatorsDepositRefund(order.getOrderId(), savedInvoice.getInvoiceId());
+
+        return InvoiceResponseDto.from(savedInvoice);
+    }
+
     @Transactional
     public void handleVnpayCallback(Map<String, String> params) {
         String vnp_SecureHash = params.get("vnp_SecureHash");
         String vnp_TxnRef = params.get("vnp_TxnRef");
         String vnp_ResponseCode = params.get("vnp_ResponseCode");
         String vnp_TransactionStatus = params.get("vnp_TransactionStatus");
-        
+
         log.info("VNPAY callback params received: {}", params);
         log.info("VNPAY vnp_SecureHash from request: {}", vnp_SecureHash);
-        
+
         Map<String, String> paramsForHash = new HashMap<>(params);
         // Log params before hashing for debugging
         log.info("VNPAY params for hash calculation: {}", paramsForHash);
         // When validating callback, use raw values (already decoded by servlet), don't encode again
         String secureHash = VnpayUtil.hashAllFields(paramsForHash, vnpayConfig.getHashSecret(), false);
-        
+
         log.info("VNPAY calculated hash: {}", secureHash);
         log.info("VNPAY received hash: {}", vnp_SecureHash);
         log.info("VNPAY hash secret used: {}", vnpayConfig.getHashSecret());
         log.info("VNPAY hash match: {}", secureHash.equals(vnp_SecureHash));
-        
+
         if (!secureHash.equals(vnp_SecureHash)) {
             log.error("Invalid VNPAY checksum for transaction: {}. Expected: {}, Got: {}", vnp_TxnRef, secureHash, vnp_SecureHash);
             log.error("All params for hash: {}", paramsForHash);
             throw new IllegalStateException("Invalid VNPAY checksum");
         }
-        
+
         Invoice invoice = invoiceRepository.findByVnpayTransactionId(vnp_TxnRef)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found for VNPAY transaction: " + vnp_TxnRef));
-        
+
         boolean isSuccess = "00".equals(vnp_ResponseCode) && "00".equals(vnp_TransactionStatus);
         InvoiceStatus newStatus = isSuccess ? InvoiceStatus.SUCCEEDED : InvoiceStatus.FAILED;
-        
+
         invoice.setInvoiceStatus(newStatus);
-        
+
         if (newStatus == InvoiceStatus.SUCCEEDED) {
             invoice.setPaymentDate(LocalDateTime.now());
-            
+
             RentalOrder rentalOrder = invoice.getRentalOrder();
             if (rentalOrder != null) {
                 log.info("VNPAY payment succeeded for order {} - updating status to DELIVERY_CONFIRMED", rentalOrder.getOrderId());
@@ -437,14 +554,14 @@ public class PaymentServiceImpl implements PaymentService {
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush(); // Ensure order status is persisted before proceeding
                 log.info("VNPAY order {} status updated to DELIVERY_CONFIRMED successfully", rentalOrder.getOrderId());
-                
+
                 // Wrap auxiliary operations in try-catch to prevent rollback if they fail
                 try {
                     reservationService.markConfirmed(rentalOrder.getOrderId());
                 } catch (Exception e) {
                     log.error("Failed to mark reservations as confirmed for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
-                
+
                 try {
                     createBookingsForOrder(rentalOrder);
                 } catch (Exception e) {
@@ -453,28 +570,29 @@ public class PaymentServiceImpl implements PaymentService {
             } else {
                 log.warn("VNPAY payment succeeded but rentalOrder is null for invoice {}", invoice.getInvoiceId());
             }
-            
+
             boolean transactionCreated = false;
             if (!transactionRepository.existsByInvoice(invoice)) {
                 BigDecimal transactionAmount = Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO);
-                
+
                 Transaction transaction = Transaction.builder()
                         .amount(transactionAmount)
                         .transactionType(TrasactionType.TRANSACTION_IN)
                         .invoice(invoice)
                         .build();
-                
+
                 transactionRepository.save(transaction);
+                transactionRepository.flush();
                 transactionCreated = true;
             }
-            
+
             if (transactionCreated && rentalOrder != null) {
                 try {
                     notifyPaymentSuccess(rentalOrder);
                 } catch (Exception e) {
                     log.error("Failed to send payment success notification for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
-                
+
                 try {
                     createDeliveryTaskIfNeeded(rentalOrder);
                 } catch (Exception e) {
@@ -484,7 +602,7 @@ public class PaymentServiceImpl implements PaymentService {
         } else {
             invoice.setPaymentDate(null);
         }
-        
+
         invoiceRepository.save(invoice);
         invoiceRepository.flush(); // Ensure invoice status is persisted
     }

@@ -15,7 +15,10 @@ import com.rentaltech.techrental.staff.repository.*;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -23,13 +26,15 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class TaskServiceImpl implements TaskService {
 
-    private static final String PRE_RENTAL_QC = "PRE_RENTAL_QC";
+    private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
+    private static final Logger log = LoggerFactory.getLogger(TaskServiceImpl.class);
 
     @Autowired
     private TaskRepository taskRepository;
@@ -58,6 +63,9 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private StaffService staffService;
 
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
     @Override
     public Task createTask(TaskCreateRequestDto request, String username) {
         AccessContext access = resolveAccessContext(username);
@@ -76,7 +84,6 @@ public class TaskServiceImpl implements TaskService {
                     .taskCategory(category)
                     .orderId(request.getOrderId())
                     .assignedStaff(assignedStaff)
-                    .type(request.getType())
                     .description(request.getDescription())
                     .plannedStart(request.getPlannedStart())
                     .plannedEnd(request.getPlannedEnd())
@@ -85,6 +92,7 @@ public class TaskServiceImpl implements TaskService {
             Task saved = taskRepository.save(task);
             promoteOrderStatusIfNeeded(saved);
             notifyCustomerOrderProcessing(saved);
+            notifyAssignedStaffChannels(saved, assignedStaff);
 
             return saved;
             
@@ -196,9 +204,11 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
 
+        Set<Staff> staffMembersForNotification = null;
         if (request.getAssignedStaffIds() != null) {
             Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
             task.setAssignedStaff(staffMembers);
+            staffMembersForNotification = staffMembers;
         }
 
         if (request.getTaskCategoryId() != null) {
@@ -206,7 +216,6 @@ public class TaskServiceImpl implements TaskService {
                     .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
             task.setTaskCategory(category);
         }
-        if (request.getType() != null) task.setType(request.getType());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getPlannedStart() != null) task.setPlannedStart(request.getPlannedStart());
         if (request.getPlannedEnd() != null) task.setPlannedEnd(request.getPlannedEnd());
@@ -215,6 +224,7 @@ public class TaskServiceImpl implements TaskService {
         Task saved = taskRepository.save(task);
         promoteOrderStatusIfNeeded(saved);
         notifyCustomerOrderProcessing(saved);
+        notifyAssignedStaffChannels(saved, staffMembersForNotification);
         return saved;
     }
 
@@ -238,10 +248,10 @@ public class TaskServiceImpl implements TaskService {
     public Task confirmDelivery(Long taskId, String username) {
         AccessContext access = resolveAccessContext(username);
         if (!access.isRestricted()) {
-            throw new AccessDeniedException("Only technician or support staff can confirm delivery");
+            throw new AccessDeniedException("Chỉ kỹ thuật viên hoặc nhân viên CSKH mới được xác nhận đi giao hàng");
         }
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new NoSuchElementException("Khong tim thay cong viec"));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
         enforceTaskVisibility(task, access);
         Staff confirmer = staffRepository.findById(access.staffId())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên"));
@@ -256,6 +266,31 @@ public class TaskServiceImpl implements TaskService {
         taskDeliveryConfirmationRepository.save(confirmation);
 
         evaluateDeliveryConfirmation(task);
+        return taskRepository.save(task);
+    }
+
+    @Override
+    public Task confirmRetrieval(Long taskId, String username) {
+        AccessContext access = resolveAccessContext(username);
+        if (!access.isRestricted()) {
+            throw new AccessDeniedException("Chỉ kỹ thuật viên hoặc nhân viên CSKH mới được xác nhận đi thu hồi");
+        }
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
+        enforceTaskVisibility(task, access);
+        Staff confirmer = staffRepository.findById(access.staffId())
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên"));
+
+        TaskDeliveryConfirmation confirmation = taskDeliveryConfirmationRepository
+                .findByTask_TaskIdAndStaff_StaffId(taskId, confirmer.getStaffId())
+                .orElseGet(() -> TaskDeliveryConfirmation.builder()
+                        .task(task)
+                        .staff(confirmer)
+                        .build());
+        confirmation.setConfirmedAt(LocalDateTime.now());
+        taskDeliveryConfirmationRepository.save(confirmation);
+
+        evaluateRetrievalConfirmation(task);
         return taskRepository.save(task);
     }
 
@@ -363,10 +398,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void promoteOrderStatusIfNeeded(Task task) {
-        if (task == null || task.getOrderId() == null || task.getType() == null) {
-            return;
-        }
-        if (!PRE_RENTAL_QC.equalsIgnoreCase(task.getType())) {
+        if (task == null || task.getOrderId() == null) {
             return;
         }
         rentalOrderRepository.findById(task.getOrderId())
@@ -378,21 +410,87 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void notifyCustomerOrderProcessing(Task task) {
-        if (task == null || task.getOrderId() == null) {
-            return;
-        }
-        if (task.getAssignedStaff() == null || task.getAssignedStaff().isEmpty()) {
-            return;
-        }
         rentalOrderRepository.findById(task.getOrderId())
                 .map(RentalOrder::getCustomer)
                 .filter(customer -> customer != null && customer.getCustomerId() != null)
                 .ifPresent(customer -> notificationService.notifyCustomer(
                         customer.getCustomerId(),
-                        NotificationType.ORDER_PROCESSING,
+                        switch (task.getTaskCategory().getName()) {
+                            case "Pre rental QC" -> NotificationType.ORDER_PROCESSING;
+                            case "Post rental QC" -> NotificationType.ORDER_NEAR_DUE;
+                            default -> NotificationType.ORDER_ACTIVE;
+                        },
                         "Đơn hàng đang được xử lý",
-                        "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.")
+                        switch (task.getTaskCategory().getName()) {
+                            case "Pre rental QC" -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.";
+                            case "Post rental QC" -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên để thu hồi.";
+                            default -> "Đơn hàng của bạn đang được xử lý.";
+                        })
                 );
+    }
+
+    private void notifyAssignedStaffChannels(Task task, Set<Staff> assignees) {
+        if (task == null || assignees == null || assignees.isEmpty()) {
+            return;
+        }
+        TaskAssignmentNotification payload = TaskAssignmentNotification.from(task);
+        if (payload == null) {
+            return;
+        }
+        assignees.stream()
+                .map(Staff::getStaffId)
+                .filter(Objects::nonNull)
+                .forEach(staffId -> resolveStaffChannels(staffId)
+                        .forEach(destination -> sendToChannel(destination, payload, staffId)));
+    }
+
+    private List<String> resolveStaffChannels(Long staffId) {
+        return List.of(String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId));
+    }
+
+    private void sendToChannel(String destination, TaskAssignmentNotification payload, Long staffId) {
+        try {
+            messagingTemplate.convertAndSend(destination, payload);
+        } catch (Exception ex) {
+            log.warn("Không thể gửi thông báo gán tác vụ {} tới nhân viên {} qua {}: {}",
+                    payload.taskId(), staffId, destination, ex.getMessage());
+        }
+    }
+
+    private record TaskAssignmentNotification(Long taskId,
+                                              Long orderId,
+                                              Long taskCategoryId,
+                                              String taskCategoryName,
+                                              String type,
+                                              String description,
+                                              TaskStatus status,
+                                              LocalDateTime plannedStart,
+                                              LocalDateTime plannedEnd,
+                                              String message) {
+        static TaskAssignmentNotification from(Task task) {
+            if (task == null) {
+                return null;
+            }
+            TaskCategory category = task.getTaskCategory();
+            return new TaskAssignmentNotification(
+                    task.getTaskId(),
+                    task.getOrderId(),
+                    category != null ? category.getTaskCategoryId() : null,
+                    category != null ? category.getName() : null,
+                    task.getType(),
+                    task.getDescription(),
+                    task.getStatus(),
+                    task.getPlannedStart(),
+                    task.getPlannedEnd(),
+                    buildMessage(task)
+            );
+        }
+
+        private static String buildMessage(Task task) {
+            String taskLabel = task.getTaskId() != null ? "#" + task.getTaskId() : "mới";
+            String orderLabel = task.getOrderId() != null ? (" của đơn hàng #" + task.getOrderId()) : "";
+            return "Bạn vừa được gán vào tác vụ " + taskLabel + orderLabel;
+        }
     }
 
     private void evaluateDeliveryConfirmation(Task task) {
@@ -429,5 +527,34 @@ public class TaskServiceImpl implements TaskService {
                         rentalOrderRepository.save(order);
                     }
                 });
+    }
+
+    private void evaluateRetrievalConfirmation(Task task) {
+        if (task.getTaskId() == null) {
+            return;
+        }
+        Set<Staff> assignedStaff = task.getAssignedStaff();
+        if (assignedStaff == null || assignedStaff.isEmpty()) {
+            return;
+        }
+        List<Long> assignedIds = assignedStaff.stream()
+                .map(Staff::getStaffId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (assignedIds.isEmpty()) {
+            return;
+        }
+        long confirmedCount = taskDeliveryConfirmationRepository
+                .countByTask_TaskIdAndStaff_StaffIdIn(task.getTaskId(), assignedIds);
+        if (confirmedCount < assignedIds.size()) {
+            return;
+        }
+        if (task.getStatus() != TaskStatus.IN_PROGRESS) {
+            task.setStatus(TaskStatus.IN_PROGRESS);
+            if (task.getPlannedStart() == null) {
+                task.setPlannedStart(LocalDateTime.now());
+            }
+        }
     }
 }

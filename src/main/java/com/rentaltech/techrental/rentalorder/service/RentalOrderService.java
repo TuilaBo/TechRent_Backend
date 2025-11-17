@@ -29,4 +29,5 @@ public interface RentalOrderService {
             Pageable pageable);
     RentalOrderResponseDto update(Long id, RentalOrderRequestDto request);
     void delete(Long id);
+    RentalOrderResponseDto confirmReturn(Long id);
 }

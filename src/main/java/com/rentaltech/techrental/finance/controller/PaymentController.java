@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +53,18 @@ public class PaymentController {
                 "Transactions retrieved successfully",
                 "List of recorded payment transactions",
                 paymentService.getAllTransactions(),
+                HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/settlements/{settlementId}/confirm-refund")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    public ResponseEntity<?> confirmDepositRefund(@PathVariable Long settlementId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        return ResponseUtil.createSuccessResponse(
+                "Hoàn cọc thành công",
+                "Đã xác nhận hoàn cọc cho settlement",
+                paymentService.confirmDepositRefund(settlementId, username),
                 HttpStatus.OK
         );
     }

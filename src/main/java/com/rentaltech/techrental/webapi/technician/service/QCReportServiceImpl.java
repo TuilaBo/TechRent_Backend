@@ -12,10 +12,9 @@ import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
@@ -30,7 +29,10 @@ import com.rentaltech.techrental.webapi.technician.model.dto.QCReportResponseDto
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.repository.QCReportRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,6 +45,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QCReportServiceImpl implements QCReportService {
 
+    private static final Logger log = LoggerFactory.getLogger(QCReportServiceImpl.class);
+    private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
+
     private final QCReportRepository qcReportRepository;
     private final TaskRepository taskRepository;
     private final DeviceRepository deviceRepository;
@@ -54,6 +59,7 @@ public class QCReportServiceImpl implements QCReportService {
     private final ImageStorageService imageStorageService;
     private final com.rentaltech.techrental.rentalorder.service.BookingCalendarService bookingCalendarService;
     private final ReservationService reservationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -80,10 +86,12 @@ public class QCReportServiceImpl implements QCReportService {
                 .findings(request.getFindings())
                 .createdBy(username)
                 .task(task)
+                .rentalOrder(resolveRentalOrderFromDetails(orderDetailSerials))
                 .build();
 
         maybeUploadAccessorySnapshot(accessorySnapshot, qcReport);
         QCReport saved = qcReportRepository.save(qcReport);
+        qcReportRepository.flush();
 
         List<Allocation> allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
         if (!allocations.isEmpty()) {
@@ -93,7 +101,7 @@ public class QCReportServiceImpl implements QCReportService {
         }
 
         markTaskCompleted(task);
-        maybeNotifyOrderConfirmed(saved);
+        notifyCustomer(saved);
         return mapToResponseDto(saved);
     }
 
@@ -136,6 +144,7 @@ public class QCReportServiceImpl implements QCReportService {
                 if (resolved.isEmpty()) {
                     throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation");
                 }
+                report.setRentalOrder(resolveRentalOrderFromDetails(resolved));
                 if (report.getTask() != null && report.getTask().getOrderId() != null) {
                     bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
                 }
@@ -158,9 +167,77 @@ public class QCReportServiceImpl implements QCReportService {
         }
 
         QCReport updated = qcReportRepository.save(report);
-        maybeNotifyOrderConfirmed(updated);
+        qcReportRepository.flush();
+        notifyCustomer(updated);
         return mapToResponseDto(updated);
     }
+
+    private void notifyCustomer(QCReport qcReport) {
+        switch (qcReport.getPhase()) {
+            case PRE_RENTAL -> {
+                if (qcReport.getResult() == QCResult.READY_FOR_SHIPPING) {
+                    notificationService.notifyCustomer(
+                            qcReport.getRentalOrder().getCustomer().getCustomerId(),
+                            NotificationType.ORDER_CONFIRMED,
+                            "Đơn hàng đã được xác nhận",
+                            "Đơn hàng #" + qcReport.getTask().getOrderId() + " đã vượt qua kiểm tra và sẵn sàng giao."
+                    );
+                } else if (qcReport.getResult() == QCResult.PRE_RENTAL_FAILED) {
+                    notificationService.notifyCustomer(
+                            qcReport.getRentalOrder().getCustomer().getCustomerId(),
+                            NotificationType.ORDER_ISSUE,
+                            "Vấn đề với đơn hàng của bạn",
+                            "Đơn hàng #" + qcReport.getTask().getOrderId() + " không vượt qua kiểm tra chất lượng. Vui lòng liên hệ bộ phận hỗ trợ."
+                    );
+                }
+            }
+            case POST_RENTAL -> {
+                if (qcReport.getResult() == QCResult.READY_FOR_RE_STOCK) {
+                    notificationService.notifyCustomer(
+                            qcReport.getRentalOrder().getCustomer().getCustomerId(),
+                            NotificationType.ORDER_CONFIRMED,
+                            "Đơn thuê đã được hoàn trả",
+                            "Đơn thuê #" + qcReport.getTask().getOrderId() + " đã được kiểm tra sau thuê và hoàn trả thành công."
+                    );
+                } else if (qcReport.getResult() == QCResult.POST_RENTAL_FAILED) {
+                    notificationService.notifyCustomer(
+                            qcReport.getRentalOrder().getCustomer().getCustomerId(),
+                            NotificationType.ORDER_ISSUE,
+                            "Vấn đề với đơn thuê của bạn",
+                            "Đơn thuê #" + qcReport.getTask().getOrderId() + " không vượt qua kiểm tra chất lượng sau thuê. Vui lòng liên hệ bộ phận hỗ trợ."
+                    );
+                }
+            }
+        }
+        notifySupportStaffPostRental(qcReport.getTask());
+    }
+
+    private void notifySupportStaffPostRental(Task task) {
+        if (task == null || task.getAssignedStaff() == null || task.getAssignedStaff().isEmpty()) {
+            return;
+        }
+        Long orderId = task.getOrderId();
+        PostRentalQCNotification payload = new PostRentalQCNotification(
+                task.getTaskId(),
+                orderId,
+                "QC sau thuê cho đơn #" + (orderId != null ? orderId : "") + " đã hoàn tất. Vui lòng hỗ trợ khách theo quy trình trả hàng."
+        );
+        task.getAssignedStaff().stream()
+                .filter(Objects::nonNull)
+                .filter(staff -> staff.getStaffRole() == StaffRole.CUSTOMER_SUPPORT_STAFF)
+                .map(Staff::getStaffId)
+                .filter(Objects::nonNull)
+                .forEach(staffId -> {
+                    String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
+                    try {
+                        messagingTemplate.convertAndSend(destination, payload);
+                    } catch (Exception ex) {
+                        log.warn("Không thể gửi thông báo QC sau thuê cho nhân viên hỗ trợ {}: {}", staffId, ex.getMessage());
+                    }
+                });
+    }
+
+    private record PostRentalQCNotification(Long taskId, Long orderId, String message) {}
 
     @Override
     @Transactional(readOnly = true)
@@ -190,7 +267,7 @@ public class QCReportServiceImpl implements QCReportService {
     }
 
     private List<Allocation> createAllocationsIfNeeded(QCReport report, Map<OrderDetail, List<String>> orderDetailSerials) {
-        if (report.getResult() != QCResult.READY_FOR_SHIPPING) {
+        if (report.getPhase() == QCPhase.POST_RENTAL) {
             return List.of();
         }
         if (orderDetailSerials == null || orderDetailSerials.isEmpty()) {
@@ -212,6 +289,7 @@ public class QCReportServiceImpl implements QCReportService {
             task.setCompletedAt(LocalDateTime.now());
         }
         taskRepository.save(task);
+        taskRepository.flush();
     }
 
     private List<Allocation> createAllocations(QCReport report, Map<OrderDetail, List<String>> orderDetailSerials) {
@@ -246,8 +324,11 @@ public class QCReportServiceImpl implements QCReportService {
         });
         if (!devicesToUpdate.isEmpty()) {
             deviceRepository.saveAll(devicesToUpdate);
+            deviceRepository.flush();
         }
-        return allocationRepository.saveAll(allocations);
+        List<Allocation> persisted = allocationRepository.saveAll(allocations);
+        allocationRepository.flush();
+        return persisted;
     }
 
     private Map<OrderDetail, List<String>> resolveOrderDetails(Task task, Map<Long, List<String>> orderDetailSerialNumbers) {
@@ -300,6 +381,7 @@ public class QCReportServiceImpl implements QCReportService {
         if (!devicesToRelease.isEmpty()) {
             devicesToRelease.forEach(device -> device.setStatus(DeviceStatus.AVAILABLE));
             deviceRepository.saveAll(devicesToRelease);
+            deviceRepository.flush();
         }
     }
 
@@ -363,6 +445,8 @@ public class QCReportServiceImpl implements QCReportService {
         Long orderId = null;
         if (orderDetail != null && orderDetail.getRentalOrder() != null) {
             orderId = orderDetail.getRentalOrder().getOrderId();
+        } else if (report.getRentalOrder() != null) {
+            orderId = report.getRentalOrder().getOrderId();
         } else if (task != null) {
             orderId = task.getOrderId();
         }
@@ -388,7 +472,26 @@ public class QCReportServiceImpl implements QCReportService {
                 .build();
     }
 
+    private RentalOrder resolveRentalOrderFromDetails(Map<OrderDetail, List<String>> resolvedDetails) {
+        if (resolvedDetails == null || resolvedDetails.isEmpty()) {
+            return null;
+        }
+        return resolvedDetails.keySet().stream()
+                .filter(Objects::nonNull)
+                .map(OrderDetail::getRentalOrder)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
     private List<Allocation> resolveAllocations(QCReport report) {
+        Long orderId = Optional.ofNullable(report)
+                .map(QCReport::getRentalOrder)
+                .map(RentalOrder::getOrderId)
+                .orElse(null);
+        if (orderId != null) {
+            return allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId);
+        }
         if (report.getQcReportId() != null) {
             return allocationRepository.findByQcReport_QcReportId(report.getQcReportId());
         }
@@ -406,27 +509,6 @@ public class QCReportServiceImpl implements QCReportService {
                 .status(device.getStatus())
                 .deviceModelId(device.getDeviceModel() != null ? device.getDeviceModel().getDeviceModelId() : null)
                 .build();
-    }
-
-    private void maybeNotifyOrderConfirmed(QCReport report) {
-        if (report.getPhase() == QCPhase.PRE_RENTAL && report.getResult() == QCResult.READY_FOR_SHIPPING) {
-            OrderDetail orderDetail = resolveAllocations(report).stream()
-                    .map(Allocation::getOrderDetail)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse(null);
-            if (orderDetail != null && orderDetail.getRentalOrder() != null
-                    && orderDetail.getRentalOrder().getCustomer() != null
-                    && orderDetail.getRentalOrder().getCustomer().getCustomerId() != null) {
-                Long orderId = orderDetail.getRentalOrder().getOrderId();
-                notificationService.notifyCustomer(
-                        orderDetail.getRentalOrder().getCustomer().getCustomerId(),
-                        NotificationType.ORDER_CONFIRMED,
-                        "Đơn hàng đã được xác nhận",
-                        "Đơn hàng #" + orderId + " đã hoàn tất kiểm tra và sẵn sàng giao."
-                );
-            }
-        }
     }
 
     private void extendReservationHold(Task task, List<Allocation> allocations, QCResult result) {
