@@ -1,10 +1,14 @@
 package com.rentaltech.techrental.rentalorder.service;
 
+import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
+import com.rentaltech.techrental.rentalorder.model.ReservationStatus;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -62,8 +67,39 @@ public class BookingCalendarServiceImpl implements BookingCalendarService {
                 deviceModelId, start, end, EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE)
         );
         long reserved = reservationService.countActiveReservedQuantity(deviceModelId, start, end);
+
         long available = total - booked - reserved;
+
+        Role role = resolveCurrentUserRole();
+        if (role == Role.TECHNICIAN) {
+            long underReview = reservationService.countReservedQuantityByStatus(
+                    deviceModelId, start, end, EnumSet.of(ReservationStatus.UNDER_REVIEW));
+            available = total - booked - underReview;
+        }
+
         return Math.max(available, 0);
+    }
+
+    private Role resolveCurrentUserRole() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        return auth.getAuthorities().stream()
+                .map(granted -> granted.getAuthority())
+                .filter(Objects::nonNull)
+                .map(value -> value.replace("ROLE_", ""))
+                .map(String::toUpperCase)
+                .map(name -> {
+                    try {
+                        return Role.valueOf(name);
+                    } catch (IllegalArgumentException ex) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 }
 

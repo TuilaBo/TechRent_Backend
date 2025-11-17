@@ -13,4 +13,6 @@ public interface ReservationService {
     void cancelReservations(Long orderId);
     void expireReservations();
     long countActiveReservedQuantity(Long deviceModelId, LocalDateTime start, LocalDateTime end);
+    long countReservedQuantityByStatus(Long deviceModelId, LocalDateTime start, LocalDateTime end,
+                                       java.util.Collection<com.rentaltech.techrental.rentalorder.model.ReservationStatus> statuses);
 }

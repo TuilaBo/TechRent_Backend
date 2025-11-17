@@ -12,14 +12,24 @@ import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
+import com.rentaltech.techrental.staff.model.Staff;
+import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.service.staffservice.StaffService;
+import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
+import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,11 +43,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class RentalOrderServiceImpl implements RentalOrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(RentalOrderServiceImpl.class);
+    private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
     private final RentalOrderRepository rentalOrderRepository;
     private final OrderDetailRepository orderDetailRepository;
@@ -46,6 +60,10 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final PreRentalQcTaskCreator preRentalQcTaskCreator;
     private final BookingCalendarService bookingCalendarService;
     private final ReservationService reservationService;
+    private final TaskRepository taskRepository;
+    private final TaskCategoryRepository taskCategoryRepository;
+    private final StaffService staffService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -118,6 +136,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         // Create QC task linked to this order
         if (kycVerified) {
             preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
+            notifyOperatorsOrderAndTaskCreated(saved);
         }
 
 
@@ -224,6 +243,58 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     }
 
     @Override
+    public RentalOrderResponseDto confirmReturn(Long id) {
+        RentalOrder order = rentalOrderRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không được phép");
+        }
+        boolean isCustomer = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_CUSTOMER"::equals);
+        if (!isCustomer) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ khách hàng được xác nhận trả hàng");
+        }
+        String username = auth.getName();
+        Long requesterCustomerId = customerRepository.findByAccount_Username(username)
+                .map(Customer::getCustomerId)
+                .orElse(-1L);
+        Long ownerCustomerId = order.getCustomer() != null ? order.getCustomer().getCustomerId() : null;
+        if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Đơn hàng không thuộc về bạn");
+        }
+        if (order.getOrderStatus() != OrderStatus.IN_USE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chỉ xác nhận trả hàng cho đơn đang sử dụng");
+        }
+
+        LocalDateTime plannedStart = order.getEndDate() != null
+                ? order.getEndDate().minusHours(1)
+                : LocalDateTime.now();
+        LocalDateTime plannedEnd = plannedStart.plusHours(3);
+
+        var category = taskCategoryRepository.findByNameIgnoreCase("Pick up rental order")
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pick up rental order'"));
+
+        Task pickupTask = Task.builder()
+                .taskCategory(category)
+                .orderId(order.getOrderId())
+                .description("Thu hồi thiết bị và hoàn tất thu đơn thuê #" + order.getOrderId() + ". Liên hệ khách để hẹn thời gian thu hồi.")
+                .type("PICK_UP_RENTAL_ORDER")
+                .plannedStart(plannedStart)
+                .plannedEnd(plannedEnd)
+                .status(TaskStatus.PENDING)
+                .build();
+        Task savedTask = taskRepository.save(pickupTask);
+
+        notifyOperatorsTaskCreated(savedTask, order);
+
+        List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
+        return mapToDto(order, details);
+    }
+
+    @Override
     public void delete(Long id) {
         if (!rentalOrderRepository.existsById(id)) {
             throw new NoSuchElementException("Không tìm thấy đơn thuê: " + id);
@@ -231,6 +302,107 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         reservationService.cancelReservations(id);
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
+    }
+
+    private void notifyOperatorsOrderAndTaskCreated(RentalOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        List<Staff> operators = staffService.getStaffByRole(StaffRole.OPERATOR);
+        if (operators == null || operators.isEmpty()) {
+            return;
+        }
+        OperatorOrderNotification payload = OperatorOrderNotification.from(order);
+        if (payload == null) {
+            return;
+        }
+        operators.stream()
+                .map(Staff::getStaffId)
+                .filter(Objects::nonNull)
+                .forEach(staffId -> {
+                    String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
+                    try {
+                        messagingTemplate.convertAndSend(destination, payload);
+                    } catch (Exception ex) {
+                        log.warn("Không thể gửi thông báo đơn hàng {} tới operator {}: {}", order.getOrderId(), staffId, ex.getMessage());
+                    }
+                });
+    }
+
+    private void notifyOperatorsTaskCreated(Task task, RentalOrder order) {
+        if (task == null || order == null || task.getTaskId() == null) {
+            return;
+        }
+        List<Staff> operators = staffService.getStaffByRole(StaffRole.OPERATOR);
+        if (operators == null || operators.isEmpty()) {
+            return;
+        }
+        OperatorTaskNotification payload = OperatorTaskNotification.from(task, order);
+        if (payload == null) {
+            return;
+        }
+        operators.stream()
+                .map(Staff::getStaffId)
+                .filter(Objects::nonNull)
+                .forEach(staffId -> {
+                    String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
+                    try {
+                        messagingTemplate.convertAndSend(destination, payload);
+                    } catch (Exception ex) {
+                        log.warn("Không thể gửi thông báo task {} tới operator {}: {}", task.getTaskId(), staffId, ex.getMessage());
+                    }
+                });
+    }
+
+    private record OperatorOrderNotification(Long orderId,
+                                             Long customerId,
+                                             LocalDateTime startDate,
+                                             LocalDateTime endDate,
+                                             String shippingAddress,
+                                             OrderStatus orderStatus,
+                                             String message) {
+        static OperatorOrderNotification from(RentalOrder order) {
+            if (order == null) {
+                return null;
+            }
+            String msg = "Đơn hàng #" + order.getOrderId() + " đã tạo task PRE_RENTAL_QC.";
+            return new OperatorOrderNotification(
+                    order.getOrderId(),
+                    order.getCustomer() != null ? order.getCustomer().getCustomerId() : null,
+                    order.getStartDate(),
+                    order.getEndDate(),
+                    order.getShippingAddress(),
+                    order.getOrderStatus(),
+                    msg
+            );
+        }
+    }
+
+    private record OperatorTaskNotification(Long taskId,
+                                            Long orderId,
+                                            Long taskCategoryId,
+                                            String taskCategoryName,
+                                            String type,
+                                            LocalDateTime plannedStart,
+                                            LocalDateTime plannedEnd,
+                                            String message) {
+        static OperatorTaskNotification from(Task task, RentalOrder order) {
+            if (task == null || order == null) {
+                return null;
+            }
+            var category = task.getTaskCategory();
+            String msg = "Tạo nhiệm vụ thu hồi đơn thuê #" + order.getOrderId() + " (task #" + task.getTaskId() + ").";
+            return new OperatorTaskNotification(
+                    task.getTaskId(),
+                    order.getOrderId(),
+                    category != null ? category.getTaskCategoryId() : null,
+                    category != null ? category.getName() : null,
+                    task.getType(),
+                    task.getPlannedStart(),
+                    task.getPlannedEnd(),
+                    msg
+            );
+        }
     }
 
     private Specification<RentalOrder> buildSpecification(String orderStatus, Long customerId, String shippingAddress, BigDecimal minTotalPrice, BigDecimal maxTotalPrice, BigDecimal minPricePerDay, BigDecimal maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo) {

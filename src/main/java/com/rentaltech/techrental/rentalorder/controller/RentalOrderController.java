@@ -3,6 +3,7 @@ package com.rentaltech.techrental.rentalorder.controller;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.service.RentalOrderService;
+import com.rentaltech.techrental.config.RentalOrderNotificationScheduler;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 public class RentalOrderController {
 
     private final RentalOrderService service;
+    private final RentalOrderNotificationScheduler notificationScheduler;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -75,6 +77,18 @@ public class RentalOrderController {
                 HttpStatus.OK
         );
     }
+    
+    @PostMapping("/notify-near-due")
+//    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Kích hoạt thông báo đơn sắp đến hạn", description = "Chạy ngay job notifyNearDueOrders để gửi thông báo đơn IN_USE còn dưới 2 ngày")
+    public ResponseEntity<?> triggerNearDueNotification() {
+        notificationScheduler.notifyNearDueOrders();
+        return ResponseUtil.createSuccessResponse(
+                "Đã chạy job thông báo",
+                "Đã kích hoạt scan đơn IN_USE sắp đến hạn",
+                HttpStatus.OK
+        );
+    }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('CUSTOMER')")
@@ -91,6 +105,24 @@ public class RentalOrderController {
                 "Đơn thuê được cập nhật thành công",
                 "Đơn thuê với id " + id + " đã cập nhật vào hệ thống",
                 service.update(id, request),
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping("/{id}/confirm-return")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách xác nhận trả đơn", description = "Khách xác nhận sẽ trả hàng khi hết hạn thuê, hệ thống tạo task thu hồi đơn")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Confirmed"),
+            @ApiResponse(responseCode = "400", description = "Invalid status"),
+            @ApiResponse(responseCode = "404", description = "Not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<?> confirmReturn(@Parameter(description = "Rental order ID") @PathVariable Long id) {
+        return ResponseUtil.createSuccessResponse(
+                "Xác nhận trả đơn thành công",
+                "Đã tạo nhiệm vụ thu hồi cho đơn thuê",
+                service.confirmReturn(id),
                 HttpStatus.OK
         );
     }

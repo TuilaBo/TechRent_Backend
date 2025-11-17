@@ -2,6 +2,7 @@ package com.rentaltech.techrental.webapi.technician.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.staff.model.Task;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -49,6 +50,10 @@ public class QCReport {
     @ManyToOne
     @JoinColumn(name = "task_id", referencedColumnName = "task_id", nullable = false)
     private Task task;
+
+    @ManyToOne
+    @JoinColumn(name = "rental_order_id")
+    private RentalOrder rentalOrder;
 
     @OneToMany(mappedBy = "qcReport")
     @Builder.Default
