@@ -21,5 +21,7 @@ public interface HandoverReportRepository extends JpaRepository<HandoverReport, 
             where staff.staffId = :staffId
             """)
     List<HandoverReport> findByTechnician(@Param("staffId") Long staffId);
+
+    List<HandoverReport> findByRentalOrder_Customer_CustomerId(Long customerId);
 }
 

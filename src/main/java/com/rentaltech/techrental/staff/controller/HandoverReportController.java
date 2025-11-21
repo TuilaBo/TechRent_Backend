@@ -1,9 +1,7 @@
 package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
-import com.rentaltech.techrental.staff.model.dto.HandoverPinDeliveryDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportCreateRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportResponseDto;
+import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.service.handover.HandoverReportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,13 +32,15 @@ public class HandoverReportController {
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> createHandoverReport(
             @RequestPart("data") @Valid HandoverReportCreateRequestDto request,
-            @RequestPart(value = "evidences", required = false) List<MultipartFile> evidences) {
+            @RequestPart(value = "evidences", required = false) List<MultipartFile> evidences,
+            @AuthenticationPrincipal UserDetails principal) {
+        String username = principal.getUsername();
         HandoverReportResponseDto responseDto =
-                handoverReportService.createReport(request, evidences);
+                handoverReportService.createReport(request, evidences, username);
 
         return ResponseUtil.createSuccessResponse(
                 "Tạo biên bản bàn giao thành công",
-                "Biên bản bàn giao đã được ghi nhận",
+                "Mã PIN đã được gửi đến email của bạn để ký biên bản",
                 responseDto,
                 HttpStatus.CREATED
         );
@@ -47,21 +49,23 @@ public class HandoverReportController {
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> createHandoverReportJson(
-            @Valid @RequestBody HandoverReportCreateRequestDto request) {
+            @Valid @RequestBody HandoverReportCreateRequestDto request,
+            @AuthenticationPrincipal UserDetails principal) {
+        String username = principal.getUsername();
         HandoverReportResponseDto responseDto =
-                handoverReportService.createReport(request, Collections.emptyList());
+                handoverReportService.createReport(request, Collections.emptyList(), username);
 
         return ResponseUtil.createSuccessResponse(
                 "Tạo biên bản bàn giao thành công",
-                "Biên bản bàn giao đã được ghi nhận",
+                "Mã PIN đã được gửi đến email của bạn để ký biên bản",
                 responseDto,
                 HttpStatus.CREATED
         );
     }
 
-    @PostMapping("/order/{orderId}/send-pin")
+    @PostMapping("/orders/{orderId}/pin")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
-    public ResponseEntity<?> sendPinForOrder(@PathVariable Long orderId) {
+    public ResponseEntity<?> requestPinForOrder(@PathVariable Long orderId) {
         HandoverPinDeliveryDto responseDto = handoverReportService.sendPinForOrder(orderId);
         return ResponseUtil.createSuccessResponse(
                 "Gửi PIN thành công",
@@ -127,6 +131,32 @@ public class HandoverReportController {
                 "Lấy biên bản theo nhiệm vụ thành công",
                 "Danh sách biên bản bàn giao theo task",
                 reports,
+                HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/{handoverReportId}/pin")
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    public ResponseEntity<?> requestPinForStaff(@PathVariable Long handoverReportId) {
+        HandoverPinDeliveryDto responseDto = handoverReportService.sendPinToStaffForReport(handoverReportId);
+        return ResponseUtil.createSuccessResponse(
+                "Gửi PIN thành công",
+                "Mã PIN đã được gửi đến email của bạn",
+                responseDto,
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping("/{handoverReportId}/signature")
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    public ResponseEntity<?> signByStaff(
+            @PathVariable Long handoverReportId,
+            @Valid @RequestBody HandoverReportStaffSignRequestDto request) {
+        HandoverReportResponseDto responseDto = handoverReportService.signByStaff(handoverReportId, request);
+        return ResponseUtil.createSuccessResponse(
+                "Ký biên bản thành công",
+                "Bạn đã ký biên bản bàn giao",
+                responseDto,
                 HttpStatus.OK
         );
     }

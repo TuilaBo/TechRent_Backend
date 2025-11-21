@@ -32,6 +32,10 @@ public class Device {
     @Column(name = "status")
     private DeviceStatus status;
 
+    @Column(name = "usage_count", nullable = false)
+    @Builder.Default
+    private Integer usageCount = 0;
+
 //    @Column(name = "shelf_code", length = 100)
 //    private String shelfCode;
 
