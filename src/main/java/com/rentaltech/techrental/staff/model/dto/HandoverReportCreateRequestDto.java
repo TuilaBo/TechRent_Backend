@@ -33,12 +33,15 @@ public class HandoverReportCreateRequestDto {
 
     private String customerSignature;
 
-    @NotBlank
-    private String pinCode;
-
     /**
      * Optional custom items. If empty, the system will populate from OrderDetail.
      */
     private List<HandoverReportItemDto> items;
+
+    /**
+     * Device quality information by serial number.
+     * Example: serial "A2j3j" has "MINOR_DAMAGE" with description "Bị hư màn hình nhẹ"
+     */
+    private List<DeviceQualityInfoDto> deviceQualityInfos;
 }
 

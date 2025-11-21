@@ -13,14 +13,18 @@ import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.service.AccountService;
+import com.rentaltech.techrental.staff.model.DeviceQualityInfo;
 import com.rentaltech.techrental.staff.model.HandoverReport;
 import com.rentaltech.techrental.staff.model.HandoverReportItem;
+import com.rentaltech.techrental.staff.model.HandoverReportStatus;
+import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
-import com.rentaltech.techrental.staff.model.dto.HandoverPinDeliveryDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportCreateRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportResponseDto;
+import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.repository.HandoverReportRepository;
+import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
@@ -61,6 +65,8 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final DeviceRepository deviceRepository;
     private final SMSService smsService;
     private final EmailService emailService;
+    private final AccountService accountService;
+    private final StaffRepository staffRepository;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -82,8 +88,9 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     @Override
     @Transactional
-    public HandoverReportResponseDto createReport(HandoverReportCreateRequestDto request, List<MultipartFile> evidences) {
+    public HandoverReportResponseDto createReport(HandoverReportCreateRequestDto request, List<MultipartFile> evidences, String staffUsername) {
         Objects.requireNonNull(request, "request must not be null");
+        Objects.requireNonNull(staffUsername, "staffUsername must not be null");
 
         Task task = taskRepository.findById(request.getTaskId())
                 .orElseThrow(() -> new IllegalArgumentException("Task not found: " + request.getTaskId()));
@@ -91,14 +98,20 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         RentalOrder rentalOrder = rentalOrderRepository.findById(task.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Rental order not found: " + task.getOrderId()));
 
-        validatePinForOrder(rentalOrder.getOrderId(), request.getPinCode());
+        Account staffAccount = accountService.getByUsername(staffUsername)
+                .orElseThrow(() -> new IllegalArgumentException("Staff account not found: " + staffUsername));
+
+        Staff createdByStaff = staffRepository.findByAccount_AccountId(staffAccount.getAccountId())
+                .orElseThrow(() -> new IllegalArgumentException("Staff not found for account: " + staffUsername));
 
         List<HandoverReportItem> items = resolveItems(request, rentalOrder);
         List<String> evidenceUrls = uploadEvidence(task.getTaskId(), evidences);
+        List<DeviceQualityInfo> deviceQualityInfos = resolveDeviceQualityInfos(request, rentalOrder);
 
         HandoverReport report = HandoverReport.builder()
                 .task(task)
                 .rentalOrder(rentalOrder)
+                .createdByStaff(createdByStaff)
                 .customerInfo(request.getCustomerInfo())
                 .technicianInfo(request.getTechnicianInfo())
                 .handoverDateTime(request.getHandoverDateTime() != null
@@ -106,14 +119,27 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                         : LocalDateTime.now())
                 .handoverLocation(request.getHandoverLocation())
                 .customerSignature(request.getCustomerSignature())
+                .status(HandoverReportStatus.PENDING_STAFF_SIGNATURE)
+                .staffSigned(false)
+                .customerSigned(false)
                 .items(items)
                 .evidenceUrls(evidenceUrls)
+                .deviceQualityInfos(deviceQualityInfos)
                 .build();
 
         HandoverReport saved = handoverReportRepository.save(report);
 
-        rentalOrder.setOrderStatus(OrderStatus.IN_USE);
-        rentalOrderRepository.save(rentalOrder);
+        // Send PIN to staff email
+        String pinCode = generatePinCode();
+        String staffEmail = staffAccount.getEmail();
+        if (!StringUtils.hasText(staffEmail)) {
+            throw new IllegalStateException("Staff account does not have email to receive PIN");
+        }
+        boolean emailSent = emailService.sendOTP(staffEmail, pinCode);
+        if (!emailSent) {
+            throw new IllegalStateException("Unable to send PIN to staff email: " + staffEmail);
+        }
+        savePinCode(buildPinKeyForReport(saved.getHandoverReportId()), pinCode);
 
         if (task.getStatus() != TaskStatus.COMPLETED) {
             task.setStatus(TaskStatus.COMPLETED);
@@ -123,7 +149,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             taskRepository.save(task);
         }
 
-        markDevicesAsRenting(rentalOrder.getOrderId());
+        // Don't change order status yet - wait for both signatures
 
         return HandoverReportResponseDto.fromEntity(saved);
     }
@@ -222,6 +248,190 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public HandoverPinDeliveryDto sendPinToStaffForReport(Long handoverReportId) {
+        HandoverReport report = handoverReportRepository.findById(handoverReportId)
+                .orElseThrow(() -> new IllegalArgumentException("Handover report not found: " + handoverReportId));
+
+        if (report.getStatus() != HandoverReportStatus.PENDING_STAFF_SIGNATURE) {
+            throw new IllegalStateException("Report is not in PENDING_STAFF_SIGNATURE status");
+        }
+
+        Task task = report.getTask();
+        if (task == null || task.getAssignedStaff() == null || task.getAssignedStaff().isEmpty()) {
+            throw new IllegalStateException("No assigned staff found for this report");
+        }
+
+        Staff staff = task.getAssignedStaff().iterator().next();
+        Account staffAccount = staff.getAccount();
+        if (staffAccount == null) {
+            throw new IllegalStateException("Staff account not found");
+        }
+
+        String email = staffAccount.getEmail();
+        if (!StringUtils.hasText(email)) {
+            throw new IllegalStateException("Staff account does not have email to receive PIN");
+        }
+
+        String pinCode = generatePinCode();
+        boolean emailSent = emailService.sendOTP(email, pinCode);
+        if (!emailSent) {
+            throw new IllegalStateException("Unable to send PIN to staff email: " + email);
+        }
+
+        savePinCode(buildPinKeyForReport(handoverReportId), pinCode);
+
+        return HandoverPinDeliveryDto.builder()
+                .orderId(report.getRentalOrder().getOrderId())
+                .email(email)
+                .emailSent(true)
+                .smsSent(false)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public HandoverReportResponseDto signByStaff(Long handoverReportId, HandoverReportStaffSignRequestDto request) {
+        HandoverReport report = handoverReportRepository.findById(handoverReportId)
+                .orElseThrow(() -> new IllegalArgumentException("Handover report not found: " + handoverReportId));
+
+        if (report.getStaffSigned()) {
+            throw new IllegalStateException("Report has already been signed by staff");
+        }
+
+        String key = buildPinKeyForReport(handoverReportId);
+        String storedPin = getPinCode(key);
+        if (storedPin == null) {
+            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
+        }
+        if (!storedPin.equals(request.getPinCode())) {
+            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
+        }
+
+        report.setStaffSigned(true);
+        report.setStaffSignedAt(LocalDateTime.now());
+        if (StringUtils.hasText(request.getStaffSignature())) {
+            report.setStaffSignature(request.getStaffSignature());
+        }
+        report.setStatus(HandoverReportStatus.STAFF_SIGNED);
+
+        HandoverReport saved = handoverReportRepository.save(report);
+        deletePinCode(key);
+
+        // Check if both signed, then update order status
+        checkAndUpdateOrderStatusIfBothSigned(saved);
+
+        return HandoverReportResponseDto.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public HandoverPinDeliveryDto sendPinToCustomerForReport(Long handoverReportId, String email) {
+        HandoverReport report = handoverReportRepository.findById(handoverReportId)
+                .orElseThrow(() -> new IllegalArgumentException("Handover report not found: " + handoverReportId));
+
+        if (report.getStatus() != HandoverReportStatus.STAFF_SIGNED) {
+            throw new IllegalStateException("Report must be signed by staff before customer can sign");
+        }
+
+        if (report.getCustomerSigned()) {
+            throw new IllegalStateException("Report has already been signed by customer");
+        }
+
+        if (!StringUtils.hasText(email)) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        String pinCode = generatePinCode();
+        boolean emailSent = emailService.sendOTP(email, pinCode);
+        if (!emailSent) {
+            throw new IllegalStateException("Unable to send PIN to email: " + email);
+        }
+
+        savePinCode(buildPinKeyForReport(handoverReportId), pinCode);
+
+        return HandoverPinDeliveryDto.builder()
+                .orderId(report.getRentalOrder().getOrderId())
+                .email(email)
+                .emailSent(true)
+                .smsSent(false)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public HandoverReportResponseDto signByCustomer(Long handoverReportId, HandoverReportCustomerSignRequestDto request) {
+        HandoverReport report = handoverReportRepository.findById(handoverReportId)
+                .orElseThrow(() -> new IllegalArgumentException("Handover report not found: " + handoverReportId));
+
+        if (report.getStatus() != HandoverReportStatus.STAFF_SIGNED) {
+            throw new IllegalStateException("Report must be signed by staff before customer can sign");
+        }
+
+        if (report.getCustomerSigned()) {
+            throw new IllegalStateException("Report has already been signed by customer");
+        }
+
+        String key = buildPinKeyForReport(handoverReportId);
+        String storedPin = getPinCode(key);
+        if (storedPin == null) {
+            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
+        }
+        if (!storedPin.equals(request.getPinCode())) {
+            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
+        }
+
+        report.setCustomerSigned(true);
+        report.setCustomerSignedAt(LocalDateTime.now());
+        if (StringUtils.hasText(request.getCustomerSignature())) {
+            report.setCustomerSignature(request.getCustomerSignature());
+        }
+        report.setStatus(HandoverReportStatus.BOTH_SIGNED);
+
+        HandoverReport saved = handoverReportRepository.save(report);
+        deletePinCode(key);
+
+        // Update order status to IN_USE when both signed
+        checkAndUpdateOrderStatusIfBothSigned(saved);
+
+        return HandoverReportResponseDto.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public List<HandoverReportResponseDto> getReportsByCustomerOrder(Long customerId) {
+        return handoverReportRepository.findByRentalOrder_Customer_CustomerId(customerId).stream()
+                .map(HandoverReportResponseDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    private void checkAndUpdateOrderStatusIfBothSigned(HandoverReport report) {
+        if (report.getStatus() == HandoverReportStatus.BOTH_SIGNED && report.getStaffSigned() && report.getCustomerSigned()) {
+            RentalOrder order = report.getRentalOrder();
+            if (order != null && order.getOrderStatus() != OrderStatus.IN_USE) {
+                order.setOrderStatus(OrderStatus.IN_USE);
+                rentalOrderRepository.save(order);
+                markDevicesAsRenting(order.getOrderId());
+                incrementDeviceUsageCount(order.getOrderId());
+            }
+        }
+    }
+
+    private void incrementDeviceUsageCount(Long orderId) {
+        List<Device> devices = allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId).stream()
+                .map(Allocation::getDevice)
+                .filter(Objects::nonNull)
+                .peek(device -> {
+                    Integer currentCount = device.getUsageCount() != null ? device.getUsageCount() : 0;
+                    device.setUsageCount(currentCount + 1);
+                })
+                .collect(Collectors.toList());
+        if (!devices.isEmpty()) {
+            deviceRepository.saveAll(devices);
+        }
+    }
+
     private List<HandoverReportItem> resolveItems(HandoverReportCreateRequestDto request, RentalOrder rentalOrder) {
         if (!CollectionUtils.isEmpty(request.getItems())) {
             return request.getItems().stream()
@@ -263,6 +473,39 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         return "unit";
     }
 
+    private List<DeviceQualityInfo> resolveDeviceQualityInfos(HandoverReportCreateRequestDto request, RentalOrder rentalOrder) {
+        // If device quality infos are provided in request, use them
+        if (!CollectionUtils.isEmpty(request.getDeviceQualityInfos())) {
+            return request.getDeviceQualityInfos().stream()
+                    .filter(Objects::nonNull)
+                    .map(DeviceQualityInfoDto::toEntity)
+                    .collect(Collectors.toList());
+        }
+
+        // Otherwise, auto-populate from allocations
+        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(rentalOrder.getOrderId());
+        if (CollectionUtils.isEmpty(allocations)) {
+            log.warn("No allocations found for order {}", rentalOrder.getOrderId());
+            return List.of();
+        }
+
+        return allocations.stream()
+                .filter(allocation -> allocation.getDevice() != null)
+                .map(allocation -> {
+                    Device device = allocation.getDevice();
+                    DeviceModel model = device.getDeviceModel();
+                    String modelName = model != null ? model.getDeviceName() : null;
+                    
+                    return DeviceQualityInfo.builder()
+                            .deviceSerialNumber(device.getSerialNumber())
+                            .qualityStatus("GOOD") // Default status, can be updated later
+                            .qualityDescription(null) // No description by default
+                            .deviceModelName(modelName)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
     private List<String> uploadEvidence(Long taskId, List<MultipartFile> evidences) {
         if (CollectionUtils.isEmpty(evidences)) {
             return List.of();
@@ -282,21 +525,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             }
         }
         return urls;
-    }
-
-    private void validatePinForOrder(Long orderId, String providedPin) {
-        if (!StringUtils.hasText(providedPin)) {
-            throw new IllegalArgumentException("PIN code is required");
-        }
-        String key = buildPinKeyForOrder(orderId);
-        String storedPin = getPinCode(key);
-        if (storedPin == null) {
-            throw new IllegalArgumentException("PIN has expired or not requested for order " + orderId);
-        }
-        if (!storedPin.equals(providedPin)) {
-            throw new IllegalArgumentException("Invalid PIN code for order " + orderId);
-        }
-        deletePinCode(key);
     }
 
     private String generatePinCode() {
@@ -358,6 +586,10 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     private String buildPinKeyForOrder(Long orderId) {
         return "handover_pin_order_" + orderId;
+    }
+
+    private String buildPinKeyForReport(Long handoverReportId) {
+        return "handover_pin_report_" + handoverReportId;
     }
 
     private void markDevicesAsRenting(Long orderId) {

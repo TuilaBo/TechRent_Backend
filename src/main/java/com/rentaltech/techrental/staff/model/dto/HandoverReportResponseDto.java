@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.HandoverReport;
+import com.rentaltech.techrental.staff.model.HandoverReportStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,9 +25,19 @@ public class HandoverReportResponseDto {
     private LocalDateTime handoverDateTime;
     private String handoverLocation;
     private String customerSignature;
+    private HandoverReportStatus status;
+    private Boolean staffSigned;
+    private LocalDateTime staffSignedAt;
+    private String staffSignature;
+    private Boolean customerSigned;
+    private LocalDateTime customerSignedAt;
+    private LocalDateTime deliveryDateTime;
+    private List<HandoverReportStaffDto> deliveryStaff;
     private List<HandoverReportItemDto> items;
     private List<String> evidenceUrls;
     private List<HandoverReportStaffDto> technicians;
+    private List<DeviceQualityInfoDto> deviceQualityInfos;
+    private HandoverReportStaffDto createdByStaff;
 
     public static HandoverReportResponseDto fromEntity(HandoverReport report) {
         if (report == null) {
@@ -41,6 +52,20 @@ public class HandoverReportResponseDto {
                 .handoverDateTime(report.getHandoverDateTime())
                 .handoverLocation(report.getHandoverLocation())
                 .customerSignature(report.getCustomerSignature())
+                .status(report.getStatus())
+                .staffSigned(report.getStaffSigned())
+                .staffSignedAt(report.getStaffSignedAt())
+                .staffSignature(report.getStaffSignature())
+                .customerSigned(report.getCustomerSigned())
+                .customerSignedAt(report.getCustomerSignedAt())
+                .deliveryDateTime(report.getTask() != null && report.getTask().getCompletedAt() != null
+                        ? report.getTask().getCompletedAt()
+                        : report.getHandoverDateTime())
+                .deliveryStaff(report.getTask() != null && report.getTask().getAssignedStaff() != null
+                        ? report.getTask().getAssignedStaff().stream()
+                                .map(HandoverReportStaffDto::fromEntity)
+                                .collect(Collectors.toList())
+                        : List.of())
                 .items(report.getItems() == null ? List.of() :
                         report.getItems().stream()
                                 .map(HandoverReportItemDto::fromEntity)
@@ -51,6 +76,13 @@ public class HandoverReportResponseDto {
                         : report.getTask().getAssignedStaff().stream()
                                 .map(HandoverReportStaffDto::fromEntity)
                                 .collect(Collectors.toList()))
+                .deviceQualityInfos(report.getDeviceQualityInfos() == null ? List.of() :
+                        report.getDeviceQualityInfos().stream()
+                                .map(DeviceQualityInfoDto::fromEntity)
+                                .collect(Collectors.toList()))
+                .createdByStaff(report.getCreatedByStaff() != null
+                        ? HandoverReportStaffDto.fromEntity(report.getCreatedByStaff())
+                        : null)
                 .build();
     }
 }
