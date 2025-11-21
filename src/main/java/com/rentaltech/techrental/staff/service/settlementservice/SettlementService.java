@@ -11,5 +11,6 @@ public interface SettlementService {
     Settlement update(Long settlementId, SettlementUpdateRequestDto request);
     Settlement getByOrderId(Long orderId);
     Page<Settlement> getAll(Pageable pageable);
+    Settlement respondToSettlement(Long settlementId, boolean accepted, String username);
 }
 

@@ -104,6 +104,14 @@ public class ReservationServiceImpl implements ReservationService {
         );
     }
 
+    @Override
+    public long countReservedQuantityByStatus(Long deviceModelId, LocalDateTime start, LocalDateTime end, Collection<ReservationStatus> statuses) {
+        if (deviceModelId == null || start == null || end == null || !start.isBefore(end) || statuses == null || statuses.isEmpty()) {
+            return 0L;
+        }
+        return reservationRepository.sumReservedQuantityByStatus(deviceModelId, start, end, statuses);
+    }
+
     private void updateStatus(Long orderId,
                               Collection<ReservationStatus> allowedCurrentStatuses,
                               ReservationStatus targetStatus,

@@ -6,5 +6,6 @@ public enum NotificationType {
     ORDER_CONFIRMED,
     ORDER_IN_DELIVERY,
     ORDER_ACTIVE,
+    ORDER_ISSUE,
     ORDER_NEAR_DUE
 }

@@ -17,4 +17,6 @@ public interface PaymentService {
     InvoiceResponseDto getInvoiceForCustomer(Long rentalOrderId, String username);
 
     List<TransactionResponseDto> getAllTransactions();
+
+    InvoiceResponseDto confirmDepositRefund(Long settlementId, String username);
 }

@@ -190,6 +190,25 @@ public class TaskController {
         );
     }
 
+    @PatchMapping("/{taskId}/confirm-retrieval")
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Confirm going to retrieve", description = "Technician/support confirms they will retrieve goods for the task")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Confirmed"),
+            @ApiResponse(responseCode = "403", description = "Forbidden"),
+            @ApiResponse(responseCode = "404", description = "Not found")
+    })
+    public ResponseEntity<?> confirmRetrieval(@PathVariable Long taskId, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Task updated = taskService.confirmRetrieval(taskId, username);
+        return ResponseUtil.createSuccessResponse(
+                "Confirmed retrieval",
+                "Task marked as IN_PROGRESS by assigned staff",
+                mapToResponseDto(updated),
+                HttpStatus.OK
+        );
+    }
+
     private TaskResponseDto mapToResponseDto(Task task) {
         List<TaskResponseDto.AssignedStaffSummary> assignedStaff = task.getAssignedStaff() == null
                 ? List.of()

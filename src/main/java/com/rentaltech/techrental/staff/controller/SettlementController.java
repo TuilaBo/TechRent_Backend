@@ -25,7 +25,7 @@ public class SettlementController {
     private final SettlementService settlementService;
 
     @PostMapping
-    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Create settlement", description = "Create a new settlement in Draft state")
     public ResponseEntity<?> create(@Valid @RequestBody SettlementCreateRequestDto request) {
         Settlement settlement = settlementService.create(request);
@@ -38,7 +38,7 @@ public class SettlementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Update settlement", description = "Update settlement details")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody SettlementUpdateRequestDto request) {
         Settlement settlement = settlementService.update(id, request);
@@ -73,6 +73,24 @@ public class SettlementController {
                 "Danh sách tất cả settlement",
                 "Tất cả settlements trong hệ thống với phân trang",
                 pageDto,
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping("/{id}/respond")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách xác nhận/ từ chối settlement", description = "Khách phản hồi settlement, nếu xác nhận sẽ chuyển state sang Issued")
+    public ResponseEntity<?> respond(@PathVariable Long id,
+                                     @RequestParam boolean accepted,
+                                     org.springframework.security.core.Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Settlement settlement = settlementService.respondToSettlement(id, accepted, username);
+        String title = accepted ? "Xác nhận settlement thành công" : "Từ chối settlement";
+        String message = accepted ? "Settlement đã chuyển sang trạng thái Issued" : "Settlement được chuyển về Draft";
+        return ResponseUtil.createSuccessResponse(
+                title,
+                message,
+                mapToResponseDto(settlement),
                 HttpStatus.OK
         );
     }
