@@ -394,12 +394,16 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Transactional
     public void handleVnpayCallback(Map<String, String> params) {
+        log.info("=== STARTING VNPAY CALLBACK PROCESSING ===");
         String vnp_SecureHash = params.get("vnp_SecureHash");
         String vnp_TxnRef = params.get("vnp_TxnRef");
         String vnp_ResponseCode = params.get("vnp_ResponseCode");
         String vnp_TransactionStatus = params.get("vnp_TransactionStatus");
         
         log.info("VNPAY callback params received: {}", params);
+        log.info("vnp_TxnRef: {}", vnp_TxnRef);
+        log.info("vnp_ResponseCode: {}", vnp_ResponseCode);
+        log.info("vnp_TransactionStatus: {}", vnp_TransactionStatus);
         log.info("VNPAY vnp_SecureHash from request: {}", vnp_SecureHash);
         
         Map<String, String> paramsForHash = new HashMap<>(params);
@@ -487,5 +491,11 @@ public class PaymentServiceImpl implements PaymentService {
         
         invoiceRepository.save(invoice);
         invoiceRepository.flush(); // Ensure invoice status is persisted
+        
+        log.info("=== VNPAY CALLBACK PROCESSING COMPLETED ===");
+        log.info("Invoice {} status: {}", invoice.getInvoiceId(), invoice.getInvoiceStatus());
+        if (invoice.getRentalOrder() != null) {
+            log.info("Order {} status: {}", invoice.getRentalOrder().getOrderId(), invoice.getRentalOrder().getOrderStatus());
+        }
     }
 }

@@ -34,10 +34,17 @@ public class VnpayController {
 
     @GetMapping("/return")
     public void returnUrl(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        log.info("=== VNPAY RETURN URL CALLED ===");
+        log.info("Request method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Query string: {}", request.getQueryString());
+        log.info("Remote address: {}", request.getRemoteAddr());
         try {
             Map<String, String> params = VnpayUtil.getRequestParams(request);
             log.info("VNPAY return URL called with params: {}", params);
+            log.info("Calling handleVnpayCallback...");
             paymentService.handleVnpayCallback(params);
+            log.info("handleVnpayCallback completed successfully");
             
             String vnp_ResponseCode = params.get("vnp_ResponseCode");
             String vnp_TxnRef = params.get("vnp_TxnRef");
@@ -98,12 +105,22 @@ public class VnpayController {
 
     @RequestMapping(value = "/ipn", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<?> ipnUrl(HttpServletRequest request) {
+        log.info("=== VNPAY IPN URL CALLED ===");
+        log.info("Request method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Query string: {}", request.getQueryString());
+        log.info("Content type: {}", request.getContentType());
+        log.info("Remote address: {}", request.getRemoteAddr());
         try {
-            // Log request details for debugging
-            log.info("VNPAY IPN request method: {}", request.getMethod());
-            log.info("VNPAY IPN query string: {}", request.getQueryString());
-            log.info("VNPAY IPN content type: {}", request.getContentType());
-            
+            java.util.Enumeration<String> headerNames = request.getHeaderNames();
+            if (headerNames != null) {
+                java.util.List<String> headers = java.util.Collections.list(headerNames);
+                log.info("Headers: {}", headers);
+            }
+        } catch (Exception e) {
+            log.debug("Could not log headers: {}", e.getMessage());
+        }
+        try {
             Map<String, String> params = VnpayUtil.getRequestParams(request);
             log.info("VNPAY IPN called with params: {}", params);
             
@@ -112,10 +129,13 @@ public class VnpayController {
                 return ResponseEntity.ok().body("OK");
             }
             
+            log.info("Calling handleVnpayCallback from IPN...");
             paymentService.handleVnpayCallback(params);
+            log.info("handleVnpayCallback from IPN completed successfully");
             return ResponseEntity.ok().body("OK");
         } catch (Exception e) {
             log.error("Error processing VNPAY IPN", e);
+            log.error("Exception stack trace: ", e);
             return ResponseEntity.badRequest().body("Error processing IPN: " + e.getMessage());
         }
     }
