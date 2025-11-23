@@ -1,3 +1,4 @@
+/* Device quality info temporarily disabled
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.DeviceQualityInfo;
@@ -37,4 +38,5 @@ public class DeviceQualityInfoDto {
                 .build();
     }
 }
+*/
 

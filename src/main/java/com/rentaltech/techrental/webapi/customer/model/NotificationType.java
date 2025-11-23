@@ -7,5 +7,8 @@ public enum NotificationType {
     ORDER_IN_DELIVERY,
     ORDER_ACTIVE,
     ORDER_ISSUE,
-    ORDER_NEAR_DUE
+    ORDER_NEAR_DUE,
+    TASK_ASSIGNED,
+    ORDER_COMPLETED,
+    SETTLEMENT_CREATED
 }

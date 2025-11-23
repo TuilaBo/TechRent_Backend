@@ -1,3 +1,4 @@
+/* Device quality info temporarily disabled
 package com.rentaltech.techrental.staff.model;
 
 import jakarta.persistence.Column;
@@ -26,4 +27,5 @@ public class DeviceQualityInfo {
     @Column(name = "device_model_name", length = 255)
     private String deviceModelName;
 }
+*/
 

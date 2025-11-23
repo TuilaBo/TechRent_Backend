@@ -143,7 +143,7 @@ public class DeviceController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Update device", description = "Update device by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Updated"),

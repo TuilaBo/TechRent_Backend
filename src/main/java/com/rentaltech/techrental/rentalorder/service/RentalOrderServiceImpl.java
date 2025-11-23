@@ -22,6 +22,8 @@ import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
+import com.rentaltech.techrental.webapi.customer.model.NotificationType;
+import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +65,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
     private final StaffService staffService;
+    private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
@@ -281,7 +284,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .taskCategory(category)
                 .orderId(order.getOrderId())
                 .description("Thu hồi thiết bị và hoàn tất thu đơn thuê #" + order.getOrderId() + ". Liên hệ khách để hẹn thời gian thu hồi.")
-                .type("PICK_UP_RENTAL_ORDER")
                 .plannedStart(plannedStart)
                 .plannedEnd(plannedEnd)
                 .status(TaskStatus.PENDING)
@@ -317,9 +319,19 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             return;
         }
         operators.stream()
-                .map(Staff::getStaffId)
-                .filter(Objects::nonNull)
-                .forEach(staffId -> {
+                .forEach(staff -> {
+                    if (staff.getAccount() != null && staff.getAccount().getAccountId() != null) {
+                        notificationService.notifyAccount(
+                                staff.getAccount().getAccountId(),
+                                NotificationType.ORDER_ACTIVE,
+                                "Đơn hàng mới được tạo task",
+                                payload.message()
+                        );
+                    }
+                    Long staffId = staff.getStaffId();
+                    if (staffId == null) {
+                        return;
+                    }
                     String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
                     try {
                         messagingTemplate.convertAndSend(destination, payload);
@@ -342,9 +354,19 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             return;
         }
         operators.stream()
-                .map(Staff::getStaffId)
-                .filter(Objects::nonNull)
-                .forEach(staffId -> {
+                .forEach(staff -> {
+                    if (staff.getAccount() != null && staff.getAccount().getAccountId() != null) {
+                        notificationService.notifyAccount(
+                                staff.getAccount().getAccountId(),
+                                NotificationType.ORDER_ACTIVE,
+                                "Task mới cho đơn hàng",
+                                payload.message()
+                        );
+                    }
+                    Long staffId = staff.getStaffId();
+                    if (staffId == null) {
+                        return;
+                    }
                     String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
                     try {
                         messagingTemplate.convertAndSend(destination, payload);
@@ -382,7 +404,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                                             Long orderId,
                                             Long taskCategoryId,
                                             String taskCategoryName,
-                                            String type,
                                             LocalDateTime plannedStart,
                                             LocalDateTime plannedEnd,
                                             String message) {
@@ -397,7 +418,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                     order.getOrderId(),
                     category != null ? category.getTaskCategoryId() : null,
                     category != null ? category.getName() : null,
-                    task.getType(),
                     task.getPlannedStart(),
                     task.getPlannedEnd(),
                     msg

@@ -43,29 +43,16 @@ public class HandoverReport {
     private String technicianInfo;
 
     @Builder.Default
-    @ElementCollection
-    @CollectionTable(
-            name = "handover_report_items",
-            joinColumns = @JoinColumn(name = "handover_report_id")
-    )
+    @OneToMany(mappedBy = "handoverReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HandoverReportItem> items = new ArrayList<>();
 
-    @Builder.Default
-    @ElementCollection
-    @CollectionTable(
-            name = "handover_report_evidences",
-            joinColumns = @JoinColumn(name = "handover_report_id")
-    )
-    @Column(name = "evidence_url", length = 1000)
-    private List<String> evidenceUrls = new ArrayList<>();
-
-    @Builder.Default
-    @ElementCollection
-    @CollectionTable(
-            name = "handover_report_device_quality",
-            joinColumns = @JoinColumn(name = "handover_report_id")
-    )
-    private List<DeviceQualityInfo> deviceQualityInfos = new ArrayList<>();
+//    @Builder.Default
+//    @ElementCollection
+//    @CollectionTable(
+//            name = "handover_report_device_quality",
+//            joinColumns = @JoinColumn(name = "handover_report_id")
+//    )
+//    private List<DeviceQualityInfo> deviceQualityInfos = new ArrayList<>();
 
     @Column(name = "handover_datetime", nullable = false)
     private LocalDateTime handoverDateTime;
@@ -75,6 +62,11 @@ public class HandoverReport {
 
     @Column(name = "customer_signature", length = 1000)
     private String customerSignature;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "handover_type", nullable = false, length = 50)
+    @Builder.Default
+    private HandoverType handoverType = HandoverType.CHECKOUT;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

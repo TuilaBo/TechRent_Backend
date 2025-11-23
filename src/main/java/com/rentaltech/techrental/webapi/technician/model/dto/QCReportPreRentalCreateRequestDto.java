@@ -1,19 +1,23 @@
 package com.rentaltech.techrental.webapi.technician.model.dto;
 
-import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCResult;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Getter
-@Setter
+@Data
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
-public class QCReportCreateRequestDto {
+@AllArgsConstructor
+public class QCReportPreRentalCreateRequestDto {
+
     @NotNull
     private Long taskId;
 
@@ -21,10 +25,10 @@ public class QCReportCreateRequestDto {
     private Map<Long, List<String>> orderDetailSerialNumbers;
 
     @NotNull
-    private QCPhase phase;
-
-    @NotNull
     private QCResult result;
 
     private String findings;
+
+    @Builder.Default
+    private List<@Valid QCDeviceConditionRequestDto> deviceConditions = new ArrayList<>();
 }

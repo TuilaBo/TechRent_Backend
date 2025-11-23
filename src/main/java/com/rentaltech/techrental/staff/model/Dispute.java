@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.model;
 
 import com.rentaltech.techrental.webapi.customer.model.Customer;
@@ -54,4 +55,5 @@ public class Dispute {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 }
+*/
 

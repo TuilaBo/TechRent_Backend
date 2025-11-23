@@ -13,12 +13,11 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SettlementUpdateRequestDto {
-    private BigDecimal totalRent;
+    private BigDecimal totalDeposit;
     private BigDecimal damageFee;
     private BigDecimal lateFee;
     private BigDecimal accessoryFee;
-    private BigDecimal depositUsed;
-    private BigDecimal finalAmount;
+    private BigDecimal finalReturnAmount;
     private SettlementState state;
 }
 

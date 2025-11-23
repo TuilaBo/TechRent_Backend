@@ -25,4 +25,6 @@ public class QCReportResponseDto {
     private Long orderDetailId;
     private Long orderId;
     private List<DeviceResponseDto> devices;
+
+    private List<QCReportDeviceConditionResponseDto> deviceConditions;
 }

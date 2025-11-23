@@ -4,6 +4,8 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
 import com.rentaltech.techrental.maintenance.model.dto.*;
 import com.rentaltech.techrental.maintenance.service.MaintenanceScheduleService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +21,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/maintenance/schedules")
 @RequiredArgsConstructor
+@Tag(name = "Maintenance Schedules", description = "Quản lý lịch bảo trì thiết bị")
 public class MaintenanceScheduleController {
 
     private final MaintenanceScheduleService maintenanceScheduleService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Tạo lịch bảo trì", description = "Tạo lịch bảo trì cho thiết bị dựa trên plan cụ thể")
     public ResponseEntity<?> create(@RequestBody @Valid CreateScheduleRequest request) {
         MaintenanceSchedule data = maintenanceScheduleService.createSchedule(
                 request.getDeviceId(),
@@ -38,6 +42,7 @@ public class MaintenanceScheduleController {
 
     @PostMapping("/by-category")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Tạo lịch theo danh mục thiết bị", description = "Sinh lịch bảo trì cho toàn bộ thiết bị thuộc category được chọn")
     public ResponseEntity<?> createByCategory(@RequestBody @Valid MaintenanceScheduleByCategoryRequestDto request) {
         List<MaintenanceSchedule> data = maintenanceScheduleService.createSchedulesByCategory(request);
         return ResponseUtil.createSuccessResponse(
@@ -50,6 +55,7 @@ public class MaintenanceScheduleController {
 
     @PostMapping("/by-usage")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Tạo lịch theo số lần sử dụng", description = "Sinh lịch bảo trì dựa trên ngưỡng số lần sử dụng của thiết bị")
     public ResponseEntity<?> createByUsage(@RequestBody @Valid MaintenanceScheduleByUsageRequestDto request) {
         List<MaintenanceSchedule> data = maintenanceScheduleService.createSchedulesByUsage(request);
         return ResponseUtil.createSuccessResponse(
@@ -62,6 +68,7 @@ public class MaintenanceScheduleController {
 
     @PostMapping("/check-conflicts")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Kiểm tra xung đột lịch bảo trì", description = "Xác định các thiết bị bị trùng lịch với đơn hàng hoặc bảo trì khác")
     public ResponseEntity<?> checkConflicts(@RequestBody @Valid MaintenanceConflictCheckRequestDto request) {
         List<MaintenanceConflictResponseDto> conflicts = maintenanceScheduleService.checkConflicts(request);
         return ResponseUtil.createSuccessResponse(
@@ -74,6 +81,7 @@ public class MaintenanceScheduleController {
 
     @GetMapping("/priority")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Danh sách thiết bị cần ưu tiên bảo trì", description = "Trả về các thiết bị có nhu cầu bảo trì gấp")
     public ResponseEntity<?> getPriorityMaintenanceDevices() {
         List<PriorityMaintenanceDeviceDto> devices = maintenanceScheduleService.getPriorityMaintenanceDevices();
         return ResponseUtil.createSuccessResponse(
@@ -86,6 +94,7 @@ public class MaintenanceScheduleController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Danh sách lịch bảo trì theo thiết bị", description = "Lấy lịch bảo trì của một thiết bị cụ thể")
     public ResponseEntity<?> listByDevice(@RequestParam("deviceId") Long deviceId) {
         List<MaintenanceSchedule> data = maintenanceScheduleService.listByDevice(deviceId);
         return ResponseUtil.createSuccessResponse("Danh sách lịch bảo trì", "Theo thiết bị", data, HttpStatus.OK);
@@ -93,6 +102,7 @@ public class MaintenanceScheduleController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Cập nhật trạng thái lịch bảo trì", description = "Thay đổi trạng thái của một lịch bảo trì")
     public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, @RequestBody UpdateStatusRequest request) {
         MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus());
         return ResponseUtil.createSuccessResponse("Cập nhật trạng thái lịch bảo trì", "Trạng thái đã được cập nhật", data, HttpStatus.OK);

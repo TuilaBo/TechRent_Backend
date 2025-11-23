@@ -17,7 +17,6 @@ public class TaskResponseDto {
     private String taskCategoryName;
     private Long orderId;
     private List<AssignedStaffSummary> assignedStaff;
-    private String type;
     private String description;
     private LocalDateTime plannedStart;
     private LocalDateTime plannedEnd;

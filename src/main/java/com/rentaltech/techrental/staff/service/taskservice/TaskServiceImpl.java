@@ -413,8 +413,8 @@ public class TaskServiceImpl implements TaskService {
         rentalOrderRepository.findById(task.getOrderId())
                 .map(RentalOrder::getCustomer)
                 .filter(customer -> customer != null && customer.getCustomerId() != null)
-                .ifPresent(customer -> notificationService.notifyCustomer(
-                        customer.getCustomerId(),
+                .ifPresent(customer -> notificationService.notifyAccount(
+                        customer.getAccount().getAccountId(),
                         switch (task.getTaskCategory().getName()) {
                             case "Pre rental QC" -> NotificationType.ORDER_PROCESSING;
                             case "Post rental QC" -> NotificationType.ORDER_NEAR_DUE;
@@ -438,10 +438,24 @@ public class TaskServiceImpl implements TaskService {
             return;
         }
         assignees.stream()
-                .map(Staff::getStaffId)
                 .filter(Objects::nonNull)
-                .forEach(staffId -> resolveStaffChannels(staffId)
-                        .forEach(destination -> sendToChannel(destination, payload, staffId)));
+                .forEach(staff -> {
+                    // Persist notification per staff account before sending
+                    if (staff.getAccount() != null && staff.getAccount().getAccountId() != null) {
+                        notificationService.notifyAccount(
+                                staff.getAccount().getAccountId(),
+                                NotificationType.TASK_ASSIGNED,
+                                "Tác vụ mới được gán",
+                                "Bạn được gán tác vụ #" + payload.taskId() + " cho đơn #" + payload.orderId()
+                        );
+                    }
+                    Long staffId = staff.getStaffId();
+                    if (staffId == null) {
+                        return;
+                    }
+                    resolveStaffChannels(staffId)
+                            .forEach(destination -> sendToChannel(destination, payload, staffId));
+                });
     }
 
     private List<String> resolveStaffChannels(Long staffId) {
@@ -461,7 +475,6 @@ public class TaskServiceImpl implements TaskService {
                                               Long orderId,
                                               Long taskCategoryId,
                                               String taskCategoryName,
-                                              String type,
                                               String description,
                                               TaskStatus status,
                                               LocalDateTime plannedStart,
@@ -477,7 +490,6 @@ public class TaskServiceImpl implements TaskService {
                     task.getOrderId(),
                     category != null ? category.getTaskCategoryId() : null,
                     category != null ? category.getName() : null,
-                    task.getType(),
                     task.getDescription(),
                     task.getStatus(),
                     task.getPlannedStart(),

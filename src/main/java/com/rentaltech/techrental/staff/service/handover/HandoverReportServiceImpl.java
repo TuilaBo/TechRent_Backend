@@ -3,11 +3,20 @@ package com.rentaltech.techrental.staff.service.handover;
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
 import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.model.AllocationConditionDetail;
+import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
 import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
+import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
+import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
+import com.rentaltech.techrental.device.model.AllocationSnapshotType;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyInlineRequestDto;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
+import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.device.service.AllocationSnapshotService;
+import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
@@ -15,17 +24,19 @@ import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
-import com.rentaltech.techrental.staff.model.DeviceQualityInfo;
 import com.rentaltech.techrental.staff.model.HandoverReport;
 import com.rentaltech.techrental.staff.model.HandoverReportItem;
 import com.rentaltech.techrental.staff.model.HandoverReportStatus;
+import com.rentaltech.techrental.staff.model.HandoverType;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.repository.HandoverReportRepository;
+import com.rentaltech.techrental.staff.repository.HandoverReportItemRepository;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.settlementservice.SettlementService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import jakarta.annotation.PostConstruct;
@@ -43,6 +54,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,13 +72,18 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final RentalOrderRepository rentalOrderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final HandoverReportRepository handoverReportRepository;
+    private final AllocationConditionSnapshotRepository allocationConditionSnapshotRepository;
     private final ImageStorageService imageStorageService;
     private final AllocationRepository allocationRepository;
+    private final HandoverReportItemRepository handoverReportItemRepository;
     private final DeviceRepository deviceRepository;
     private final SMSService smsService;
     private final EmailService emailService;
     private final AccountService accountService;
     private final StaffRepository staffRepository;
+    private final DiscrepancyReportService discrepancyReportService;
+    private final AllocationSnapshotService allocationSnapshotService;
+    private final SettlementService settlementService;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -88,7 +105,21 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     @Override
     @Transactional
-    public HandoverReportResponseDto createReport(HandoverReportCreateRequestDto request, List<MultipartFile> evidences, String staffUsername) {
+    public HandoverReportResponseDto createCheckoutReport(HandoverReportCreateOutRequestDto request, String staffUsername) {
+        return createReportInternal(request, HandoverType.CHECKOUT, List.of(), request.getDeviceConditions(), staffUsername);
+    }
+
+    @Override
+    @Transactional
+    public HandoverReportResponseDto createCheckinReport(HandoverReportCreateInRequestDto request, String staffUsername) {
+        return createReportInternal(request, HandoverType.CHECKIN, request.getDiscrepancies(), List.of(), staffUsername);
+    }
+
+    private HandoverReportResponseDto createReportInternal(HandoverReportBaseCreateRequestDto request,
+                                                           HandoverType handoverType,
+                                                           List<DiscrepancyInlineRequestDto> discrepancies,
+                                                           List<HandoverDeviceConditionRequestDto> deviceConditions,
+                                                           String staffUsername) {
         Objects.requireNonNull(request, "request must not be null");
         Objects.requireNonNull(staffUsername, "staffUsername must not be null");
 
@@ -105,8 +136,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 .orElseThrow(() -> new IllegalArgumentException("Staff not found for account: " + staffUsername));
 
         List<HandoverReportItem> items = resolveItems(request, rentalOrder);
-        List<String> evidenceUrls = uploadEvidence(task.getTaskId(), evidences);
-        List<DeviceQualityInfo> deviceQualityInfos = resolveDeviceQualityInfos(request, rentalOrder);
 
         HandoverReport report = HandoverReport.builder()
                 .task(task)
@@ -119,15 +148,22 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                         : LocalDateTime.now())
                 .handoverLocation(request.getHandoverLocation())
                 .customerSignature(request.getCustomerSignature())
+                .handoverType(handoverType)
                 .status(HandoverReportStatus.PENDING_STAFF_SIGNATURE)
                 .staffSigned(false)
                 .customerSigned(false)
                 .items(items)
-                .evidenceUrls(evidenceUrls)
-                .deviceQualityInfos(deviceQualityInfos)
                 .build();
 
+        report.getItems().forEach(item -> item.setHandoverReport(report));
+
         HandoverReport saved = handoverReportRepository.save(report);
+        if (handoverType == HandoverType.CHECKIN) {
+            createHandoverSnapshots(saved.getItems(), handoverType, createdByStaff);
+            createDiscrepancies(discrepancies, saved.getHandoverReportId());
+        } else {
+            createSnapshotsFromDeviceConditions(saved, deviceConditions, createdByStaff);
+        }
 
         // Send PIN to staff email
         String pinCode = generatePinCode();
@@ -149,9 +185,33 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             taskRepository.save(task);
         }
 
-        // Don't change order status yet - wait for both signatures
-
         return HandoverReportResponseDto.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional
+    public HandoverReportItemResponseDto addEvidence(Long itemId, MultipartFile file, String staffUsername) {
+        Objects.requireNonNull(file, "file must not be null");
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File không được để trống");
+        }
+        accountService.getByUsername(staffUsername)
+                .orElseThrow(() -> new IllegalArgumentException("Staff account not found: " + staffUsername));
+        HandoverReportItem item = handoverReportItemRepository.findById(itemId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy handover item: " + itemId));
+        HandoverReport report = item.getHandoverReport();
+        Long taskId = report != null && report.getTask() != null ? report.getTask().getTaskId() : null;
+        if (taskId == null) {
+            throw new IllegalStateException("Item không gắn với task nên không thể tải hình");
+        }
+        String label = "handover-item-extra-" + (item.getEvidenceUrls() == null ? 1 : item.getEvidenceUrls().size() + 1);
+        String url = imageStorageService.uploadHandoverEvidence(file, taskId, label);
+        if (item.getEvidenceUrls() == null) {
+            item.setEvidenceUrls(new ArrayList<>());
+        }
+        item.getEvidenceUrls().add(url);
+        HandoverReportItem saved = handoverReportItemRepository.save(item);
+        return HandoverReportItemResponseDto.fromEntity(saved);
     }
 
     @Override
@@ -373,14 +433,14 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             throw new IllegalStateException("Report has already been signed by customer");
         }
 
-        String key = buildPinKeyForReport(handoverReportId);
-        String storedPin = getPinCode(key);
-        if (storedPin == null) {
-            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
-        }
-        if (!storedPin.equals(request.getPinCode())) {
-            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
-        }
+//        String key = buildPinKeyForReport(handoverReportId);
+//        String storedPin = getPinCode(key);
+//        if (storedPin == null) {
+//            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
+//        }
+//        if (!storedPin.equals(request.getPinCode())) {
+//            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
+//        }
 
         report.setCustomerSigned(true);
         report.setCustomerSignedAt(LocalDateTime.now());
@@ -390,10 +450,11 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         report.setStatus(HandoverReportStatus.BOTH_SIGNED);
 
         HandoverReport saved = handoverReportRepository.save(report);
-        deletePinCode(key);
+//        deletePinCode(key);
 
         // Update order status to IN_USE when both signed
         checkAndUpdateOrderStatusIfBothSigned(saved);
+        createSettlementAfterCustomerSigned(saved);
 
         return HandoverReportResponseDto.fromEntity(saved);
     }
@@ -418,6 +479,21 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
     }
 
+    private void createSettlementAfterCustomerSigned(HandoverReport report) {
+        if (report == null
+                || report.getHandoverType() != HandoverType.CHECKIN
+                || report.getRentalOrder() == null
+                || report.getRentalOrder().getOrderId() == null) {
+            return;
+        }
+        Long orderId = report.getRentalOrder().getOrderId();
+        try {
+            settlementService.createAutomaticForOrder(orderId);
+        } catch (Exception ex) {
+            log.warn("Không thể tạo settlement cho order {} sau khi khách ký handover: {}", orderId, ex.getMessage());
+        }
+    }
+
     private void incrementDeviceUsageCount(Long orderId) {
         List<Device> devices = allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId).stream()
                 .map(Allocation::getDevice)
@@ -432,20 +508,11 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
     }
 
-    private List<HandoverReportItem> resolveItems(HandoverReportCreateRequestDto request, RentalOrder rentalOrder) {
+    private List<HandoverReportItem> resolveItems(HandoverReportBaseCreateRequestDto request, RentalOrder rentalOrder) {
         if (!CollectionUtils.isEmpty(request.getItems())) {
             return request.getItems().stream()
                     .filter(Objects::nonNull)
-                    .map(itemDto -> {
-                        HandoverReportItem entity = itemDto.toEntity();
-                        if (!StringUtils.hasText(entity.getUnit())) {
-                            entity.setUnit("unit");
-                        }
-                        if (entity.getDeliveredQuantity() == null) {
-                            entity.setDeliveredQuantity(entity.getOrderedQuantity());
-                        }
-                        return entity;
-                    })
+                    .map(dto -> mapDtoToItem(dto, rentalOrder))
                     .collect(Collectors.toList());
         }
 
@@ -455,76 +522,137 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             return List.of();
         }
         return orderDetails.stream()
-                .map(detail -> {
-                    HandoverReportItem item = HandoverReportItem.fromOrderDetail(detail);
-                    if (!StringUtils.hasText(item.getUnit())) {
-                        item.setUnit(resolveUnit(detail));
-                    }
-                    return item;
-                })
+                .map(HandoverReportItem::fromOrderDetail)
                 .collect(Collectors.toList());
     }
 
-    private String resolveUnit(OrderDetail detail) {
-        DeviceModel deviceModel = detail.getDeviceModel();
-        if (deviceModel != null && deviceModel.getDeviceCategory() != null) {
-            return deviceModel.getDeviceCategory().getDeviceCategoryName();
+    private HandoverReportItem mapDtoToItem(HandoverReportItemRequestDto itemDto, RentalOrder rentalOrder) {
+        HandoverReportItem entity = HandoverReportItem.builder().build();
+        if (itemDto.getDeviceId() != null && rentalOrder != null && rentalOrder.getOrderId() != null) {
+            Allocation allocation = allocationRepository
+                    .findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(rentalOrder.getOrderId(), itemDto.getDeviceId())
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "Allocation not found for order " + rentalOrder.getOrderId() + " và device " + itemDto.getDeviceId()));
+            entity.setAllocation(allocation);
         }
-        return "unit";
+        entity.setEvidenceUrls(resolveItemEvidence(itemDto.getEvidenceUrls()));
+        return entity;
     }
 
-    private List<DeviceQualityInfo> resolveDeviceQualityInfos(HandoverReportCreateRequestDto request, RentalOrder rentalOrder) {
-        // If device quality infos are provided in request, use them
-        if (!CollectionUtils.isEmpty(request.getDeviceQualityInfos())) {
-            return request.getDeviceQualityInfos().stream()
-                    .filter(Objects::nonNull)
-                    .map(DeviceQualityInfoDto::toEntity)
-                    .collect(Collectors.toList());
-        }
-
-        // Otherwise, auto-populate from allocations
-        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(rentalOrder.getOrderId());
-        if (CollectionUtils.isEmpty(allocations)) {
-            log.warn("No allocations found for order {}", rentalOrder.getOrderId());
-            return List.of();
-        }
-
-        return allocations.stream()
-                .filter(allocation -> allocation.getDevice() != null)
-                .map(allocation -> {
-                    Device device = allocation.getDevice();
-                    DeviceModel model = device.getDeviceModel();
-                    String modelName = model != null ? model.getDeviceName() : null;
-                    
-                    return DeviceQualityInfo.builder()
-                            .deviceSerialNumber(device.getSerialNumber())
-                            .qualityStatus("GOOD") // Default status, can be updated later
-                            .qualityDescription(null) // No description by default
-                            .deviceModelName(modelName)
-                            .build();
-                })
-                .collect(Collectors.toList());
-    }
-
-    private List<String> uploadEvidence(Long taskId, List<MultipartFile> evidences) {
+    private List<String> resolveItemEvidence(List<String> evidences) {
         if (CollectionUtils.isEmpty(evidences)) {
-            return List.of();
+            return new ArrayList<>();
         }
-        List<String> urls = new ArrayList<>();
-        int index = 1;
-        for (MultipartFile file : evidences) {
-            if (file == null || file.isEmpty()) {
+        return evidences.stream()
+                .filter(url -> url != null && !url.isBlank())
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private void createHandoverSnapshots(List<HandoverReportItem> items, HandoverType handoverType, Staff staff) {
+        if (handoverType == null || CollectionUtils.isEmpty(items)) {
+            return;
+        }
+        AllocationSnapshotType snapshotType = handoverType == HandoverType.CHECKOUT
+                ? AllocationSnapshotType.BASELINE
+                : AllocationSnapshotType.FINAL;
+        AllocationSnapshotSource source = handoverType == HandoverType.CHECKOUT
+                ? AllocationSnapshotSource.HANDOVER_OUT
+                : AllocationSnapshotSource.HANDOVER_IN;
+        List<Allocation> allocations = items.stream()
+                .map(HandoverReportItem::getAllocation)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        allocationSnapshotService.createSnapshots(allocations, snapshotType, source, staff);
+    }
+
+    private void createSnapshotsFromDeviceConditions(HandoverReport report,
+                                                     List<HandoverDeviceConditionRequestDto> deviceConditions,
+                                                     Staff staff) {
+        if (report == null || report.getRentalOrder() == null
+                || CollectionUtils.isEmpty(deviceConditions)) {
+            return;
+        }
+        Long orderId = report.getRentalOrder().getOrderId();
+        if (orderId == null) {
+            return;
+        }
+        List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
+        for (HandoverDeviceConditionRequestDto condition : deviceConditions) {
+            if (condition == null || condition.getDeviceId() == null || condition.getConditionDefinitionId() == null) {
                 continue;
             }
-            try {
-                String label = "handover-" + index++;
-                String url = imageStorageService.uploadHandoverEvidence(file, taskId, label);
-                urls.add(url);
-            } catch (Exception ex) {
-                log.warn("Failed to upload evidence for task {}: {}", taskId, ex.getMessage());
-            }
+            allocationRepository.findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(orderId, condition.getDeviceId())
+                    .ifPresentOrElse(allocation -> {
+                        AllocationConditionSnapshot snapshot = AllocationConditionSnapshot.builder()
+                                .allocation(allocation)
+                                .snapshotType(AllocationSnapshotType.BASELINE)
+                                .source(AllocationSnapshotSource.HANDOVER_OUT)
+                                .conditionDetails(List.of(AllocationConditionDetail.builder()
+                                        .conditionDefinitionId(condition.getConditionDefinitionId())
+                                        .severity(condition.getSeverity())
+                                        .build()))
+                                .images(condition.getImages() == null ? new ArrayList<>() : new ArrayList<>(condition.getImages()))
+                                .staff(staff)
+                                .build();
+                        snapshots.add(snapshot);
+                    }, () -> log.warn("Không tìm thấy allocation cho device {} thuộc order {}", condition.getDeviceId(), orderId));
         }
-        return urls;
+        if (!snapshots.isEmpty()) {
+            allocationConditionSnapshotRepository.saveAll(snapshots);
+        }
+    }
+
+//    private List<DeviceQualityInfo> resolveDeviceQualityInfos(HandoverReportBaseCreateRequestDto request, RentalOrder rentalOrder) {
+//        // If device quality infos are provided in request, use them
+//        if (!CollectionUtils.isEmpty(request.getDeviceQualityInfos())) {
+//            return request.getDeviceQualityInfos().stream()
+//                    .filter(Objects::nonNull)
+//                    .map(DeviceQualityInfoDto::toEntity)
+//                    .collect(Collectors.toList());
+//        }
+//
+//        // Otherwise, auto-populate from allocations
+//        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(rentalOrder.getOrderId());
+//        if (CollectionUtils.isEmpty(allocations)) {
+//            log.warn("No allocations found for order {}", rentalOrder.getOrderId());
+//            return List.of();
+//        }
+//
+//        return allocations.stream()
+//                .filter(allocation -> allocation.getDevice() != null)
+//                .map(allocation -> {
+//                    Device device = allocation.getDevice();
+//                    DeviceModel model = device.getDeviceModel();
+//                    String modelName = model != null ? model.getDeviceName() : null;
+//
+//                    return DeviceQualityInfo.builder()
+//                            .deviceSerialNumber(device.getSerialNumber())
+//                            .qualityStatus("GOOD") // Default status, can be updated later
+//                            .qualityDescription(null) // No description by default
+//                            .deviceModelName(modelName)
+//                            .build();
+//                })
+//                .collect(Collectors.toList());
+//    }
+
+    private void createDiscrepancies(List<DiscrepancyInlineRequestDto> discrepancies, Long handoverReportId) {
+        if (handoverReportId == null || discrepancies == null || discrepancies.isEmpty()) {
+            return;
+        }
+        discrepancies.stream()
+                .filter(Objects::nonNull)
+                .forEach(dto -> discrepancyReportService.create(
+                        DiscrepancyReportRequestDto.builder()
+                                .createdFrom(DiscrepancyCreatedFrom.HANDOVER_REPORT)
+                                .refId(handoverReportId)
+                                .discrepancyType(dto.getDiscrepancyType())
+                                .conditionDefinitionId(dto.getConditionDefinitionId())
+                                .orderDetailId(dto.getOrderDetailId())
+                                .deviceId(dto.getDeviceId())
+                                .staffNote(dto.getStaffNote())
+                                .customerNote(dto.getCustomerNote())
+                                .build()
+                ));
     }
 
     private String generatePinCode() {

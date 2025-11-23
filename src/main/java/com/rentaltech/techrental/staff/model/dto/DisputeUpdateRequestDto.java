@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.DisputeStatus;
@@ -15,4 +16,5 @@ public class DisputeUpdateRequestDto {
     private String detail;
     private DisputeStatus status;
 }
+*/
 

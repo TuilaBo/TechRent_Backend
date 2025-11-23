@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.model;
 
 public enum DisputeOpenBy {
@@ -6,4 +7,5 @@ public enum DisputeOpenBy {
     OPERATOR,
     ADMIN
 }
+*/
 

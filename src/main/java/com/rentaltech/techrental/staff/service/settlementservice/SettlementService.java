@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface SettlementService {
     Settlement create(SettlementCreateRequestDto request);
+    Settlement createAutomaticForOrder(Long orderId);
     Settlement update(Long settlementId, SettlementUpdateRequestDto request);
     Settlement getByOrderId(Long orderId);
     Page<Settlement> getAll(Pageable pageable);

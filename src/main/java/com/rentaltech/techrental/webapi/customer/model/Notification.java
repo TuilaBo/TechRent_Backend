@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.webapi.customer.model;
 
+import com.rentaltech.techrental.authentication.model.Account;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,8 +21,8 @@ public class Notification {
     private Long notificationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", nullable = false)
-    private Customer customer;
+    @JoinColumn(name = "account_id", nullable = false)
+    private Account account;
 
     @Column(name = "title", nullable = false, length = 200)
     private String title;

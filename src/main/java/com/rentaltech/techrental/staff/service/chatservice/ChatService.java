@@ -8,7 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface ChatService {
-    Conversation getOrCreateConversationByDispute(Long disputeId);
+//    Conversation getOrCreateConversationByDispute(Long disputeId);
     Conversation getOrCreateConversationByCustomer(Long customerId);
     ChatMessage sendMessage(ChatMessageCreateRequestDto request);
     Page<ChatMessage> getMessages(Long conversationId, Pageable pageable);
