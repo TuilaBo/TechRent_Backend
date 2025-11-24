@@ -21,3 +21,4 @@ UPDATE "Device"
 SET usage_count = 0 
 WHERE usage_count IS NULL;
 
+

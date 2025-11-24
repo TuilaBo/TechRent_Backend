@@ -27,3 +27,4 @@ public class DeviceQualityInfo {
     private String deviceModelName;
 }
 
+
