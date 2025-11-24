@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 public class NotificationResponseDto {
     private final Long notificationId;
-    private final Long customerId;
+    private final Long accountId;
     private final String title;
     private final String message;
     private final NotificationType type;

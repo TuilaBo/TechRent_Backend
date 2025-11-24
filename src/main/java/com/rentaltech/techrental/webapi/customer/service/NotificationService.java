@@ -7,10 +7,10 @@ import java.util.List;
 
 public interface NotificationService {
 
-    NotificationResponseDto notifyCustomer(Long customerId,
-                                           NotificationType type,
-                                           String title,
-                                           String message);
+    NotificationResponseDto notifyAccount(Long accountId,
+                                          NotificationType type,
+                                          String title,
+                                          String message);
 
-    List<NotificationResponseDto> getNotificationsForCustomer(Long customerId);
+    List<NotificationResponseDto> getNotificationsForAccount(Long accountId);
 }

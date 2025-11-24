@@ -49,5 +49,39 @@ public class MaintenanceScheduleCustomRepository {
 
         return entityManager.createQuery(query).getResultList();
     }
+
+    public List<MaintenanceSchedule> findActiveMaintenanceSchedules() {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<MaintenanceSchedule> query = cb.createQuery(MaintenanceSchedule.class);
+        Root<MaintenanceSchedule> schedule = query.from(MaintenanceSchedule.class);
+
+        LocalDate today = LocalDate.now();
+        List<Predicate> predicates = new ArrayList<>();
+
+        // Status is IN_PROGRESS or STARTED (case-insensitive, handle null)
+        Predicate statusInProgress = cb.or(
+                cb.equal(cb.upper(cb.coalesce(schedule.get("status"), cb.literal(""))), "IN_PROGRESS"),
+                cb.equal(cb.upper(cb.coalesce(schedule.get("status"), cb.literal(""))), "STARTED")
+        );
+
+        // OR: Currently within maintenance period (startDate <= today <= endDate) 
+        // AND status is not completed/cancelled
+        Predicate withinPeriod = cb.and(
+                cb.lessThanOrEqualTo(schedule.get("startDate"), today),
+                cb.greaterThanOrEqualTo(schedule.get("endDate"), today),
+                cb.or(
+                        schedule.get("status").isNull(),
+                        cb.not(cb.upper(schedule.get("status")).in("COMPLETED", "FINISHED", "CANCELLED", "CANCELED"))
+                )
+        );
+
+        predicates.add(cb.or(statusInProgress, withinPeriod));
+
+        query.select(schedule).where(cb.and(predicates.toArray(new Predicate[0])));
+        query.orderBy(cb.asc(schedule.get("startDate")));
+
+        return entityManager.createQuery(query).getResultList();
+    }
 }
+
 

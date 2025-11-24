@@ -67,6 +67,23 @@ public class EmailService {
     }
 
     /**
+     * Gửi email nội dung tự do (sử dụng cho các nhắc nhở/notification)
+     */
+    public boolean sendGeneric(String email, String subject, String body) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(email);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Lỗi gửi email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Tạo nội dung email thông báo hợp đồng đã ký
      */
     private String buildContractSignedContent(String contractNumber) {

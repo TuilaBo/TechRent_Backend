@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.model;
 
 public enum DisputeStatus {
@@ -5,4 +6,5 @@ public enum DisputeStatus {
     Negotiating,
     Closed
 }
+*/
 

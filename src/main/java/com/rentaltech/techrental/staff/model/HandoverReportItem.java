@@ -1,35 +1,60 @@
 package com.rentaltech.techrental.staff.model;
 
-import com.rentaltech.techrental.device.model.DeviceModel;
+import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.*;
 
-@Embeddable
-@Data
-@Builder
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "handover_report_item")
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@EqualsAndHashCode(exclude = {"handoverReport", "allocation"})
+@ToString(exclude = {"handoverReport", "allocation"})
 public class HandoverReportItem {
 
-    @Column(name = "item_name", nullable = false, length = 255)
-    private String itemName;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "handover_report_item_id")
+    private Long handoverReportItemId;
 
-    @Column(name = "item_code", length = 100)
-    private String itemCode;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "handover_report_id", nullable = false)
+    private HandoverReport handoverReport;
 
-    @Column(name = "unit", length = 50)
-    private String unit;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "allocation_id")
+    private Allocation allocation;
 
-    @Column(name = "ordered_quantity")
-    private Long orderedQuantity;
+//    @Column(name = "item_name", nullable = false, length = 255)
+//    private String itemName;
+//
+//    @Column(name = "item_code", length = 100)
+//    private String itemCode;
+//
+//    @Column(name = "unit", length = 50)
+//    private String unit;
+//
+//    @Column(name = "ordered_quantity")
+//    private Long orderedQuantity;
+//
+//    @Column(name = "delivered_quantity")
+//    private Long deliveredQuantity;
 
-    @Column(name = "delivered_quantity")
-    private Long deliveredQuantity;
+    @ElementCollection
+    @CollectionTable(
+            name = "handover_report_item_evidences",
+            joinColumns = @JoinColumn(name = "handover_report_item_id")
+    )
+    @Column(name = "evidence_url", length = 1000)
+    @Builder.Default
+    private List<String> evidenceUrls = new ArrayList<>();
 
     /**
      * Convenience factory that maps {@link OrderDetail} into a handover item.
@@ -39,19 +64,6 @@ public class HandoverReportItem {
         if (detail == null) {
             return null;
         }
-
-        DeviceModel deviceModel = detail.getDeviceModel();
-        String itemName = deviceModel != null ? deviceModel.getDeviceName() : null;
-        String itemCode = deviceModel != null && deviceModel.getDeviceModelId() != null
-                ? deviceModel.getDeviceModelId().toString()
-                : null;
-
-        return HandoverReportItem.builder()
-                .itemName(itemName)
-                .itemCode(itemCode)
-                .unit("unit")
-                .orderedQuantity(detail.getQuantity())
-                .deliveredQuantity(detail.getQuantity())
-                .build();
+        return HandoverReportItem.builder().build();
     }
 }

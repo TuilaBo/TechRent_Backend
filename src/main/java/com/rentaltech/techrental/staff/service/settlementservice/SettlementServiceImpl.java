@@ -1,5 +1,7 @@
 package com.rentaltech.techrental.staff.service.settlementservice;
 
+import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.*;
@@ -18,8 +20,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -34,6 +38,7 @@ public class SettlementServiceImpl implements SettlementService {
     private final TaskCategoryRepository taskCategoryRepository;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final DiscrepancyReportRepository discrepancyReportRepository;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
@@ -44,19 +49,47 @@ public class SettlementServiceImpl implements SettlementService {
 
         Settlement settlement = Settlement.builder()
                 .rentalOrder(order)
-                .totalRent(request.getTotalRent())
+                .totalDeposit(request.getTotalDeposit())
                 .damageFee(request.getDamageFee())
                 .lateFee(request.getLateFee())
                 .accessoryFee(request.getAccessoryFee())
-                .depositUsed(request.getDepositUsed())
-                .finalAmount(request.getFinalAmount())
+                .finalReturnAmount(request.getFinalReturnAmount())
                 .state(SettlementState.Draft)
                 .issuedAt(null)
                 .build();
 
         Settlement saved = settlementRepository.save(settlement);
-        notifyCustomerDepositIssued(order);
+        notifyCustomerSettlementCreated(order);
         return saved;
+    }
+
+    @Override
+    public Settlement createAutomaticForOrder(Long orderId) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId must not be null");
+        }
+        return settlementRepository.findByRentalOrder_OrderId(orderId)
+                .orElseGet(() -> {
+                    RentalOrder order = rentalOrderRepository.findById(orderId)
+                            .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + orderId));
+                    BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
+                    BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
+                    BigDecimal lateFee = BigDecimal.ZERO;
+                    BigDecimal accessoryFee = BigDecimal.ZERO;
+                    BigDecimal finalReturn = totalDeposit
+                            .subtract(damageFee)
+                            .subtract(lateFee)
+                            .subtract(accessoryFee);
+                    SettlementCreateRequestDto request = SettlementCreateRequestDto.builder()
+                            .orderId(orderId)
+                            .totalDeposit(totalDeposit)
+                            .damageFee(damageFee)
+                            .lateFee(lateFee)
+                            .accessoryFee(accessoryFee)
+                            .finalReturnAmount(finalReturn)
+                            .build();
+                    return create(request);
+                });
     }
 
     @Override
@@ -64,12 +97,11 @@ public class SettlementServiceImpl implements SettlementService {
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy settlement: " + settlementId));
 
-        if (request.getTotalRent() != null) settlement.setTotalRent(request.getTotalRent());
+        if (request.getTotalDeposit() != null) settlement.setTotalDeposit(request.getTotalDeposit());
         if (request.getDamageFee() != null) settlement.setDamageFee(request.getDamageFee());
         if (request.getLateFee() != null) settlement.setLateFee(request.getLateFee());
         if (request.getAccessoryFee() != null) settlement.setAccessoryFee(request.getAccessoryFee());
-        if (request.getDepositUsed() != null) settlement.setDepositUsed(request.getDepositUsed());
-        if (request.getFinalAmount() != null) settlement.setFinalAmount(request.getFinalAmount());
+        if (request.getFinalReturnAmount() != null) settlement.setFinalReturnAmount(request.getFinalReturnAmount());
         if (request.getState() != null) {
             settlement.setState(request.getState());
             if (request.getState() == SettlementState.Issued && settlement.getIssuedAt() == null) {
@@ -117,12 +149,12 @@ public class SettlementServiceImpl implements SettlementService {
         return settlementRepository.save(settlement);
     }
 
-    private void notifyCustomerDepositIssued(RentalOrder order) {
+    private void notifyCustomerSettlementCreated(RentalOrder order) {
         if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
             return;
         }
-        notificationService.notifyCustomer(
-                order.getCustomer().getCustomerId(),
+        notificationService.notifyAccount(
+                order.getCustomer().getAccount().getAccountId(),
                 NotificationType.ORDER_CONFIRMED,
                 "Hóa đơn hoàn cọc đã được tạo",
                 "Hóa đơn hoàn cọc cho đơn hàng #" + order.getOrderId() + " đã được tạo"
@@ -154,9 +186,19 @@ public class SettlementServiceImpl implements SettlementService {
         latestTask.getAssignedStaff().stream()
                 .filter(Objects::nonNull)
                 .filter(staff -> staff.getStaffRole() == StaffRole.CUSTOMER_SUPPORT_STAFF)
-                .map(Staff::getStaffId)
-                .filter(Objects::nonNull)
-                .forEach(staffId -> {
+                .forEach(staff -> {
+                    if (staff.getAccount() != null && staff.getAccount().getAccountId() != null) {
+                        notificationService.notifyAccount(
+                                staff.getAccount().getAccountId(),
+                                NotificationType.ORDER_NEAR_DUE,
+                                "Khách xác nhận hoàn cọc",
+                                payload.message()
+                        );
+                    }
+                    Long staffId = staff.getStaffId();
+                    if (staffId == null) {
+                        return;
+                    }
                     String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
                     try {
                         messagingTemplate.convertAndSend(destination, payload);
@@ -167,5 +209,17 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     private record SettlementSupportNotification(Long taskId, Long orderId, String message) {}
-}
 
+    private BigDecimal calculateFinalDiscrepancyDamageFee(RentalOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return BigDecimal.ZERO;
+        }
+        List<DiscrepancyReport> reports = discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(order.getOrderId());
+        if (reports == null || reports.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return reports.stream()
+                .map(report -> report.getPenaltyAmount() != null ? report.getPenaltyAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+}

@@ -23,8 +23,8 @@ public class NotificationWebSocketController {
     @MessageMapping("/notifications.send")
     public void handleNotification(@Payload NotificationMessagePayload payload) {
         log.info("Received notification payload over WebSocket: {}", payload);
-        NotificationResponseDto response = notificationService.notifyCustomer(
-                payload.getCustomerId(),
+        NotificationResponseDto response = notificationService.notifyAccount(
+                payload.getAccountId(),
                 payload.getType(),
                 payload.getTitle(),
                 payload.getMessage()
@@ -37,7 +37,7 @@ public class NotificationWebSocketController {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class NotificationMessagePayload {
-        private Long customerId;
+        private Long accountId;
         private NotificationType type;
         private String title;
         private String message;

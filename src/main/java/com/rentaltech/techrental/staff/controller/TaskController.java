@@ -226,7 +226,6 @@ public class TaskController {
                 .taskCategoryName(task.getTaskCategory().getName())
                 .orderId(task.getOrderId())
                 .assignedStaff(assignedStaff)
-                .type(task.getType())
                 .description(task.getDescription())
                 .plannedStart(task.getPlannedStart())
                 .plannedEnd(task.getPlannedEnd())

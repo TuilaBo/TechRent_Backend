@@ -306,6 +306,11 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 })
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<MaintenanceSchedule> getActiveMaintenanceSchedules() {
+        return scheduleCustomRepository.findActiveMaintenanceSchedules();
+    }
 }
 
 

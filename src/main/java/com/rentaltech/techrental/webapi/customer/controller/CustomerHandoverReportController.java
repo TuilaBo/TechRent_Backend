@@ -9,6 +9,8 @@ import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.service.handover.HandoverReportService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import java.util.List;
 @RequestMapping("/api/customers/handover-reports")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Customer Handover Reports", description = "Khách hàng xem và ký biên bản bàn giao")
 public class CustomerHandoverReportController {
 
     private final HandoverReportService handoverReportService;
@@ -33,6 +36,7 @@ public class CustomerHandoverReportController {
 
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Danh sách biên bản của tôi", description = "Khách hàng xem toàn bộ biên bản bàn giao thuộc các đơn hàng của mình")
     public ResponseEntity<?> getMyHandoverReports(@AuthenticationPrincipal UserDetails principal) {
         Customer customer = getCustomerFromPrincipal(principal);
         List<HandoverReportResponseDto> reports = handoverReportService.getReportsByCustomerOrder(customer.getCustomerId());
@@ -46,6 +50,7 @@ public class CustomerHandoverReportController {
 
     @GetMapping("/orders/{orderId}")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Biên bản bàn giao theo đơn hàng", description = "Khách hàng xem biên bản gắn với một đơn hàng cụ thể")
     public ResponseEntity<?> getHandoverReportsByOrder(
             @PathVariable Long orderId,
             @AuthenticationPrincipal UserDetails principal) {
@@ -78,6 +83,7 @@ public class CustomerHandoverReportController {
 
     @GetMapping("/{handoverReportId}")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Xem chi tiết biên bản", description = "Khách hàng xem nội dung chi tiết của một biên bản bàn giao")
     public ResponseEntity<?> getHandoverReport(@PathVariable Long handoverReportId, @AuthenticationPrincipal UserDetails principal) {
         Customer customer = getCustomerFromPrincipal(principal);
         HandoverReportResponseDto report = handoverReportService.getReport(handoverReportId);
@@ -117,6 +123,7 @@ public class CustomerHandoverReportController {
 
     @PostMapping("/{handoverReportId}/pin")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Yêu cầu gửi PIN cho khách", description = "Khách hàng yêu cầu hệ thống gửi mã PIN ký biên bản qua email")
     public ResponseEntity<?> requestPinForCustomer(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody EmailPinRequestDto request,
@@ -145,6 +152,7 @@ public class CustomerHandoverReportController {
 
     @PatchMapping("/{handoverReportId}/signature")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách hàng ký biên bản", description = "Xác nhận ký biên bản bàn giao bằng mã PIN đã gửi")
     public ResponseEntity<?> signByCustomer(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody HandoverReportCustomerSignRequestDto request,

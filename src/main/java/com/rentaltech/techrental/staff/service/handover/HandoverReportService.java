@@ -7,7 +7,11 @@ import java.util.List;
 
 public interface HandoverReportService {
 
-    HandoverReportResponseDto createReport(HandoverReportCreateRequestDto request, List<MultipartFile> evidences, String staffUsername);
+    HandoverReportResponseDto createCheckoutReport(HandoverReportCreateOutRequestDto request, String staffUsername);
+
+    HandoverReportResponseDto createCheckinReport(HandoverReportCreateInRequestDto request, String staffUsername);
+
+    HandoverReportItemResponseDto addEvidence(Long itemId, MultipartFile file, String staffUsername);
 
     HandoverPinDeliveryDto sendPinForOrder(Long orderId);
 

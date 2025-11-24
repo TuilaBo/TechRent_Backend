@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
@@ -77,4 +78,5 @@ public class DisputeController {
                 .build();
     }
 }
+*/
 

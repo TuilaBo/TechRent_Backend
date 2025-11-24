@@ -11,7 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface ConversationRepository extends JpaRepository<Conversation, Long> {
-    Optional<Conversation> findByDispute_DisputeId(Long disputeId);
+//    Optional<Conversation> findByDispute_DisputeId(Long disputeId);
     Optional<Conversation> findByCustomer_CustomerIdAndStaff_StaffId(Long customerId, Long staffId);
     Optional<Conversation> findByCustomer_CustomerId(Long customerId);
     List<Conversation> findByStaff_StaffId(Long staffId);

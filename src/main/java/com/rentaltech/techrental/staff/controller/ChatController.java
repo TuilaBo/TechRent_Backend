@@ -38,18 +38,18 @@ public class ChatController {
         );
     }
 
-    @PostMapping("/conversations/dispute/{disputeId}")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get or create conversation by dispute", description = "Get existing conversation or create new one for a dispute")
-    public ResponseEntity<?> getOrCreateConversationByDispute(@PathVariable Long disputeId) {
-        Conversation conversation = chatService.getOrCreateConversationByDispute(disputeId);
-        return ResponseUtil.createSuccessResponse(
-                "Lấy conversation thành công",
-                "Conversation theo dispute ID",
-                mapConversationToDto(conversation),
-                HttpStatus.OK
-        );
-    }
+//    @PostMapping("/conversations/dispute/{disputeId}")
+//    @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+//    @Operation(summary = "Get or create conversation by dispute", description = "Get existing conversation or create new one for a dispute")
+//    public ResponseEntity<?> getOrCreateConversationByDispute(@PathVariable Long disputeId) {
+//        Conversation conversation = chatService.getOrCreateConversationByDispute(disputeId);
+//        return ResponseUtil.createSuccessResponse(
+//                "Lấy conversation thành công",
+//                "Conversation theo dispute ID",
+//                mapConversationToDto(conversation),
+//                HttpStatus.OK
+//        );
+//    }
 
     @PostMapping("/messages")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
@@ -145,7 +145,6 @@ public class ChatController {
     private ConversationResponseDto mapConversationToDto(Conversation conversation) {
         return ConversationResponseDto.builder()
                 .conversationId(conversation.getConversationId())
-                .disputeId(conversation.getDispute() != null ? conversation.getDispute().getDisputeId() : null)
                 .customerId(conversation.getCustomer() != null ? conversation.getCustomer().getCustomerId() : null)
                 .staffId(conversation.getStaff() != null ? conversation.getStaff().getStaffId() : null)
                 .createdAt(conversation.getCreatedAt())
@@ -159,7 +158,6 @@ public class ChatController {
     @lombok.AllArgsConstructor
     public static class ConversationResponseDto {
         private Long conversationId;
-        private Long disputeId;
         private Long customerId;
         private Long staffId;
         private java.time.LocalDateTime createdAt;

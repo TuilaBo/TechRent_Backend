@@ -6,9 +6,14 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "Allocation")
@@ -16,6 +21,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"qcReport", "baselineSnapshots", "finalSnapshots"})
+@EqualsAndHashCode(exclude = {"qcReport", "baselineSnapshots", "finalSnapshots"})
 public class Allocation {
 
     @Id
@@ -40,4 +47,20 @@ public class Allocation {
 
     @Column(name = "allocated_at")
     private LocalDateTime allocatedAt;
+
+    @Column(name = "returned_at")
+    private LocalDateTime returnedAt;
+
+    @OneToMany(mappedBy = "allocation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Where(clause = "snapshot_type = 'BASELINE'")
+    @Builder.Default
+    private List<AllocationConditionSnapshot> baselineSnapshots = new ArrayList<>();
+
+    @OneToMany(mappedBy = "allocation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Where(clause = "snapshot_type = 'FINAL'")
+    @Builder.Default
+    private List<AllocationConditionSnapshot> finalSnapshots = new ArrayList<>();
+
+    @Column(name = "notes", columnDefinition = "text")
+    private String notes;
 }

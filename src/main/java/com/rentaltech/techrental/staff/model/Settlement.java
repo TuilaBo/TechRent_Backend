@@ -27,8 +27,8 @@ public class Settlement {
     @JoinColumn(name = "order_id", referencedColumnName = "order_id", nullable = false)
     private RentalOrder rentalOrder;
 
-    @Column(name = "total_rent", nullable = false, precision = 19, scale = 2)
-    private BigDecimal totalRent;
+    @Column(name = "total_deposit", nullable = false, precision = 19, scale = 2)
+    private BigDecimal totalDeposit;
 
     @Column(name = "damage_fee", precision = 19, scale = 2)
     private BigDecimal damageFee;
@@ -39,11 +39,8 @@ public class Settlement {
     @Column(name = "accessory_fee", precision = 19, scale = 2)
     private BigDecimal accessoryFee;
 
-    @Column(name = "deposit_used", precision = 19, scale = 2)
-    private BigDecimal depositUsed;
-
-    @Column(name = "final_amount", nullable = false, precision = 19, scale = 2)
-    private BigDecimal finalAmount;
+    @Column(name = "final_return_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal finalReturnAmount;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "state", length = 50)
