@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.service.disputeservice;
 
 import com.rentaltech.techrental.staff.model.Dispute;
@@ -9,4 +10,5 @@ public interface DisputeService {
     Dispute update(Long disputeId, DisputeUpdateRequestDto request);
     Dispute getBySettlementId(Long settlementId);
 }
+*/
 

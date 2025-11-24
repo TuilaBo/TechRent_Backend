@@ -17,17 +17,16 @@ public class SettlementCreateRequestDto {
     private Long orderId;
     
     @NotNull
-    private BigDecimal totalRent;
+    private BigDecimal totalDeposit;
     
     private BigDecimal damageFee;
     
     private BigDecimal lateFee;
     
     private BigDecimal accessoryFee;
-    
-    private BigDecimal depositUsed;
-    
-    @NotNull
+
     private BigDecimal finalAmount;
+    
+    private BigDecimal finalReturnAmount;
 }
 

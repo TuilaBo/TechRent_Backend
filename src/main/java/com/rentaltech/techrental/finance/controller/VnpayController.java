@@ -5,6 +5,8 @@ import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.service.PaymentServiceImpl;
 import com.rentaltech.techrental.finance.util.VnpayUtil;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/vnpay")
 @Slf4j
+@Tag(name = "VNPAY", description = "Các webhook/endpoint tích hợp thanh toán VNPAY")
 public class VnpayController {
 
     private final PaymentServiceImpl paymentService;
@@ -33,6 +36,7 @@ public class VnpayController {
     private final InvoiceRepository invoiceRepository;
 
     @GetMapping("/return")
+    @Operation(summary = "VNPAY return URL", description = "VNPAY gọi lại khi người dùng hoàn tất thanh toán trên cổng")
     public void returnUrl(HttpServletRequest request, HttpServletResponse response) throws IOException {
         log.info("=== VNPAY RETURN URL CALLED ===");
         log.info("Request method: {}", request.getMethod());
@@ -104,6 +108,7 @@ public class VnpayController {
     }
 
     @RequestMapping(value = "/ipn", method = {RequestMethod.GET, RequestMethod.POST})
+    @Operation(summary = "VNPAY IPN", description = "Điểm nhận thông báo thanh toán từ máy chủ VNPAY")
     public ResponseEntity<?> ipnUrl(HttpServletRequest request) {
         log.info("=== VNPAY IPN URL CALLED ===");
         log.info("Request method: {}", request.getMethod());
@@ -141,6 +146,7 @@ public class VnpayController {
     }
 
     @GetMapping("/test-hash")
+    @Operation(summary = "Kiểm thử hash", description = "Endpoint hỗ trợ debug chữ ký trả về từ VNPAY")
     public ResponseEntity<?> testHash(HttpServletRequest request) {
         try {
             Map<String, String> params = VnpayUtil.getRequestParams(request);

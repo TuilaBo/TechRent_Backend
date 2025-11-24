@@ -1,20 +1,24 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class HandoverReportCreateRequestDto {
+public class HandoverReportBaseCreateRequestDto {
 
     @NotNull
     private Long taskId;
@@ -26,6 +30,7 @@ public class HandoverReportCreateRequestDto {
     private String technicianInfo;
 
     @NotNull
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private LocalDateTime handoverDateTime;
 
     @NotBlank
@@ -36,12 +41,6 @@ public class HandoverReportCreateRequestDto {
     /**
      * Optional custom items. If empty, the system will populate from OrderDetail.
      */
-    private List<HandoverReportItemDto> items;
-
-    /**
-     * Device quality information by serial number.
-     * Example: serial "A2j3j" has "MINOR_DAMAGE" with description "Bị hư màn hình nhẹ"
-     */
-    private List<DeviceQualityInfoDto> deviceQualityInfos;
+    @Builder.Default
+    private List<@Valid HandoverReportItemRequestDto> items = new ArrayList<>();
 }
-

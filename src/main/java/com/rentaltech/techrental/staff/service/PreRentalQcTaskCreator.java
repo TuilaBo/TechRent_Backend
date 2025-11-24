@@ -22,7 +22,7 @@ public class PreRentalQcTaskCreator {
             return;
         }
         boolean exists = taskRepository.findByOrderId(orderId).stream()
-                .anyMatch(task -> "PRE_RENTAL_QC".equalsIgnoreCase(task.getType()));
+                .anyMatch(task -> "Pre rental QC".equalsIgnoreCase(task.getTaskCategory().getName()));
         if (exists) {
             return;
         }
@@ -33,7 +33,6 @@ public class PreRentalQcTaskCreator {
                 .taskCategory(category)
                 .orderId(orderId)
                 .description("Check Pre QC cho đơn thuê #" + orderId)
-                .type("PRE_RENTAL_QC")
                 .plannedStart(now)
                 .plannedEnd(now.plusDays(3))
                 .build();

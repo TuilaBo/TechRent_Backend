@@ -2,6 +2,7 @@ package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.HandoverReport;
 import com.rentaltech.techrental.staff.model.HandoverReportStatus;
+import com.rentaltech.techrental.staff.model.HandoverType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,11 +33,11 @@ public class HandoverReportResponseDto {
     private Boolean customerSigned;
     private LocalDateTime customerSignedAt;
     private LocalDateTime deliveryDateTime;
+    private HandoverType handoverType;
     private List<HandoverReportStaffDto> deliveryStaff;
-    private List<HandoverReportItemDto> items;
-    private List<String> evidenceUrls;
+    private List<HandoverReportItemResponseDto> items;
     private List<HandoverReportStaffDto> technicians;
-    private List<DeviceQualityInfoDto> deviceQualityInfos;
+    private List<HandoverDeviceConditionResponseDto> deviceConditions;
     private HandoverReportStaffDto createdByStaff;
 
     public static HandoverReportResponseDto fromEntity(HandoverReport report) {
@@ -66,20 +67,17 @@ public class HandoverReportResponseDto {
                                 .map(HandoverReportStaffDto::fromEntity)
                                 .collect(Collectors.toList())
                         : List.of())
+                .handoverType(report.getHandoverType())
                 .items(report.getItems() == null ? List.of() :
                         report.getItems().stream()
-                                .map(HandoverReportItemDto::fromEntity)
+                                .map(HandoverReportItemResponseDto::fromEntity)
                                 .collect(Collectors.toList()))
-                .evidenceUrls(report.getEvidenceUrls() == null ? List.of() : List.copyOf(report.getEvidenceUrls()))
                 .technicians(report.getTask() == null || report.getTask().getAssignedStaff() == null
                         ? List.of()
                         : report.getTask().getAssignedStaff().stream()
                                 .map(HandoverReportStaffDto::fromEntity)
                                 .collect(Collectors.toList()))
-                .deviceQualityInfos(report.getDeviceQualityInfos() == null ? List.of() :
-                        report.getDeviceQualityInfos().stream()
-                                .map(DeviceQualityInfoDto::fromEntity)
-                                .collect(Collectors.toList()))
+                .deviceConditions(HandoverDeviceConditionResponseDto.fromReport(report))
                 .createdByStaff(report.getCreatedByStaff() != null
                         ? HandoverReportStaffDto.fromEntity(report.getCreatedByStaff())
                         : null)

@@ -4,6 +4,8 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,11 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
+@Tag(name = "Device Lifecycle", description = "Tra cứu lifecycle hiện tại của thiết bị")
 public class DeviceLifecycleController {
 
     private final DeviceRepository deviceRepository;
 
     @GetMapping("/{id}/lifecycle")
+    @Operation(summary = "Xem lifecycle thiết bị", description = "Trả về trạng thái lifecycle hiện tại của thiết bị theo ID")
     public ResponseEntity<?> getLifecycle(@PathVariable("id") Long id) {
         Device device = deviceRepository.findById(id).orElseThrow();
         DeviceLifecycleResponse resp = new DeviceLifecycleResponse();

@@ -4,7 +4,6 @@ import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.ChatMessageRepository;
 import com.rentaltech.techrental.staff.repository.ConversationRepository;
-import com.rentaltech.techrental.staff.repository.DisputeRepository;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
@@ -25,33 +24,32 @@ public class ChatServiceImpl implements ChatService {
 
     private final ConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final DisputeRepository disputeRepository;
     private final CustomerRepository customerRepository;
     private final StaffRepository staffRepository;
 
-    @Override
-    public Conversation getOrCreateConversationByDispute(Long disputeId) {
-        return conversationRepository.findByDispute_DisputeId(disputeId)
-                .orElseGet(() -> {
-                    Dispute dispute = disputeRepository.findById(disputeId)
-                            .orElseThrow(() -> new NoSuchElementException("Dispute not found: " + disputeId));
-
-                    Customer customer = dispute.getOpenedByCustomer();
-                    if (customer == null) {
-                        throw new IllegalStateException("Dispute must have a customer to create conversation");
-                    }
-
-                    Staff staff = findAvailableSupportStaff();
-
-                    Conversation conversation = Conversation.builder()
-                            .dispute(dispute)
-                            .customer(customer)
-                            .staff(staff)
-                            .build();
-
-                    return conversationRepository.save(conversation);
-                });
-    }
+//    @Override
+//    public Conversation getOrCreateConversationByDispute(Long disputeId) {
+//        return conversationRepository.findByDispute_DisputeId(disputeId)
+//                .orElseGet(() -> {
+//                    Dispute dispute = disputeRepository.findById(disputeId)
+//                            .orElseThrow(() -> new NoSuchElementException("Dispute not found: " + disputeId));
+//
+//                    Customer customer = dispute.getOpenedByCustomer();
+//                    if (customer == null) {
+//                        throw new IllegalStateException("Dispute must have a customer to create conversation");
+//                    }
+//
+//                    Staff staff = findAvailableSupportStaff();
+//
+//                    Conversation conversation = Conversation.builder()
+//                            .dispute(dispute)
+//                            .customer(customer)
+//                            .staff(staff)
+//                            .build();
+//
+//                    return conversationRepository.save(conversation);
+//                });
+//    }
 
     @Override
     public Conversation getOrCreateConversationByCustomer(Long customerId) {
@@ -63,7 +61,6 @@ public class ChatServiceImpl implements ChatService {
                     Staff staff = findAvailableSupportStaff();
 
                     Conversation conversation = Conversation.builder()
-                            .dispute(null)
                             .customer(customer)
                             .staff(staff)
                             .build();

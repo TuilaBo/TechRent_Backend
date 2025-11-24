@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.repository;
 
 import com.rentaltech.techrental.staff.model.Dispute;
@@ -12,4 +13,5 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     Optional<Dispute> findBySettlement_SettlementId(Long settlementId);
     List<Dispute> findAll();
 }
+*/
 

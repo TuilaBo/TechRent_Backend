@@ -1,3 +1,4 @@
+/* Dispute feature temporarily disabled
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.DisputeOpenBy;
@@ -25,4 +26,5 @@ public class DisputeResponseDto {
     private LocalDateTime openAt;
     private LocalDateTime closedAt;
 }
+*/
 

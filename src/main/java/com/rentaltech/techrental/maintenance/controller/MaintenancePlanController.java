@@ -5,6 +5,8 @@ import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlanScopeType;
 import com.rentaltech.techrental.maintenance.model.MaintenanceRuleType;
 import com.rentaltech.techrental.maintenance.service.MaintenancePlanService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,11 +20,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/maintenance/plans")
 @RequiredArgsConstructor
+@Tag(name = "Maintenance Plans", description = "Quản lý kế hoạch bảo trì thiết bị")
 public class MaintenancePlanController {
 
     private final MaintenancePlanService maintenancePlanService;
 
     @PostMapping
+    @Operation(summary = "Tạo kế hoạch bảo trì", description = "Khởi tạo một plan bảo trì với phạm vi và quy tắc cụ thể")
     public ResponseEntity<?> create(@RequestBody CreatePlanRequest request) {
         MaintenancePlan data = maintenancePlanService.createPlan(
                 request.getStatus(),
@@ -39,6 +43,7 @@ public class MaintenancePlanController {
     }
 
     @GetMapping
+    @Operation(summary = "Danh sách kế hoạch bảo trì", description = "Trả về tất cả các kế hoạch bảo trì hiện có")
     public ResponseEntity<?> list() {
         List<MaintenancePlan> data = maintenancePlanService.listPlans();
         return ResponseUtil.createSuccessResponse("Danh sách kế hoạch bảo trì", "", data, HttpStatus.OK);

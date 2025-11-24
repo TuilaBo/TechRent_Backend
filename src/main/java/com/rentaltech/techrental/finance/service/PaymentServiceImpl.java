@@ -242,8 +242,8 @@ public class PaymentServiceImpl implements PaymentService {
         }
         String title = "Thanh toán thành công";
         String message = String.format("Đơn thuê #%d đã được xác nhận thanh toán.", rentalOrder.getOrderId());
-        notificationService.notifyCustomer(
-                rentalOrder.getCustomer().getCustomerId(),
+        notificationService.notifyAccount(
+                rentalOrder.getCustomer().getAccount().getAccountId(),
                 NotificationType.ORDER_CONFIRMED,
                 title,
                 message
@@ -269,7 +269,6 @@ public class PaymentServiceImpl implements PaymentService {
         Task deliveryTask = Task.builder()
                 .taskCategory(deliveryCategory)
                 .orderId(rentalOrder.getOrderId())
-                .type(DELIVERY_CATEGORY_NAME)
                 .description(String.format("Chuẩn bị giao đơn hàng #%d cho khách.", rentalOrder.getOrderId()))
                 .plannedStart(LocalDateTime.now())
                 .status(TaskStatus.PENDING)
@@ -326,7 +325,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new AccessDeniedException("Không tìm thấy tài khoản người dùng hiện tại"));
 
         Role requesterRole = requester.getRole();
-        if (requesterRole == Role.OPERATOR) {
+        if (requesterRole == Role.OPERATOR || requesterRole == Role.CUSTOMER_SUPPORT_STAFF) {
             return InvoiceResponseDto.from(invoice);
         }
 
@@ -351,10 +350,10 @@ public class PaymentServiceImpl implements PaymentService {
         if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
             return;
         }
-        notificationService.notifyCustomer(
-                order.getCustomer().getCustomerId(),
-                NotificationType.ORDER_CONFIRMED,
-                "Đã hoàn tiền cọc",
+        notificationService.notifyAccount(
+                order.getCustomer().getAccount().getAccountId(),
+                NotificationType.ORDER_COMPLETED,
+                "Đơn hàng đã hoàn tất",
                 "Đã hoàn tiền cọc cho đơn hàng #" + order.getOrderId()
         );
     }
@@ -373,9 +372,20 @@ public class PaymentServiceImpl implements PaymentService {
                 "Đơn hàng #" + orderId + " đã được hoàn cọc thành công."
         );
         operators.stream()
-                .map(Staff::getStaffId)
                 .filter(Objects::nonNull)
-                .forEach(staffId -> {
+                .forEach(staff -> {
+                    if (staff.getAccount() != null && staff.getAccount().getAccountId() != null) {
+                        notificationService.notifyAccount(
+                                staff.getAccount().getAccountId(),
+                                NotificationType.ORDER_COMPLETED,
+                                "Đơn hàng đã hoàn cọc",
+                                payload.message()
+                        );
+                    }
+                    Long staffId = staff.getStaffId();
+                    if (staffId == null) {
+                        return;
+                    }
                     String destination = String.format(STAFF_NOTIFICATION_TOPIC_TEMPLATE, staffId);
                     try {
                         messagingTemplate.convertAndSend(destination, payload);
@@ -471,8 +481,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalStateException("Settlement chưa gắn với đơn thuê");
         }
 
-        BigDecimal subTotal = Optional.ofNullable(settlement.getFinalAmount()).orElse(BigDecimal.ZERO);
-        BigDecimal depositApplied = Optional.ofNullable(settlement.getDepositUsed()).orElse(BigDecimal.ZERO);
+        BigDecimal subTotal = Optional.ofNullable(settlement.getFinalReturnAmount()).orElse(BigDecimal.ZERO);
+        BigDecimal depositApplied = Optional.ofNullable(settlement.getTotalDeposit()).orElse(BigDecimal.ZERO);
 
         Invoice invoice = Invoice.builder()
                 .rentalOrder(order)
@@ -488,6 +498,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .issueDate(LocalDateTime.now())
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        rentalOrderRepository.save(order);
 
         settlement.setState(SettlementState.Closed);
         if (settlement.getIssuedAt() == null) {

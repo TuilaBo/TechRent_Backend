@@ -16,12 +16,11 @@ import java.time.LocalDateTime;
 public class SettlementResponseDto {
     private Long settlementId;
     private Long orderId;
-    private BigDecimal totalRent;
+    private BigDecimal totalDeposit;
     private BigDecimal damageFee;
     private BigDecimal lateFee;
     private BigDecimal accessoryFee;
-    private BigDecimal depositUsed;
-    private BigDecimal finalAmount;
+    private BigDecimal finalReturnAmount;
     private SettlementState state;
     private LocalDateTime issuedAt;
 }

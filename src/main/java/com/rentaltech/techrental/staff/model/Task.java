@@ -38,9 +38,6 @@ public class Task {
     @Builder.Default
     private Set<Staff> assignedStaff = new LinkedHashSet<>();
 
-    @Column(name = "type", length = 100)
-    private String type;
-
     @Column(name = "description", length = 1000)
     private String description;
 

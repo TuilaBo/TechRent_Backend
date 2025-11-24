@@ -1,7 +1,8 @@
 package com.rentaltech.techrental.webapi.technician.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportCreateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalCreateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalCreateRequestDto;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.service.QCReportService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,22 +19,38 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/technician/qc-reports")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
 @Tag(name = "QC Reports", description = "Quality control report APIs")
 @RequiredArgsConstructor
 public class QCReportController {
 
     private final QCReportService qcReportService;
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Create QC report", description = "Technician creates QC report for assigned task")
-    public ResponseEntity<?> createReport(@RequestPart("request") @Valid QCReportCreateRequestDto request,
-                                          @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
-                                          Authentication authentication) {
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @PostMapping(value = "/pre-rental", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create PRE-RENTAL QC report", description = "Không nhận discrepancies, dùng cho giai đoạn PRE_RENTAL")
+    public ResponseEntity<?> createPreRentalReport(@RequestPart("request") @Valid QCReportPreRentalCreateRequestDto request,
+                                                   @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
+                                                   Authentication authentication) {
         String username = authentication.getName();
-        var response = qcReportService.createReport(request, accessorySnapshot, username);
+        var response = qcReportService.createPreRentalReport(request, accessorySnapshot, username);
         return ResponseUtil.createSuccessResponse(
-                "Tạo báo cáo QC thành công!",
+                "Tạo báo cáo QC PRE_RENTAL thành công!",
+                "Báo cáo QC đã được tạo cho task " + response.getTaskId(),
+                response,
+                HttpStatus.CREATED
+        );
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @PostMapping(value = "/post-rental", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Create POST-RENTAL QC report", description = "Cho phép gửi discrepancies như hiện tại")
+    public ResponseEntity<?> createPostRentalReport(@RequestPart("request") @Valid QCReportPostRentalCreateRequestDto request,
+                                                    @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
+                                                    Authentication authentication) {
+        String username = authentication.getName();
+        var response = qcReportService.createPostRentalReport(request, accessorySnapshot, username);
+        return ResponseUtil.createSuccessResponse(
+                "Tạo báo cáo QC POST_RENTAL thành công!",
                 "Báo cáo QC đã được tạo cho task " + response.getTaskId(),
                 response,
                 HttpStatus.CREATED
@@ -41,6 +58,7 @@ public class QCReportController {
     }
 
     @GetMapping("/{reportId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Get QC report", description = "Lấy chi tiết báo cáo QC theo ID")
     public ResponseEntity<?> getReport(@PathVariable Long reportId) {
         var response = qcReportService.getReport(reportId);
@@ -53,6 +71,7 @@ public class QCReportController {
     }
 
     @PutMapping(value = "/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Update QC report", description = "Cập nhật kết quả báo cáo QC")
     public ResponseEntity<?> updateReport(@PathVariable Long reportId,
                                           @RequestPart("request") @Valid QCReportUpdateRequestDto request,
@@ -69,6 +88,7 @@ public class QCReportController {
     }
 
     @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "List QC reports by order", description = "Lấy báo cáo QC theo đơn thuê")
     public ResponseEntity<?> getReportsByOrder(@PathVariable Long orderId) {
         var response = qcReportService.getReportsByOrder(orderId);

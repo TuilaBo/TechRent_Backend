@@ -32,7 +32,7 @@ public class Device {
     @Column(name = "status")
     private DeviceStatus status;
 
-    @Column(name = "usage_count", nullable = false)
+    @Column(name = "usage_count")
     @Builder.Default
     private Integer usageCount = 0;
 

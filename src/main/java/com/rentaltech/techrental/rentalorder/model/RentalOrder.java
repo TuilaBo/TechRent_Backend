@@ -58,6 +58,9 @@ public class RentalOrder {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "last_due_notification_sent_at")
+    private LocalDateTime lastDueNotificationSentAt;
+
     @ManyToOne
     @JoinColumn(name = "customer_id", referencedColumnName = "customer_id", nullable = false)
     private Customer customer;
