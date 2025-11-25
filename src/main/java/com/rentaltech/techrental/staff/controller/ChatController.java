@@ -59,7 +59,7 @@ public class ChatController {
         return ResponseUtil.createSuccessResponse(
                 "Gửi tin nhắn thành công",
                 "Tin nhắn đã được gửi",
-                mapToResponseDto(message),
+                ChatMessageResponseDto.from(message),
                 HttpStatus.CREATED
         );
     }
@@ -74,7 +74,7 @@ public class ChatController {
         // Tạo Pageable với default sort (không cần sort vì repository đã có OrderBySentAtDesc)
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
         var pageResult = chatService.getMessages(conversationId, pageable);
-        var pageDto = pageResult.map(this::mapToResponseDto);
+        var pageDto = pageResult.map(ChatMessageResponseDto::from);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Danh sách tin nhắn",
                 "Tin nhắn trong conversation với phân trang",
@@ -129,18 +129,6 @@ public class ChatController {
         );
     }
 
-    private ChatMessageResponseDto mapToResponseDto(ChatMessage message) {
-        return ChatMessageResponseDto.builder()
-                .messageId(message.getMessageId())
-                .conversationId(message.getConversation() != null ? message.getConversation().getConversationId() : null)
-                .senderType(message.getSenderType())
-                .senderId(message.getSenderId())
-                .content(message.getContent())
-                .isRead(message.getIsRead())
-                .readAt(message.getReadAt())
-                .sentAt(message.getSentAt())
-                .build();
-    }
 
     private ConversationResponseDto mapConversationToDto(Conversation conversation) {
         return ConversationResponseDto.builder()

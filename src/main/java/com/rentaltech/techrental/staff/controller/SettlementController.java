@@ -32,7 +32,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Tạo settlement thành công",
                 "Settlement đã được tạo ở trạng thái Draft",
-                mapToResponseDto(settlement),
+                SettlementResponseDto.from(settlement),
                 HttpStatus.CREATED
         );
     }
@@ -45,7 +45,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật settlement thành công",
                 "Settlement đã được cập nhật",
-                mapToResponseDto(settlement),
+                SettlementResponseDto.from(settlement),
                 HttpStatus.OK
         );
     }
@@ -58,7 +58,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy settlement thành công",
                 "Settlement theo order ID",
-                mapToResponseDto(settlement),
+                SettlementResponseDto.from(settlement),
                 HttpStatus.OK
         );
     }
@@ -68,7 +68,7 @@ public class SettlementController {
     @Operation(summary = "Get all settlements", description = "Retrieve all settlements with pagination")
     public ResponseEntity<?> getAll(Pageable pageable) {
         var page = settlementService.getAll(pageable);
-        var pageDto = page.map(this::mapToResponseDto);
+        var pageDto = page.map(SettlementResponseDto::from);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Danh sách tất cả settlement",
                 "Tất cả settlements trong hệ thống với phân trang",
@@ -90,23 +90,10 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 title,
                 message,
-                mapToResponseDto(settlement),
+                SettlementResponseDto.from(settlement),
                 HttpStatus.OK
         );
     }
 
-    private SettlementResponseDto mapToResponseDto(Settlement settlement) {
-        return SettlementResponseDto.builder()
-                .settlementId(settlement.getSettlementId())
-                .orderId(settlement.getRentalOrder() != null ? settlement.getRentalOrder().getOrderId() : null)
-                .totalDeposit(settlement.getTotalDeposit())
-                .damageFee(settlement.getDamageFee())
-                .lateFee(settlement.getLateFee())
-                .accessoryFee(settlement.getAccessoryFee())
-                .finalReturnAmount(settlement.getFinalReturnAmount())
-                .state(settlement.getState())
-                .issuedAt(settlement.getIssuedAt())
-                .build();
-    }
 }
 

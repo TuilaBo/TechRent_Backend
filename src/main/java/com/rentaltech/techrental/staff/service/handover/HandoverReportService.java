@@ -11,7 +11,16 @@ public interface HandoverReportService {
 
     HandoverReportResponseDto createCheckinReport(HandoverReportCreateInRequestDto request, String staffUsername);
 
+    HandoverReportResponseDto updateCheckoutReport(Long reportId, HandoverReportUpdateOutRequestDto request, String staffUsername);
+
+    HandoverReportResponseDto updateCheckinReport(Long reportId, HandoverReportUpdateInRequestDto request, String staffUsername);
+
     HandoverReportItemResponseDto addEvidence(Long itemId, MultipartFile file, String staffUsername);
+
+    HandoverReportItemResponseDto updateEvidenceByDevice(Long handoverReportId,
+                                                         Long deviceId,
+                                                         List<MultipartFile> files,
+                                                         String staffUsername);
 
     HandoverPinDeliveryDto sendPinForOrder(Long orderId);
 

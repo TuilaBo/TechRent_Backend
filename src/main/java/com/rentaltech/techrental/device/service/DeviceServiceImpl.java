@@ -61,7 +61,7 @@ public class DeviceServiceImpl implements DeviceService {
             });
         }
 
-        return mapToDto(saved);
+        return DeviceResponseDto.from(saved);
     }
 
     @Override
@@ -69,20 +69,20 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponseDto findById(Long id) {
         Device entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị: " + id));
-        return mapToDto(entity);
+        return DeviceResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(DeviceResponseDto::from).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findByModelId(Long deviceModelId) {
         return repository.findByDeviceModel_DeviceModelId(deviceModelId).stream()
-                .map(this::mapToDto)
+                .map(DeviceResponseDto::from)
                 .toList();
     }
 
@@ -113,7 +113,7 @@ public class DeviceServiceImpl implements DeviceService {
         }
         return freeDevices.stream()
                 .limit(limit)
-                .map(this::mapToDto)
+                .map(DeviceResponseDto::from)
                 .toList();
     }
 
@@ -123,7 +123,7 @@ public class DeviceServiceImpl implements DeviceService {
         return allocationRepository.findByOrderDetail_OrderDetailId(orderDetailId).stream()
                 .map(Allocation::getDevice)
                 .filter(Objects::nonNull)
-                .map(this::mapToDto)
+                .map(DeviceResponseDto::from)
                 .toList();
     }
 
@@ -131,7 +131,7 @@ public class DeviceServiceImpl implements DeviceService {
     @Transactional(readOnly = true)
     public DeviceResponseDto findBySerialNumber(String serialNumber) {
         return repository.findBySerialNumber(serialNumber)
-                .map(this::mapToDto)
+                .map(DeviceResponseDto::from)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị với serial: " + serialNumber));
     }
 
@@ -145,7 +145,7 @@ public class DeviceServiceImpl implements DeviceService {
                                           String deviceName,
                                           Pageable pageable) {
         Specification<Device> spec = buildSpecification(serialNumber, shelfCode, status, deviceModelId, brand, deviceName);
-        return repository.findAll(spec, pageable).map(this::mapToDto);
+        return repository.findAll(spec, pageable).map(DeviceResponseDto::from);
     }
 
     @Override
@@ -177,7 +177,7 @@ public class DeviceServiceImpl implements DeviceService {
             });
         }
 
-        return mapToDto(repository.save(entity));
+        return DeviceResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -222,17 +222,6 @@ public class DeviceServiceImpl implements DeviceService {
         entity.setStatus(request.getStatus());
         entity.setDeviceModel(model);
         repository.save(entity);
-    }
-
-    private DeviceResponseDto mapToDto(Device entity) {
-        return DeviceResponseDto.builder()
-                .deviceId(entity.getDeviceId())
-                .serialNumber(entity.getSerialNumber())
-                .acquireAt(entity.getAcquireAt())
-                .status(entity.getStatus())
-//                .shelfCode(entity.getShelfCode())
-                .deviceModelId(entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null)
-                .build();
     }
 
     private Specification<Device> buildSpecification(String serialNumber,

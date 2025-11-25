@@ -36,7 +36,7 @@ public class StaffController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy nhân viên thành công",
                 "Chi tiết nhân viên",
-                mapToResponseDto(staff),
+                StaffResponseDto.from(staff),
                 HttpStatus.OK
         );
     }
@@ -50,7 +50,7 @@ public class StaffController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy nhân viên theo tài khoản thành công",
                 "Chi tiết nhân viên",
-                mapToResponseDto(staff),
+                StaffResponseDto.from(staff),
                 HttpStatus.OK
         );
     }
@@ -62,7 +62,7 @@ public class StaffController {
     public ResponseEntity<?> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseUtil.createSuccessResponse(
                 "Lấy danh sách nhân viên theo vai trò thành công",
@@ -79,7 +79,7 @@ public class StaffController {
     public ResponseEntity<?> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
         List<StaffResponseDto> responseDtos = activeStaff.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseUtil.createSuccessResponse(
                 "Lấy danh sách nhân viên đang hoạt động thành công",
@@ -99,7 +99,7 @@ public class StaffController {
             @RequestParam(required = false) StaffRole staffRole) {
         List<Staff> staffList = staffService.searchStaff(startTime, endTime, available, staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseUtil.createSuccessResponse(
                 "Tìm kiếm nhân viên thành công",
@@ -125,17 +125,4 @@ public class StaffController {
         );
     }
 
-    private StaffResponseDto mapToResponseDto(Staff staff) {
-        return StaffResponseDto.builder()
-                .staffId(staff.getStaffId())
-                .accountId(staff.getAccount().getAccountId())
-                .username(staff.getAccount().getUsername())
-                .email(staff.getAccount().getEmail())
-                .phoneNumber(staff.getAccount().getPhoneNumber())
-                .staffRole(staff.getStaffRole())
-                .isActive(staff.getIsActive())
-                .createdAt(staff.getCreatedAt())
-                .updatedAt(staff.getUpdatedAt())
-                .build();
-    }
 }

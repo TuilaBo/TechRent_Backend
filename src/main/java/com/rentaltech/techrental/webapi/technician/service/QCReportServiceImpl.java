@@ -8,13 +8,17 @@ import com.rentaltech.techrental.device.model.AllocationConditionDetail;
 import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
 import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
 import com.rentaltech.techrental.device.model.AllocationSnapshotType;
+import com.rentaltech.techrental.device.model.ConditionDefinition;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
+import com.rentaltech.techrental.device.model.DiscrepancyReport;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyInlineRequestDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
+import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
+import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
@@ -35,11 +39,11 @@ import com.rentaltech.techrental.webapi.technician.model.QCPhase;
 import com.rentaltech.techrental.webapi.technician.model.QCReport;
 import com.rentaltech.techrental.webapi.technician.model.QCResult;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCDeviceConditionRequestDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportDeviceConditionResponseDto;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalCreateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalCreateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportResponseDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.repository.QCReportRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -69,6 +73,7 @@ public class QCReportServiceImpl implements QCReportService {
     private final AllocationConditionSnapshotRepository allocationConditionSnapshotRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final AllocationRepository allocationRepository;
+    private final ConditionDefinitionRepository conditionDefinitionRepository;
     private final AllocationSnapshotService allocationSnapshotService;
     private final AccountService accountService;
     private final StaffService staffService;
@@ -78,6 +83,7 @@ public class QCReportServiceImpl implements QCReportService {
     private final ReservationService reservationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportService discrepancyReportService;
+    private final DiscrepancyReportRepository discrepancyReportRepository;
 
     @Override
     @Transactional
@@ -90,7 +96,7 @@ public class QCReportServiceImpl implements QCReportService {
     @Transactional
     public QCReportResponseDto createPostRentalReport(QCReportPostRentalCreateRequestDto request, MultipartFile accessorySnapshot, String username) {
         return createReport(QCPhase.POST_RENTAL, request.getTaskId(), request.getOrderDetailSerialNumbers(),
-                request.getResult(), request.getFindings(), request.getDiscrepancies(), request.getDeviceConditions(), accessorySnapshot, username);
+                request.getResult(), request.getFindings(), request.getDiscrepancies(), List.of(), accessorySnapshot, username);
     }
 
     private QCReportResponseDto createReport(QCPhase phase,
@@ -140,6 +146,9 @@ public class QCReportServiceImpl implements QCReportService {
             saved.setAllocations(new ArrayList<>(allocations));
             bookingCalendarService.createBookingsForAllocations(allocations);
             extendReservationHold(task, allocations, saved.getResult());
+            if (phase == QCPhase.POST_RENTAL && saved.getResult() == QCResult.READY_FOR_RE_STOCK) {
+                releaseDevicesWithoutDiscrepancies(saved);
+            }
         }
         if (phase == QCPhase.PRE_RENTAL) {
             createBaselineSnapshots(allocations, deviceConditions, currentStaff);
@@ -150,7 +159,8 @@ public class QCReportServiceImpl implements QCReportService {
 
         markTaskCompleted(task);
         notifyCustomer(saved);
-        return mapToResponseDto(saved);
+        QcReportDtoContext context = prepareQcReportDtoContext(saved);
+        return QCReportResponseDto.from(saved, context.allocations(), context.discrepancies());
     }
 
     @Override
@@ -158,12 +168,57 @@ public class QCReportServiceImpl implements QCReportService {
     public QCReportResponseDto getReport(Long reportId) {
         QCReport report = qcReportRepository.findById(reportId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy báo cáo QC với id: " + reportId));
-        return mapToResponseDto(report);
+        QcReportDtoContext context = prepareQcReportDtoContext(report);
+        return QCReportResponseDto.from(report, context.allocations(), context.discrepancies());
     }
 
     @Override
     @Transactional
-    public QCReportResponseDto updateReport(Long reportId, QCReportUpdateRequestDto request, MultipartFile accessorySnapshot, String username) {
+    public QCReportResponseDto updatePreRentalReport(Long reportId,
+                                                     QCReportPreRentalUpdateRequestDto request,
+                                                     MultipartFile accessorySnapshot,
+                                                     String username) {
+        return updateReportInternal(
+                reportId,
+                QCPhase.PRE_RENTAL,
+                request.getResult(),
+                request.getFindings(),
+                request.getOrderDetailSerialNumbers(),
+                request.getDeviceConditions(),
+                List.of(),
+                accessorySnapshot,
+                username
+        );
+    }
+
+    @Override
+    @Transactional
+    public QCReportResponseDto updatePostRentalReport(Long reportId,
+                                                      QCReportPostRentalUpdateRequestDto request,
+                                                      MultipartFile accessorySnapshot,
+                                                      String username) {
+        return updateReportInternal(
+                reportId,
+                QCPhase.POST_RENTAL,
+                request.getResult(),
+                request.getFindings(),
+                request.getOrderDetailSerialNumbers(),
+                List.of(),
+                request.getDiscrepancies(),
+                accessorySnapshot,
+                username
+        );
+    }
+
+    private QCReportResponseDto updateReportInternal(Long reportId,
+                                                     QCPhase phase,
+                                                     QCResult result,
+                                                     String findings,
+                                                     Map<Long, List<String>> serialNumbersByOrderDetail,
+                                                     List<QCDeviceConditionRequestDto> deviceConditions,
+                                                     List<DiscrepancyInlineRequestDto> discrepancies,
+                                                     MultipartFile accessorySnapshot,
+                                                     String username) {
         QCReport report = qcReportRepository.findById(reportId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy báo cáo QC với id: " + reportId));
 
@@ -178,51 +233,72 @@ public class QCReportServiceImpl implements QCReportService {
             }
         }
 
-        validatePhaseAndResult(request.getPhase(), request.getResult());
+        if (report.getPhase() != phase) {
+            throw new IllegalArgumentException("Báo cáo QC thuộc giai đoạn " + report.getPhase() + " không thể cập nhật qua endpoint " + phase);
+        }
 
-        report.setPhase(request.getPhase());
-        report.setResult(request.getResult());
-        report.setFindings(request.getFindings());
+        validatePhaseAndResult(phase, result);
+
+        report.setPhase(phase);
+        report.setResult(result);
+        report.setFindings(findings);
         maybeUploadAccessorySnapshot(accessorySnapshot, report);
 
-        if (report.getResult() == QCResult.READY_FOR_SHIPPING) {
-            Map<Long, List<String>> serialNumbersByOrderDetail = request.getOrderDetailSerialNumbers();
-            List<Allocation> finalAllocations;
-            if (serialNumbersByOrderDetail != null) {
-                Map<OrderDetail, List<String>> resolved = resolveOrderDetails(report.getTask(), serialNumbersByOrderDetail);
-                if (resolved.isEmpty()) {
-                    throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation");
-                }
-                report.setRentalOrder(resolveRentalOrderFromDetails(resolved));
-                if (report.getTask() != null && report.getTask().getOrderId() != null) {
-                    bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
-                }
-                clearAllocations(report);
-                List<Allocation> allocations = createAllocations(report, resolved);
-                report.setAllocations(new ArrayList<>(allocations));
-                bookingCalendarService.createBookingsForAllocations(allocations);
-                finalAllocations = allocations;
-            } else if (report.getAllocations() == null || report.getAllocations().isEmpty()) {
-                throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị khi kết quả READY_FOR_SHIPPING");
-            } else {
-                finalAllocations = report.getAllocations();
-            }
-            if (request.getPhase() == QCPhase.PRE_RENTAL) {
-                createBaselineSnapshots(finalAllocations, request.getDeviceConditions(), currentStaff);
-            }
-            extendReservationHold(report.getTask(), finalAllocations, report.getResult());
+        if (phase == QCPhase.PRE_RENTAL) {
+            handlePreRentalUpdate(report, result, serialNumbersByOrderDetail, deviceConditions, currentStaff);
+        } else if (phase == QCPhase.POST_RENTAL) {
+            handlePostRentalUpdate(report, result);
         } else {
-            if (report.getTask() != null && report.getTask().getOrderId() != null) {
-                bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
-            }
-            clearAllocations(report);
+            return null;
+            // TODO: support other QC phases
         }
 
         QCReport updated = qcReportRepository.save(report);
         qcReportRepository.flush();
-        handleDiscrepancies(request.getDiscrepancies(), DiscrepancyCreatedFrom.QC_REPORT, updated.getQcReportId());
+        handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, updated.getQcReportId());
         notifyCustomer(updated);
-        return mapToResponseDto(updated);
+        QcReportDtoContext context = prepareQcReportDtoContext(updated);
+        return QCReportResponseDto.from(updated, context.allocations(), context.discrepancies());
+    }
+
+    private void handlePreRentalUpdate(QCReport report,
+                                       QCResult result,
+                                       Map<Long, List<String>> serialNumbersByOrderDetail,
+                                       List<QCDeviceConditionRequestDto> deviceConditions,
+                                       Staff currentStaff) {
+        if (result != QCResult.READY_FOR_SHIPPING) {
+            // TODO: handle PRE_RENTAL updates for other results
+            return;
+        }
+        List<Allocation> finalAllocations;
+        if (serialNumbersByOrderDetail != null) {
+            Map<OrderDetail, List<String>> resolved = resolveOrderDetails(report.getTask(), serialNumbersByOrderDetail);
+            if (resolved.isEmpty()) {
+                throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation");
+            }
+            report.setRentalOrder(resolveRentalOrderFromDetails(resolved));
+            if (report.getTask() != null && report.getTask().getOrderId() != null) {
+                bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
+            }
+            List<Allocation> allocations = createAllocations(report, resolved);
+            report.setAllocations(new ArrayList<>(allocations));
+            bookingCalendarService.createBookingsForAllocations(allocations);
+            finalAllocations = allocations;
+        } else if (report.getAllocations() == null || report.getAllocations().isEmpty()) {
+            throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị khi kết quả READY_FOR_SHIPPING");
+        } else {
+            finalAllocations = report.getAllocations();
+        }
+        createBaselineSnapshots(finalAllocations, deviceConditions, currentStaff);
+        extendReservationHold(report.getTask(), finalAllocations, report.getResult());
+    }
+
+    private void handlePostRentalUpdate(QCReport report, QCResult result) {
+        if (result == QCResult.READY_FOR_RE_STOCK) {
+            releaseDevicesWithoutDiscrepancies(report);
+            return;
+        }
+        // TODO: handle POST_RENTAL updates for other results
     }
 
     private void handleDiscrepancies(List<DiscrepancyInlineRequestDto> discrepancies,
@@ -356,6 +432,7 @@ public class QCReportServiceImpl implements QCReportService {
     }
 
     private record PostRentalQCNotification(Long taskId, Long orderId, String message) {}
+    private record QcReportDtoContext(List<Allocation> allocations, List<DiscrepancyReport> discrepancies) {}
 
     @Override
     @Transactional(readOnly = true)
@@ -380,7 +457,10 @@ public class QCReportServiceImpl implements QCReportService {
         }
 
         return qcReportRepository.findByTask_TaskIdIn(qcTaskIds).stream()
-                .map(this::mapToResponseDto)
+                .map(report -> {
+                    QcReportDtoContext context = prepareQcReportDtoContext(report);
+                    return QCReportResponseDto.from(report, context.allocations(), context.discrepancies());
+                })
                 .collect(Collectors.toList());
     }
 
@@ -423,6 +503,35 @@ public class QCReportServiceImpl implements QCReportService {
 
         devicesToUpdate.forEach(device -> device.setStatus(DeviceStatus.POST_RENTAL_QC));
         deviceRepository.saveAll(devicesToUpdate);
+        deviceRepository.flush();
+    }
+
+    private void releaseDevicesWithoutDiscrepancies(QCReport report) {
+        Long orderId = resolveOrderId(report, report.getAllocations());
+        if (orderId == null) {
+            return;
+        }
+        Set<Long> discrepancyDeviceIds = discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId).stream()
+                .map(DiscrepancyReport::getAllocation)
+                .filter(Objects::nonNull)
+                .map(Allocation::getDevice)
+                .filter(Objects::nonNull)
+                .map(Device::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (CollectionUtils.isEmpty(report.getAllocations())) {
+            return;
+        }
+        List<Device> devicesToRelease = report.getAllocations().stream()
+                .map(Allocation::getDevice)
+                .filter(Objects::nonNull)
+                .filter(device -> device.getDeviceId() != null && !discrepancyDeviceIds.contains(device.getDeviceId()))
+                .peek(device -> device.setStatus(DeviceStatus.AVAILABLE))
+                .collect(Collectors.toList());
+        if (devicesToRelease.isEmpty()) {
+            return;
+        }
+        deviceRepository.saveAll(devicesToRelease);
         deviceRepository.flush();
     }
 
@@ -471,6 +580,16 @@ public class QCReportServiceImpl implements QCReportService {
                     staff);
             return;
         }
+        Set<Long> conditionDefinitionIds = deviceConditions.stream()
+                .filter(Objects::nonNull)
+                .map(QCDeviceConditionRequestDto::getConditionDefinitionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, ConditionDefinition> conditionDefinitionsById = conditionDefinitionIds.isEmpty()
+                ? Collections.emptyMap()
+                : conditionDefinitionRepository.findAllById(conditionDefinitionIds).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(ConditionDefinition::getConditionDefinitionId, Function.identity()));
         List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
         conditionsByDeviceId.forEach((deviceId, conditions) -> {
             Allocation allocation = allocationsByDeviceId.get(deviceId);
@@ -483,6 +602,7 @@ public class QCReportServiceImpl implements QCReportService {
                 if (condition == null || condition.getConditionDefinitionId() == null) {
                     continue;
                 }
+                ConditionDefinition conditionDefinition = conditionDefinitionsById.get(condition.getConditionDefinitionId());
                 List<String> images = CollectionUtils.isEmpty(condition.getImages())
                         ? new ArrayList<>()
                         : new ArrayList<>(condition.getImages());
@@ -492,6 +612,7 @@ public class QCReportServiceImpl implements QCReportService {
                         .source(AllocationSnapshotSource.QC_BEFORE)
                         .conditionDetails(List.of(AllocationConditionDetail.builder()
                                 .conditionDefinitionId(condition.getConditionDefinitionId())
+                                .conditionDefinitionName(conditionDefinition != null ? conditionDefinition.getName() : null)
                                 .severity(condition.getSeverity())
                                 .build()))
                         .images(images)
@@ -629,36 +750,6 @@ public class QCReportServiceImpl implements QCReportService {
         return resolved;
     }
 
-    private void clearAllocations(QCReport report) {
-        Set<Device> devicesToRelease = new LinkedHashSet<>();
-        if (report.getQcReportId() != null) {
-            List<Allocation> existing = allocationRepository.findByQcReport_QcReportId(report.getQcReportId());
-            if (!existing.isEmpty()) {
-                existing.stream()
-                        .map(Allocation::getDevice)
-                        .filter(Objects::nonNull)
-                        .forEach(devicesToRelease::add);
-                allocationRepository.deleteAll(existing);
-            }
-        }
-
-        if (report.getAllocations() != null) {
-            report.getAllocations().stream()
-                    .map(Allocation::getDevice)
-                    .filter(Objects::nonNull)
-                    .forEach(devicesToRelease::add);
-            report.getAllocations().clear();
-        } else {
-            report.setAllocations(new ArrayList<>());
-        }
-
-        if (!devicesToRelease.isEmpty()) {
-            devicesToRelease.forEach(device -> device.setStatus(DeviceStatus.AVAILABLE));
-            deviceRepository.saveAll(devicesToRelease);
-            deviceRepository.flush();
-        }
-    }
-
     private void maybeUploadAccessorySnapshot(MultipartFile accessorySnapshot, QCReport report) {
         if (accessorySnapshot == null || accessorySnapshot.isEmpty()) {
             return;
@@ -706,58 +797,46 @@ public class QCReportServiceImpl implements QCReportService {
                 .anyMatch(assigned -> assigned != null && staff.getStaffId().equals(assigned.getStaffId()));
     }
 
-    private QCReportResponseDto mapToResponseDto(QCReport report) {
-        Task task = report.getTask();
-
+    private QcReportDtoContext prepareQcReportDtoContext(QCReport report) {
         List<Allocation> allocations = resolveAllocations(report);
-        OrderDetail orderDetail = allocations.stream()
-                .map(Allocation::getOrderDetail)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-
-        Long orderId = null;
-        if (orderDetail != null && orderDetail.getRentalOrder() != null) {
-            orderId = orderDetail.getRentalOrder().getOrderId();
-        } else if (report.getRentalOrder() != null) {
-            orderId = report.getRentalOrder().getOrderId();
-        } else if (task != null) {
-            orderId = task.getOrderId();
+        if (!CollectionUtils.isEmpty(allocations)) {
+            allocations.stream()
+                    .filter(Objects::nonNull)
+                    .forEach(this::ensureQcBaselineSnapshotsLoaded);
         }
-
-        List<com.rentaltech.techrental.device.model.dto.DeviceResponseDto> deviceDtos = allocations.stream()
-                .map(Allocation::getDevice)
-                .filter(Objects::nonNull)
-                .map(this::toDeviceDto)
-                .collect(Collectors.toList());
-        List<QCReportDeviceConditionResponseDto> conditionDtos = mapDeviceConditions(allocations);
-
-        return QCReportResponseDto.builder()
-                .qcReportId(report.getQcReportId())
-                .phase(report.getPhase())
-                .result(report.getResult())
-                .findings(report.getFindings())
-                .accessorySnapShotUrl(report.getAccessorySnapShotUrl())
-                .createdAt(report.getCreatedAt())
-                .createdBy(report.getCreatedBy())
-                .taskId(task != null ? task.getTaskId() : null)
-                .orderDetailId(orderDetail != null ? orderDetail.getOrderDetailId() : null)
-                .orderId(orderId)
-                .devices(deviceDtos)
-                .deviceConditions(conditionDtos)
-                .build();
+        Long orderId = resolveOrderId(report, allocations);
+        List<DiscrepancyReport> discrepancies = findOrderDiscrepancies(orderId);
+        return new QcReportDtoContext(allocations, discrepancies);
     }
 
-    private List<QCReportDeviceConditionResponseDto> mapDeviceConditions(List<Allocation> allocations) {
-        if (CollectionUtils.isEmpty(allocations)) {
+    private Long resolveOrderId(QCReport report, List<Allocation> allocations) {
+        if (!CollectionUtils.isEmpty(allocations)) {
+            Long orderId = allocations.stream()
+                    .map(Allocation::getOrderDetail)
+                    .filter(Objects::nonNull)
+                    .map(OrderDetail::getRentalOrder)
+                    .filter(Objects::nonNull)
+                    .map(RentalOrder::getOrderId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            if (orderId != null) {
+                return orderId;
+            }
+        }
+        RentalOrder rentalOrder = report.getRentalOrder();
+        if (rentalOrder != null && rentalOrder.getOrderId() != null) {
+            return rentalOrder.getOrderId();
+        }
+        Task task = report.getTask();
+        return task != null ? task.getOrderId() : null;
+    }
+
+    private List<DiscrepancyReport> findOrderDiscrepancies(Long orderId) {
+        if (orderId == null) {
             return List.of();
         }
-        return allocations.stream()
-                .filter(Objects::nonNull)
-                .peek(this::ensureQcBaselineSnapshotsLoaded)
-                .map(QCReportDeviceConditionResponseDto::fromAllocation)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        return discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId);
     }
 
     private RentalOrder resolveRentalOrderFromDetails(Map<OrderDetail, List<String>> resolvedDetails) {
@@ -786,18 +865,6 @@ public class QCReportServiceImpl implements QCReportService {
         return report.getAllocations() != null ? report.getAllocations() : List.of();
     }
 
-    private com.rentaltech.techrental.device.model.dto.DeviceResponseDto toDeviceDto(Device device) {
-        if (device == null) {
-            return null;
-        }
-        return com.rentaltech.techrental.device.model.dto.DeviceResponseDto.builder()
-                .deviceId(device.getDeviceId())
-                .serialNumber(device.getSerialNumber())
-                .acquireAt(device.getAcquireAt())
-                .status(device.getStatus())
-                .deviceModelId(device.getDeviceModel() != null ? device.getDeviceModel().getDeviceModelId() : null)
-                .build();
-    }
 
     private void ensureQcBaselineSnapshotsLoaded(Allocation allocation) {
         if (allocation == null) {
@@ -828,6 +895,7 @@ public class QCReportServiceImpl implements QCReportService {
                 snapshot != null && snapshot.getSource() == AllocationSnapshotSource.QC_BEFORE);
         allocation.getBaselineSnapshots().addAll(snapshots);
     }
+
 
     private void extendReservationHold(Task task, List<Allocation> allocations, QCResult result) {
         if (result != QCResult.READY_FOR_SHIPPING) {

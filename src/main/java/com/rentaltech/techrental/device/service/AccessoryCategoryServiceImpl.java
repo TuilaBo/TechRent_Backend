@@ -23,7 +23,7 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     @Override
     public AccessoryCategoryResponseDto create(AccessoryCategoryRequestDto request) {
         AccessoryCategory entity = mapToEntity(request);
-        return mapToDto(repository.save(entity));
+        return AccessoryCategoryResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -31,13 +31,13 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     public AccessoryCategoryResponseDto findById(Long id) {
         AccessoryCategory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy danh mục phụ kiện: " + id));
-        return mapToDto(entity);
+        return AccessoryCategoryResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<AccessoryCategoryResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(AccessoryCategoryResponseDto::from).toList();
     }
 
     @Override
@@ -45,7 +45,7 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
         AccessoryCategory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy danh mục phụ kiện: " + id));
         applyUpdates(entity, request);
-        return mapToDto(repository.save(entity));
+        return AccessoryCategoryResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -72,12 +72,4 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
         repository.save(entity);
     }
 
-    private AccessoryCategoryResponseDto mapToDto(AccessoryCategory entity) {
-        return AccessoryCategoryResponseDto.builder()
-                .accessoryCategoryId(entity.getAccessoryCategoryId())
-                .accessoryCategoryName(entity.getAccessoryCategoryName())
-                .description(entity.getDescription())
-                .isActive(entity.isActive())
-                .build();
-    }
 }

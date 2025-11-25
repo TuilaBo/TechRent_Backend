@@ -1,6 +1,8 @@
 package com.rentaltech.techrental.rentalorder.service;
 
+import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
+import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
@@ -67,6 +69,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final StaffService staffService;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final DeviceAllocationQueryService deviceAllocationQueryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -88,7 +91,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         Specification<RentalOrder> spec = buildSpecification(orderStatus, effectiveCustomerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo);
         return rentalOrderRepository.findAll(spec, pageable).map(rentalOrder -> {
             List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(rentalOrder.getOrderId());
-            return mapToDto(rentalOrder, details);
+            List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(rentalOrder.getOrderId());
+            return RentalOrderResponseDto.from(rentalOrder, details, allocatedDevices);
         });
     }
 
@@ -142,8 +146,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             notifyOperatorsOrderAndTaskCreated(saved);
         }
 
-
-        return mapToDto(saved, persistedDetails);
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
+        return RentalOrderResponseDto.from(saved, persistedDetails, allocatedDevices);
     }
 
     @Override
@@ -168,7 +172,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             }
         }
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
-        return mapToDto(order, details);
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
+        return RentalOrderResponseDto.from(order, details, allocatedDevices);
     }
 
     @Override
@@ -189,7 +194,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         List<RentalOrderResponseDto> result = new ArrayList<>(orders.size());
         for (RentalOrder order : orders) {
             List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
-            result.add(mapToDto(order, details));
+            List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
+            result.add(RentalOrderResponseDto.from(order, details, allocatedDevices));
         }
         return result;
     }
@@ -242,7 +248,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
         }
         // Create allocations for updated order details
-        return mapToDto(saved, newDetails);
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
+        return RentalOrderResponseDto.from(saved, newDetails, allocatedDevices);
     }
 
     @Override
@@ -293,7 +300,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         notifyOperatorsTaskCreated(savedTask, order);
 
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
-        return mapToDto(order, details);
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
+        return RentalOrderResponseDto.from(order, details, allocatedDevices);
     }
 
     @Override
@@ -531,38 +539,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             details.add(detail);
         }
         return new Computed(details, totalPerDay, totalDeposit);
-    }
-
-    private RentalOrderResponseDto mapToDto(RentalOrder order, List<OrderDetail> details) {
-        List<OrderDetailResponseDto> detailDtos = new ArrayList<>();
-        if (details != null) {
-            for (OrderDetail d : details) {
-                detailDtos.add(OrderDetailResponseDto.builder()
-                        .orderDetailId(d.getOrderDetailId())
-                        .quantity(d.getQuantity())
-                        .pricePerDay(d.getPricePerDay())
-                        .depositAmountPerUnit(d.getDepositAmountPerUnit())
-                        .deviceModelId(d.getDeviceModel() != null ? d.getDeviceModel().getDeviceModelId() : null)
-                        .build());
-            }
-        }
-
-        return RentalOrderResponseDto.builder()
-                .orderId(order.getOrderId())
-                .startDate(order.getStartDate())
-                .endDate(order.getEndDate())
-                .shippingAddress(order.getShippingAddress())
-                .orderStatus(order.getOrderStatus())
-                .depositAmount(order.getDepositAmount())
-                .depositAmountHeld(order.getDepositAmountHeld())
-                .depositAmountUsed(order.getDepositAmountUsed())
-                .depositAmountRefunded(order.getDepositAmountRefunded())
-                .totalPrice(order.getTotalPrice())
-                .pricePerDay(order.getPricePerDay())
-                .createdAt(order.getCreatedAt())
-                .customerId(order.getCustomer() != null ? order.getCustomer().getCustomerId() : null)
-                .orderDetails(detailDtos)
-                .build();
     }
 
     private record Computed(List<OrderDetail> details, BigDecimal totalPerDay, BigDecimal totalDeposit) {}

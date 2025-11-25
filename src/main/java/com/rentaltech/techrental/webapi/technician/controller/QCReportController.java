@@ -2,8 +2,9 @@ package com.rentaltech.techrental.webapi.technician.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalCreateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalCreateRequestDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportUpdateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalUpdateRequestDto;
 import com.rentaltech.techrental.webapi.technician.service.QCReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -70,17 +71,34 @@ public class QCReportController {
         );
     }
 
-    @PutMapping(value = "/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "/pre-rental/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Update QC report", description = "Cập nhật kết quả báo cáo QC")
-    public ResponseEntity<?> updateReport(@PathVariable Long reportId,
-                                          @RequestPart("request") @Valid QCReportUpdateRequestDto request,
-                                          @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
-                                          Authentication authentication) {
+    @Operation(summary = "Update PRE-RENTAL QC report", description = "Payload tương tự tạo mới PRE_RENTAL")
+    public ResponseEntity<?> updatePreRentalReport(@PathVariable Long reportId,
+                                                   @RequestPart("request") @Valid QCReportPreRentalUpdateRequestDto request,
+                                                   @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
+                                                   Authentication authentication) {
         String username = authentication.getName();
-        var response = qcReportService.updateReport(reportId, request, accessorySnapshot, username);
+        var response = qcReportService.updatePreRentalReport(reportId, request, accessorySnapshot, username);
         return ResponseUtil.createSuccessResponse(
-                "Cập nhật báo cáo QC thành công!",
+                "Cập nhật báo cáo QC PRE_RENTAL thành công!",
+                "Báo cáo QC đã được cập nhật",
+                response,
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping(value = "/post-rental/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Update POST-RENTAL QC report", description = "Payload tương tự tạo mới POST_RENTAL")
+    public ResponseEntity<?> updatePostRentalReport(@PathVariable Long reportId,
+                                                    @RequestPart("request") @Valid QCReportPostRentalUpdateRequestDto request,
+                                                    @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
+                                                    Authentication authentication) {
+        String username = authentication.getName();
+        var response = qcReportService.updatePostRentalReport(reportId, request, accessorySnapshot, username);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật báo cáo QC POST_RENTAL thành công!",
                 "Báo cáo QC đã được cập nhật",
                 response,
                 HttpStatus.OK

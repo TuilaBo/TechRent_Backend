@@ -33,24 +33,12 @@ public class WebSocketChatController {
                         .build();
 
         ChatMessage message = chatService.sendMessage(createDto);
-        ChatMessageResponseDto response = mapToResponseDto(message);
+        ChatMessageResponseDto response = ChatMessageResponseDto.from(message);
 
         // Gửi đến conversation cụ thể để cả customer và staff đều nhận được
         messagingTemplate.convertAndSend("/topic/conversation/" + payload.getConversationId(), response);
     }
 
-    private ChatMessageResponseDto mapToResponseDto(ChatMessage message) {
-        return ChatMessageResponseDto.builder()
-                .messageId(message.getMessageId())
-                .conversationId(message.getConversation() != null ? message.getConversation().getConversationId() : null)
-                .senderType(message.getSenderType())
-                .senderId(message.getSenderId())
-                .content(message.getContent())
-                .isRead(message.getIsRead())
-                .readAt(message.getReadAt())
-                .sentAt(message.getSentAt())
-                .build();
-    }
 
     @lombok.Data
     @lombok.Builder

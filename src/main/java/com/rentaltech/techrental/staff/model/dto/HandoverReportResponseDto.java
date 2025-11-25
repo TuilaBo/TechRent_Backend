@@ -1,5 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.staff.model.HandoverReport;
 import com.rentaltech.techrental.staff.model.HandoverReportStatus;
 import com.rentaltech.techrental.staff.model.HandoverType;
@@ -10,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Data
@@ -36,9 +39,9 @@ public class HandoverReportResponseDto {
     private HandoverType handoverType;
     private List<HandoverReportStaffDto> deliveryStaff;
     private List<HandoverReportItemResponseDto> items;
-    private List<HandoverReportStaffDto> technicians;
     private List<HandoverDeviceConditionResponseDto> deviceConditions;
     private HandoverReportStaffDto createdByStaff;
+    private List<DiscrepancyReportResponseDto> discrepancies;
 
     public static HandoverReportResponseDto fromEntity(HandoverReport report) {
         if (report == null) {
@@ -72,16 +75,25 @@ public class HandoverReportResponseDto {
                         report.getItems().stream()
                                 .map(HandoverReportItemResponseDto::fromEntity)
                                 .collect(Collectors.toList()))
-                .technicians(report.getTask() == null || report.getTask().getAssignedStaff() == null
-                        ? List.of()
-                        : report.getTask().getAssignedStaff().stream()
-                                .map(HandoverReportStaffDto::fromEntity)
-                                .collect(Collectors.toList()))
                 .deviceConditions(HandoverDeviceConditionResponseDto.fromReport(report))
                 .createdByStaff(report.getCreatedByStaff() != null
                         ? HandoverReportStaffDto.fromEntity(report.getCreatedByStaff())
                         : null)
+                .discrepancies(List.of())
                 .build();
+    }
+
+    public static HandoverReportResponseDto fromEntity(HandoverReport report,
+                                                       List<DiscrepancyReport> discrepancies) {
+        HandoverReportResponseDto dto = fromEntity(report);
+        List<DiscrepancyReportResponseDto> discrepancyDtos = discrepancies == null
+                ? List.of()
+                : discrepancies.stream()
+                .filter(Objects::nonNull)
+                .map(DiscrepancyReportResponseDto::from)
+                .collect(Collectors.toList());
+        dto.setDiscrepancies(discrepancyDtos);
+        return dto;
     }
 }
 

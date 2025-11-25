@@ -47,7 +47,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        NotificationResponseDto dto = toDto(saved);
+        NotificationResponseDto dto = NotificationResponseDto.from(saved);
 
         // WebSocket broadcast
         messagingTemplate.convertAndSend(String.format(TOPIC_TEMPLATE, accountId), dto);
@@ -66,19 +66,7 @@ public class NotificationServiceImpl implements NotificationService {
     public List<NotificationResponseDto> getNotificationsForAccount(Long accountId) {
         return notificationRepository.findByAccount_AccountIdOrderByCreatedAtDesc(accountId)
                 .stream()
-                .map(this::toDto)
+                .map(NotificationResponseDto::from)
                 .collect(Collectors.toList());
-    }
-
-    private NotificationResponseDto toDto(Notification notification) {
-        return NotificationResponseDto.builder()
-                .notificationId(notification.getNotificationId())
-                .accountId(notification.getAccount().getAccountId())
-                .title(notification.getTitle())
-                .message(notification.getMessage())
-                .type(notification.getType())
-                .read(Boolean.TRUE.equals(notification.getRead()))
-                .createdAt(notification.getCreatedAt())
-                .build();
     }
 }
