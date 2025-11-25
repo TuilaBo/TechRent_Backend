@@ -26,7 +26,7 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     @Override
     public DeviceCategoryResponseDto create(DeviceCategoryRequestDto request) {
         DeviceCategory entity = mapToEntity(request);
-        return mapToDto(repository.save(entity));
+        return DeviceCategoryResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -34,20 +34,20 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     public DeviceCategoryResponseDto findById(Long id) {
         DeviceCategory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + id));
-        return mapToDto(entity);
+        return DeviceCategoryResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceCategoryResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(DeviceCategoryResponseDto::from).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<DeviceCategoryResponseDto> search(String deviceCategoryName, Boolean isActive, Pageable pageable) {
         Specification<DeviceCategory> spec = buildSpecification(deviceCategoryName, isActive);
-        return repository.findAll(spec, pageable).map(this::mapToDto);
+        return repository.findAll(spec, pageable).map(DeviceCategoryResponseDto::from);
     }
 
     @Override
@@ -55,7 +55,7 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
         DeviceCategory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceCategory: " + id));
         applyUpdates(entity, request);
-        return mapToDto(repository.save(entity));
+        return DeviceCategoryResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -81,14 +81,6 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
         repository.save(entity);
     }
 
-    private DeviceCategoryResponseDto mapToDto(DeviceCategory entity) {
-        return DeviceCategoryResponseDto.builder()
-                .deviceCategoryId(entity.getDeviceCategoryId())
-                .deviceCategoryName(entity.getDeviceCategoryName())
-                .description(entity.getDescription())
-                .isActive(entity.isActive())
-                .build();
-    }
 
     private Specification<DeviceCategory> buildSpecification(String deviceCategoryName, Boolean isActive) {
         return (root, query, cb) -> {

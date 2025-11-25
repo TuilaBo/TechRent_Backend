@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.staff.model.Settlement;
 import com.rentaltech.techrental.staff.model.SettlementState;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,5 +24,23 @@ public class SettlementResponseDto {
     private BigDecimal finalReturnAmount;
     private SettlementState state;
     private LocalDateTime issuedAt;
+
+    public static SettlementResponseDto from(Settlement settlement) {
+        if (settlement == null) {
+            return null;
+        }
+        var order = settlement.getRentalOrder();
+        return SettlementResponseDto.builder()
+                .settlementId(settlement.getSettlementId())
+                .orderId(order != null ? order.getOrderId() : null)
+                .totalDeposit(settlement.getTotalDeposit())
+                .damageFee(settlement.getDamageFee())
+                .lateFee(settlement.getLateFee())
+                .accessoryFee(settlement.getAccessoryFee())
+                .finalReturnAmount(settlement.getFinalReturnAmount())
+                .state(settlement.getState())
+                .issuedAt(settlement.getIssuedAt())
+                .build();
+    }
 }
 

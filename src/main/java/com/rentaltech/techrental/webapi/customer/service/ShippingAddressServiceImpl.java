@@ -49,7 +49,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
                 .customer(customer)
                 .build();
         ShippingAddress saved = repository.save(entity);
-        return mapToDto(saved);
+        return ShippingAddressResponseDto.from(saved);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         ShippingAddress entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy địa chỉ giao hàng: " + id));
         enforceOwnershipForCustomer(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null);
-        return mapToDto(entity);
+        return ShippingAddressResponseDto.from(entity);
     }
 
     @Override
@@ -71,9 +71,11 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
             var username = auth.getName();
             var customerOpt = customerRepository.findByAccount_Username(username);
             Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
-            return repository.findByCustomer_CustomerId(requesterCustomerId).stream().map(this::mapToDto).toList();
+            return repository.findByCustomer_CustomerId(requesterCustomerId).stream()
+                    .map(ShippingAddressResponseDto::from)
+                    .toList();
         }
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(ShippingAddressResponseDto::from).toList();
     }
 
     @Override
@@ -94,7 +96,7 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         }
 
         ShippingAddress saved = repository.save(existing);
-        return mapToDto(saved);
+        return ShippingAddressResponseDto.from(saved);
     }
 
     @Override
@@ -122,14 +124,5 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         }
     }
 
-    private ShippingAddressResponseDto mapToDto(ShippingAddress entity) {
-        return ShippingAddressResponseDto.builder()
-                .shippingAddressId(entity.getShippingAddressId())
-                .address(entity.getAddress())
-                .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
-    }
 }
 

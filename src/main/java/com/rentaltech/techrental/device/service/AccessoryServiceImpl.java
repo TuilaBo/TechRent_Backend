@@ -35,7 +35,7 @@ public class AccessoryServiceImpl implements AccessoryService {
     public AccessoryResponseDto create(AccessoryRequestDto request) {
         Accessory entity = mapToEntity(request);
         Accessory saved = repository.save(entity);
-        return mapToDto(saved);
+        return AccessoryResponseDto.from(saved);
     }
 
     @Override
@@ -43,13 +43,13 @@ public class AccessoryServiceImpl implements AccessoryService {
     public AccessoryResponseDto findById(Long id) {
         Accessory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy phụ kiện: " + id));
-        return mapToDto(entity);
+        return AccessoryResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<AccessoryResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(AccessoryResponseDto::from).toList();
     }
 
     @Override
@@ -57,7 +57,7 @@ public class AccessoryServiceImpl implements AccessoryService {
         Accessory entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy phụ kiện: " + id));
         applyUpdates(entity, request);
-        return mapToDto(repository.save(entity));
+        return AccessoryResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -116,15 +116,4 @@ public class AccessoryServiceImpl implements AccessoryService {
         repository.save(entity);
     }
 
-    private AccessoryResponseDto mapToDto(Accessory entity) {
-        return AccessoryResponseDto.builder()
-                .accessoryId(entity.getAccessoryId())
-                .accessoryName(entity.getAccessoryName())
-                .description(entity.getDescription())
-                .imageUrl(entity.getImageUrl())
-                .isActive(entity.isActive())
-                .accessoryCategoryId(entity.getAccessoryCategory() != null ? entity.getAccessoryCategory().getAccessoryCategoryId() : null)
-                .deviceModelId(entity.getDeviceModel() != null ? entity.getDeviceModel().getDeviceModelId() : null)
-                .build();
-    }
 }

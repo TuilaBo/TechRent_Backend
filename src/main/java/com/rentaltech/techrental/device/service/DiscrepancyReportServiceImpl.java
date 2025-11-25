@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +39,7 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
                 .staffNote(request.getStaffNote())
                 .customerNote(request.getCustomerNote())
                 .build();
-        return mapToDto(discrepancyReportRepository.save(entity));
+        return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
 
     @Override
@@ -56,7 +55,7 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
         entity.setPenaltyAmount(resolvePenalty(condition));
         entity.setStaffNote(request.getStaffNote());
         entity.setCustomerNote(request.getCustomerNote());
-        return mapToDto(discrepancyReportRepository.save(entity));
+        return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
 
     @Override
@@ -64,7 +63,7 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
     public DiscrepancyReportResponseDto getById(Long id) {
         DiscrepancyReport entity = discrepancyReportRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy discrepancy report: " + id));
-        return mapToDto(entity);
+        return DiscrepancyReportResponseDto.from(entity);
     }
 
     @Override
@@ -72,7 +71,7 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
     public List<DiscrepancyReportResponseDto> getByReference(DiscrepancyCreatedFrom createdFrom, Long refId) {
         return discrepancyReportRepository.findByCreatedFromAndRefIdOrderByCreatedAtDesc(createdFrom, refId)
                 .stream()
-                .map(this::mapToDto)
+                .map(DiscrepancyReportResponseDto::from)
                 .toList();
     }
 
@@ -80,7 +79,7 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
     @Transactional(readOnly = true)
     public List<DiscrepancyReportResponseDto> getAll() {
         return discrepancyReportRepository.findAll().stream()
-                .map(this::mapToDto)
+                .map(DiscrepancyReportResponseDto::from)
                 .toList();
     }
 
@@ -108,20 +107,4 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
         return conditionDefinition.getDefaultCompensation();
     }
 
-    private DiscrepancyReportResponseDto mapToDto(DiscrepancyReport entity) {
-        ConditionDefinition definition = entity.getConditionDefinition();
-        return DiscrepancyReportResponseDto.builder()
-                .discrepancyReportId(entity.getDiscrepancyReportId())
-                .createdFrom(entity.getCreatedFrom())
-                .refId(entity.getRefId())
-                .discrepancyType(entity.getDiscrepancyType())
-                .conditionDefinitionId(Optional.ofNullable(definition).map(ConditionDefinition::getConditionDefinitionId).orElse(null))
-                .conditionName(Optional.ofNullable(definition).map(ConditionDefinition::getName).orElse(null))
-                .allocationId(Optional.ofNullable(entity.getAllocation()).map(Allocation::getAllocationId).orElse(null))
-                .penaltyAmount(entity.getPenaltyAmount())
-                .staffNote(entity.getStaffNote())
-                .customerNote(entity.getCustomerNote())
-                .createdAt(entity.getCreatedAt())
-                .build();
-    }
 }

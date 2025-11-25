@@ -26,7 +26,7 @@ public class BrandServiceImpl implements BrandService {
     @Override
     public BrandResponseDto create(BrandRequestDto request) {
         Brand entity = mapToEntity(request);
-        return mapToDto(repository.save(entity));
+        return BrandResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -34,20 +34,20 @@ public class BrandServiceImpl implements BrandService {
     public BrandResponseDto findById(Long id) {
         Brand entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + id));
-        return mapToDto(entity);
+        return BrandResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<BrandResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(BrandResponseDto::from).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<BrandResponseDto> search(String brandName, Boolean isActive, Pageable pageable) {
         Specification<Brand> spec = buildSpecification(brandName, isActive);
-        return repository.findAll(spec, pageable).map(this::mapToDto);
+        return repository.findAll(spec, pageable).map(BrandResponseDto::from);
     }
 
     @Override
@@ -55,7 +55,7 @@ public class BrandServiceImpl implements BrandService {
         Brand entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thương hiệu: " + id));
         applyUpdates(entity, request);
-        return mapToDto(repository.save(entity));
+        return BrandResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -81,14 +81,6 @@ public class BrandServiceImpl implements BrandService {
         repository.save(entity);
     }
 
-    private BrandResponseDto mapToDto(Brand entity) {
-        return BrandResponseDto.builder()
-                .brandId(entity.getBrandId())
-                .brandName(entity.getBrandName())
-                .description(entity.getDescription())
-                .isActive(entity.isActive())
-                .build();
-    }
 
     private Specification<Brand> buildSpecification(String brandName, Boolean isActive) {
         return (root, query, cb) -> {

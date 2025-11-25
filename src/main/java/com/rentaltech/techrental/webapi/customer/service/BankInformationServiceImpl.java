@@ -53,7 +53,7 @@ public class BankInformationServiceImpl implements BankInformationService {
                 .customer(customer)
                 .build();
         BankInformation saved = repository.save(entity);
-        return mapToDto(saved);
+        return BankInformationResponseDto.from(saved);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class BankInformationServiceImpl implements BankInformationService {
         BankInformation entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thông tin ngân hàng: " + id));
         enforceOwnershipForCustomer(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null);
-        return mapToDto(entity);
+        return BankInformationResponseDto.from(entity);
     }
 
     @Override
@@ -75,9 +75,11 @@ public class BankInformationServiceImpl implements BankInformationService {
             var username = auth.getName();
             var customerOpt = customerRepository.findByAccount_Username(username);
             Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
-            return repository.findByCustomer_CustomerId(requesterCustomerId).stream().map(this::mapToDto).toList();
+            return repository.findByCustomer_CustomerId(requesterCustomerId).stream()
+                    .map(BankInformationResponseDto::from)
+                    .toList();
         }
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(BankInformationResponseDto::from).toList();
     }
 
     @Override
@@ -106,7 +108,7 @@ public class BankInformationServiceImpl implements BankInformationService {
         }
 
         BankInformation saved = repository.save(existing);
-        return mapToDto(saved);
+        return BankInformationResponseDto.from(saved);
     }
 
     @Override
@@ -134,16 +136,5 @@ public class BankInformationServiceImpl implements BankInformationService {
         }
     }
 
-    private BankInformationResponseDto mapToDto(BankInformation entity) {
-        return BankInformationResponseDto.builder()
-                .bankInformationId(entity.getBankInformationId())
-                .bankName(entity.getBankName())
-                .bankHolder(entity.getBankHolder())
-                .cardNumber(entity.getCardNumber())
-                .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
-    }
 }
 

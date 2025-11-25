@@ -37,7 +37,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     public DeviceModelResponseDto create(DeviceModelRequestDto request, MultipartFile imageFile) {
         DeviceModel entity = mapToEntity(request);
         maybeUploadDeviceModelImage(imageFile, request, entity);
-        return mapToDto(repository.save(entity));
+        return DeviceModelResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -45,13 +45,13 @@ public class DeviceModelServiceImpl implements DeviceModelService {
     public DeviceModelResponseDto findById(Long id) {
         DeviceModel entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + id));
-        return mapToDto(entity);
+        return DeviceModelResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceModelResponseDto> findAll() {
-        return repository.findAll().stream().map(this::mapToDto).toList();
+        return repository.findAll().stream().map(DeviceModelResponseDto::from).toList();
     }
 
     @Override
@@ -64,7 +64,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                                                Boolean isActive,
                                                Pageable pageable) {
         Specification<DeviceModel> spec = buildSpecification(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive);
-        return repository.findAll(spec, pageable).map(this::mapToDto);
+        return repository.findAll(spec, pageable).map(DeviceModelResponseDto::from);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + id));
         applyUpdates(entity, request);
         maybeUploadDeviceModelImage(imageFile, request, entity);
-        return mapToDto(repository.save(entity));
+        return DeviceModelResponseDto.from(repository.save(entity));
     }
 
     @Override
@@ -134,22 +134,6 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         entity.setDepositPercent(request.getDepositPercent());
     }
 
-    private DeviceModelResponseDto mapToDto(DeviceModel entity) {
-        return DeviceModelResponseDto.builder()
-                .deviceModelId(entity.getDeviceModelId())
-                .deviceName(entity.getDeviceName())
-                .description(entity.getDescription())
-                .amountAvailable(entity.getAmountAvailable())
-                .brandId(entity.getBrand() != null ? entity.getBrand().getBrandId() : null)
-                .imageURL(entity.getImageURL())
-                .specifications(entity.getSpecifications())
-                .isActive(entity.isActive())
-                .deviceCategoryId(entity.getDeviceCategory() != null ? entity.getDeviceCategory().getDeviceCategoryId() : null)
-                .deviceValue(entity.getDeviceValue())
-                .pricePerDay(entity.getPricePerDay())
-                .depositPercent(entity.getDepositPercent())
-                .build();
-    }
 
     private void maybeUploadDeviceModelImage(MultipartFile imageFile, DeviceModelRequestDto request, DeviceModel entity) {
         if (imageFile == null || imageFile.isEmpty()) {

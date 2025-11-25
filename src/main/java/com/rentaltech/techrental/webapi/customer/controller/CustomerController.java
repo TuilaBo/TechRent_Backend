@@ -46,7 +46,7 @@ public class CustomerController {
     public ResponseEntity<?> getAllCustomers() {
         List<Customer> customers = customerService.getAllCustomers();
         List<CustomerResponseDto> responseDtos = customers.stream()
-                .map(this::mapToResponseDto)
+                .map(CustomerResponseDto::from)
                 .toList();
         return ResponseUtil.createSuccessResponse(
                 "Lấy danh sách khách hàng thành công",
@@ -68,7 +68,7 @@ public class CustomerController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy thông tin khách hàng thành công",
                 "Chi tiết khách hàng",
-                mapToResponseDto(customer),
+                CustomerResponseDto.from(customer),
                 HttpStatus.OK
         );
     }
@@ -89,7 +89,7 @@ public class CustomerController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy thông tin hồ sơ thành công",
                 "Hồ sơ khách hàng hiện tại",
-                mapToResponseDto(customer),
+                CustomerResponseDto.from(customer),
                 HttpStatus.OK
         );
     }
@@ -112,7 +112,7 @@ public class CustomerController {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật hồ sơ thành công",
                 "Thông tin hồ sơ đã được cập nhật",
-                mapToResponseDto(customer),
+                CustomerResponseDto.from(customer),
                 HttpStatus.OK
         );
     }
@@ -131,7 +131,7 @@ public class CustomerController {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật khách hàng thành công",
                 "Thông tin khách hàng đã được cập nhật",
-                mapToResponseDto(customer),
+                CustomerResponseDto.from(customer),
                 HttpStatus.OK
         );
     }
@@ -171,46 +171,6 @@ public class CustomerController {
                 "Token FCM đã được cập nhật",
                 HttpStatus.OK
         );
-    }
-
-    private CustomerResponseDto mapToResponseDto(Customer customer) {
-        return CustomerResponseDto.builder()
-                .customerId(customer.getCustomerId())
-                .accountId(customer.getAccount().getAccountId())
-                .username(customer.getAccount().getUsername())
-                .email(customer.getEmail())
-                .phoneNumber(customer.getPhoneNumber())
-                .fullName(customer.getFullName())
-                .kycStatus(customer.getKycStatus())
-                .shippingAddressDtos(customer.getShippingAddresses().stream().map(
-                        entity -> {
-                            return ShippingAddressResponseDto.builder()
-                                    .shippingAddressId(entity.getShippingAddressId())
-                                    .address(entity.getAddress())
-                                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
-                                    .createdAt(entity.getCreatedAt())
-                                    .updatedAt(entity.getUpdatedAt())
-                                    .build();
-                        }).toList()
-
-                )
-                .bankInformationDtos(customer.getBankInformations().stream().map(
-                        entity -> {
-                            return BankInformationResponseDto.builder()
-                                    .bankInformationId(entity.getBankInformationId())
-                                    .bankName(entity.getBankName())
-                                    .bankHolder(entity.getBankHolder())
-                                    .cardNumber(entity.getCardNumber())
-                                    .customerId(entity.getCustomer() != null ? entity.getCustomer().getCustomerId() : null)
-                                    .createdAt(entity.getCreatedAt())
-                                    .updatedAt(entity.getUpdatedAt())
-                                    .build();
-                        }).toList()
-                )
-                .status(customer.getStatus())
-                .createdAt(customer.getCreatedAt())
-                .updatedAt(customer.getUpdatedAt())
-                .build();
     }
 
     // ========== KYC Endpoints ==========

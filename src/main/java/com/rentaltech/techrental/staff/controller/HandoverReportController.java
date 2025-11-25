@@ -66,6 +66,44 @@ public class HandoverReportController {
         );
     }
 
+    @PutMapping(value = "/checkout/{handoverReportId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật biên bản CHECKOUT", description = "Payload giống tạo mới cho CHECKOUT")
+    public ResponseEntity<?> updateCheckoutReport(
+            @PathVariable Long handoverReportId,
+            @Valid @RequestBody HandoverReportUpdateOutRequestDto request,
+            @AuthenticationPrincipal UserDetails principal) {
+        String username = principal.getUsername();
+        HandoverReportResponseDto responseDto =
+                handoverReportService.updateCheckoutReport(handoverReportId, request, username);
+
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật biên bản CHECKOUT thành công",
+                "Biên bản bàn giao đã được cập nhật",
+                responseDto,
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping(value = "/checkin/{handoverReportId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật biên bản CHECKIN", description = "Payload giống tạo mới cho CHECKIN")
+    public ResponseEntity<?> updateCheckinReport(
+            @PathVariable Long handoverReportId,
+            @Valid @RequestBody HandoverReportUpdateInRequestDto request,
+            @AuthenticationPrincipal UserDetails principal) {
+        String username = principal.getUsername();
+        HandoverReportResponseDto responseDto =
+                handoverReportService.updateCheckinReport(handoverReportId, request, username);
+
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật biên bản CHECKIN thành công",
+                "Biên bản bàn giao đã được cập nhật",
+                responseDto,
+                HttpStatus.OK
+        );
+    }
+
     @PostMapping("/orders/{orderId}/pin")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Gửi PIN cho khách theo đơn hàng", description = "Gửi mã PIN xác nhận cho khách qua SMS/Email dựa trên đơn hàng")
@@ -74,6 +112,25 @@ public class HandoverReportController {
         return ResponseUtil.createSuccessResponse(
                 "Gửi PIN thành công",
                 "Khách hàng sẽ nhận PIN qua SMS/Email nếu khả dụng",
+                responseDto,
+                HttpStatus.OK
+        );
+    }
+
+    @PostMapping(value = "/{handoverReportId}/devices/{deviceId}/evidences", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật bằng chứng thiết bị", description = "Tải lên danh sách ảnh cho thiết bị trong biên bản bàn giao")
+    public ResponseEntity<?> updateDeviceEvidence(
+            @PathVariable Long handoverReportId,
+            @PathVariable Long deviceId,
+            @RequestPart("files") List<MultipartFile> files,
+            @AuthenticationPrincipal UserDetails principal) {
+        String username = principal.getUsername();
+        HandoverReportItemResponseDto responseDto =
+                handoverReportService.updateEvidenceByDevice(handoverReportId, deviceId, files, username);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật bằng chứng thiết bị thành công",
+                "Danh sách hình ảnh cho thiết bị đã được cập nhật",
                 responseDto,
                 HttpStatus.OK
         );
@@ -172,4 +229,3 @@ public class HandoverReportController {
         );
     }
 }
-
