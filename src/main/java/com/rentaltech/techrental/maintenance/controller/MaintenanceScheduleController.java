@@ -92,6 +92,18 @@ public class MaintenanceScheduleController {
         );
     }
 
+    @GetMapping("/active")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    public ResponseEntity<?> getActiveMaintenanceSchedules() {
+        List<MaintenanceSchedule> data = maintenanceScheduleService.getActiveMaintenanceSchedules();
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách thiết bị đang bảo trì",
+                "Có " + data.size() + " thiết bị đang bảo trì",
+                data,
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Danh sách lịch bảo trì theo thiết bị", description = "Lấy lịch bảo trì của một thiết bị cụ thể")

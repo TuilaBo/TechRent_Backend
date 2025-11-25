@@ -23,3 +23,4 @@ public class PriorityMaintenanceDeviceDto {
     private Long maintenanceScheduleId;
 }
 
+
