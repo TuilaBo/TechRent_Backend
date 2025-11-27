@@ -13,6 +13,7 @@ public interface DeviceModelService {
     DeviceModelResponseDto create(DeviceModelRequestDto request, MultipartFile imageFile);
     DeviceModelResponseDto findById(Long id);
     List<DeviceModelResponseDto> findAll();
+    List<DeviceModelResponseDto> findByDeviceCategory(Long deviceCategoryId);
     Page<DeviceModelResponseDto> search(String deviceName,
                                         Long brandId,
                                         Long amountAvailable,

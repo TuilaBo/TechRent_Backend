@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface DeviceModelRepository extends JpaRepository<DeviceModel, Long>, JpaSpecificationExecutor<DeviceModel> {
+    java.util.List<DeviceModel> findByDeviceCategory_DeviceCategoryId(Long deviceCategoryId);
 }

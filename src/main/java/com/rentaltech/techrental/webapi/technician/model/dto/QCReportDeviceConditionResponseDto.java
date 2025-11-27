@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 @Data
 @Builder
 public class QCReportDeviceConditionResponseDto {
-    private Long allocationId;
     private Long deviceId;
     private String deviceSerial;
     private List<DeviceConditionSnapshotDto> snapshots;
@@ -26,7 +25,6 @@ public class QCReportDeviceConditionResponseDto {
         }
         Device device = allocation.getDevice();
         return QCReportDeviceConditionResponseDto.builder()
-                .allocationId(allocation.getAllocationId())
                 .deviceId(device != null ? device.getDeviceId() : null)
                 .deviceSerial(device != null ? device.getSerialNumber() : null)
                 .snapshots(CollectionUtils.isEmpty(allocation.getBaselineSnapshots()) ? List.of()

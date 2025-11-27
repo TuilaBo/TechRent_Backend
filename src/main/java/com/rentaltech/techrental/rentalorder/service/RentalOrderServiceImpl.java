@@ -1,9 +1,17 @@
 package com.rentaltech.techrental.rentalorder.service;
 
+import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
+import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
+import com.rentaltech.techrental.device.model.AllocationSnapshotType;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
-import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
+import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
+import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
+import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
@@ -18,14 +26,15 @@ import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
-import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
-import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportDeviceConditionResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +79,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final DeviceAllocationQueryService deviceAllocationQueryService;
+    private final AllocationRepository allocationRepository;
+    private final AllocationConditionSnapshotRepository allocationConditionSnapshotRepository;
+    private final DiscrepancyReportRepository discrepancyReportRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -92,7 +104,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         return rentalOrderRepository.findAll(spec, pageable).map(rentalOrder -> {
             List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(rentalOrder.getOrderId());
             List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(rentalOrder.getOrderId());
-            return RentalOrderResponseDto.from(rentalOrder, details, allocatedDevices);
+            List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(rentalOrder.getOrderId());
+            List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(rentalOrder.getOrderId());
+            return RentalOrderResponseDto.from(rentalOrder, details, allocatedDevices, discrepancies, deviceConditions);
         });
     }
 
@@ -147,7 +161,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
 
         List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
-        return RentalOrderResponseDto.from(saved, persistedDetails, allocatedDevices);
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
+        return RentalOrderResponseDto.from(saved, persistedDetails, allocatedDevices, discrepancies, deviceConditions);
     }
 
     @Override
@@ -173,7 +189,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
         List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-        return RentalOrderResponseDto.from(order, details, allocatedDevices);
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
+        return RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions);
     }
 
     @Override
@@ -195,7 +213,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         for (RentalOrder order : orders) {
             List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
             List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-            result.add(RentalOrderResponseDto.from(order, details, allocatedDevices));
+            List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
+            List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
+            result.add(RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions));
         }
         return result;
     }
@@ -249,7 +269,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
         // Create allocations for updated order details
         List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
-        return RentalOrderResponseDto.from(saved, newDetails, allocatedDevices);
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
+        return RentalOrderResponseDto.from(saved, newDetails, allocatedDevices, discrepancies, deviceConditions);
     }
 
     @Override
@@ -301,7 +323,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
         List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-        return RentalOrderResponseDto.from(order, details, allocatedDevices);
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
+        return RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions);
     }
 
     @Override
@@ -312,6 +336,58 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         reservationService.cancelReservations(id);
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
+    }
+
+    private List<DiscrepancyReport> loadOrderDiscrepancies(Long orderId) {
+        if (orderId == null) {
+            return List.of();
+        }
+        return discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId);
+    }
+
+    private List<QCReportDeviceConditionResponseDto> loadDeviceConditions(Long orderId) {
+        if (orderId == null) {
+            return List.of();
+        }
+        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId);
+        if (allocations == null || allocations.isEmpty()) {
+            return List.of();
+        }
+        allocations.forEach(this::ensureQcBaselineSnapshotsLoaded);
+        return allocations.stream()
+                .map(QCReportDeviceConditionResponseDto::fromAllocation)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private void ensureQcBaselineSnapshotsLoaded(Allocation allocation) {
+        if (allocation == null) {
+            return;
+        }
+        boolean hasQcSnapshots = allocation.getBaselineSnapshots() != null
+                && allocation.getBaselineSnapshots().stream()
+                .anyMatch(snapshot -> snapshot != null && snapshot.getSource() == AllocationSnapshotSource.QC_BEFORE);
+        if (hasQcSnapshots) {
+            return;
+        }
+        Long allocationId = allocation.getAllocationId();
+        if (allocationId == null) {
+            return;
+        }
+        List<AllocationConditionSnapshot> snapshots = allocationConditionSnapshotRepository
+                .findByAllocation_AllocationIdAndSnapshotType(allocationId, AllocationSnapshotType.BASELINE)
+                .stream()
+                .filter(snapshot -> snapshot.getSource() == AllocationSnapshotSource.QC_BEFORE)
+                .toList();
+        if (snapshots.isEmpty()) {
+            return;
+        }
+        if (allocation.getBaselineSnapshots() == null) {
+            allocation.setBaselineSnapshots(new ArrayList<>());
+        }
+        allocation.getBaselineSnapshots().removeIf(snapshot ->
+                snapshot != null && snapshot.getSource() == AllocationSnapshotSource.QC_BEFORE);
+        allocation.getBaselineSnapshots().addAll(snapshots);
     }
 
     private void notifyOperatorsOrderAndTaskCreated(RentalOrder order) {

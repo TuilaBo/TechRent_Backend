@@ -56,6 +56,21 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<DeviceModelResponseDto> findByDeviceCategory(Long deviceCategoryId) {
+        if (deviceCategoryId == null) {
+            throw new IllegalArgumentException("Cần cung cấp deviceCategoryId");
+        }
+        if (!deviceCategoryRepository.existsById(deviceCategoryId)) {
+            throw new NoSuchElementException("Không tìm thấy DeviceCategory: " + deviceCategoryId);
+        }
+        return repository.findByDeviceCategory_DeviceCategoryId(deviceCategoryId)
+                .stream()
+                .map(DeviceModelResponseDto::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<DeviceModelResponseDto> search(String deviceName,
                                                Long brandId,
                                                Long amountAvailable,
