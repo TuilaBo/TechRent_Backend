@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.maintenance.model.dto;
 
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -29,7 +30,7 @@ public class MaintenanceScheduleByCategoryRequestDto {
     @Positive(message = "Số ngày bảo trì phải lớn hơn 0")
     private Integer durationDays;
 
-    private String status;
+    private MaintenanceScheduleStatus status;
 }
 
 

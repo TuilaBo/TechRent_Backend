@@ -10,6 +10,8 @@ public interface ImageStorageService {
     String uploadQcAccessorySnapshot(MultipartFile file, Long taskId);
 
     String uploadHandoverEvidence(MultipartFile file, Long taskId, String label);
+
+    String uploadMaintenanceEvidence(MultipartFile file, Long maintenanceScheduleId, String label);
 }
 
 

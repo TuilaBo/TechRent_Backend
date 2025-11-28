@@ -8,6 +8,7 @@ import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import com.rentaltech.techrental.maintenance.model.dto.*;
 import com.rentaltech.techrental.maintenance.repository.MaintenancePlanRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleCustomRepository;
@@ -15,16 +16,24 @@ import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepos
 import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,12 +48,13 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     private final DeviceRepository deviceRepository;
     private final DeviceCategoryRepository deviceCategoryRepository;
     private final BookingCalendarRepository bookingCalendarRepository;
+    private final ImageStorageService imageStorageService;
 
     private static final long RENTAL_CONFLICT_LOOKAHEAD_DAYS = 14L;
 
     @Override
     @Transactional
-    public MaintenanceSchedule createSchedule(Long deviceId, Long maintenancePlanId, LocalDate startDate, LocalDate endDate, String status) {
+    public MaintenanceSchedule createSchedule(Long deviceId, Long maintenancePlanId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status) {
         Device device = deviceRepository.findById(deviceId).orElseThrow();
 
         MaintenancePlan plan = null;
@@ -52,20 +62,20 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             plan = planRepository.findById(maintenancePlanId).orElseThrow();
         }
 
-        String scheduleStatus = status != null ? status : "SCHEDULED";
+        MaintenanceScheduleStatus scheduleStatus = status != null ? status : MaintenanceScheduleStatus.SCHEDULED;
         MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                 .device(device)
                 .maintenancePlan(plan)
                 .startDate(startDate)
                 .endDate(endDate)
-                .status(scheduleStatus)
+                .status(scheduleStatus.name())
                 .createdAt(LocalDateTime.now())
                 .build();
         MaintenanceSchedule saved = scheduleRepository.save(schedule);
 
         // Update device status if maintenance is starting now or in progress
         if (startDate != null && (startDate.isBefore(LocalDate.now()) || startDate.isEqual(LocalDate.now()))) {
-            if ("IN_PROGRESS".equalsIgnoreCase(scheduleStatus) || "STARTED".equalsIgnoreCase(scheduleStatus)) {
+            if (scheduleStatus == MaintenanceScheduleStatus.IN_PROGRESS || scheduleStatus == MaintenanceScheduleStatus.STARTED) {
                 device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                 deviceRepository.save(device);
             }
@@ -81,32 +91,35 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
     @Override
     @Transactional
-    public MaintenanceSchedule updateStatus(Long maintenanceScheduleId, String status) {
+    public MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls) {
         MaintenanceSchedule schedule = scheduleRepository.findById(maintenanceScheduleId).orElseThrow();
-        Device device = schedule.getDevice();
-        schedule.setStatus(status);
-        MaintenanceSchedule saved = scheduleRepository.save(schedule);
+        return applyStatusAndEvidence(schedule, status, evidenceUrls, false);
+    }
 
-        // Update device status based on maintenance schedule status
-        if (device != null) {
-            if ("IN_PROGRESS".equalsIgnoreCase(status) || "STARTED".equalsIgnoreCase(status)) {
-                // Start maintenance - set device to UNDER_MAINTENANCE
-                device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
-                deviceRepository.save(device);
-            } else if ("COMPLETED".equalsIgnoreCase(status) || "FINISHED".equalsIgnoreCase(status)) {
-                // Maintenance completed - set device back to AVAILABLE
-                device.setStatus(DeviceStatus.AVAILABLE);
-                deviceRepository.save(device);
-            } else if ("CANCELLED".equalsIgnoreCase(status) || "CANCELED".equalsIgnoreCase(status)) {
-                // Maintenance cancelled - restore device to previous status if it was UNDER_MAINTENANCE
-                if (device.getStatus() == DeviceStatus.UNDER_MAINTENANCE) {
-                    device.setStatus(DeviceStatus.AVAILABLE);
-                    deviceRepository.save(device);
+    @Override
+    @Transactional
+    public MaintenanceSchedule updateStatusWithUploads(Long maintenanceScheduleId,
+                                                       MaintenanceScheduleStatus status,
+                                                       List<String> evidenceUrls,
+                                                       List<MultipartFile> files) {
+        MaintenanceSchedule schedule = scheduleRepository.findById(maintenanceScheduleId).orElseThrow();
+        List<String> combined = new ArrayList<>();
+        if (evidenceUrls != null) {
+            combined.addAll(evidenceUrls);
+        }
+        if (!CollectionUtils.isEmpty(files)) {
+            int sequence = 1;
+            for (MultipartFile file : files) {
+                if (file == null || file.isEmpty()) {
+                    continue;
                 }
+                String label = String.format("schedule-%d-evidence-%d", maintenanceScheduleId, sequence++);
+                String url = imageStorageService.uploadMaintenanceEvidence(file, maintenanceScheduleId, label);
+                combined.add(url);
             }
         }
-
-        return saved;
+        List<String> finalEvidence = combined.isEmpty() ? evidenceUrls : combined;
+        return applyStatusAndEvidence(schedule, status, finalEvidence, true);
     }
 
     @Override
@@ -132,7 +145,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
         List<MaintenanceSchedule> schedules = new ArrayList<>();
         LocalDate today = LocalDate.now();
-        String scheduleStatus = request.getStatus() != null ? request.getStatus() : "SCHEDULED";
+        MaintenanceScheduleStatus scheduleStatus = request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.SCHEDULED;
         
         for (Device device : devices) {
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
@@ -140,7 +153,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                     .maintenancePlan(null)
                     .startDate(request.getStartDate())
                     .endDate(endDate)
-                    .status(scheduleStatus)
+                    .status(scheduleStatus.name())
                     .createdAt(LocalDateTime.now())
                     .build();
             MaintenanceSchedule saved = scheduleRepository.save(schedule);
@@ -149,7 +162,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             // Update device status if maintenance starts today or earlier
             if (request.getStartDate() != null && 
                 (request.getStartDate().isBefore(today) || request.getStartDate().isEqual(today))) {
-                if ("IN_PROGRESS".equalsIgnoreCase(scheduleStatus) || "STARTED".equalsIgnoreCase(scheduleStatus)) {
+                if (scheduleStatus == MaintenanceScheduleStatus.IN_PROGRESS || scheduleStatus == MaintenanceScheduleStatus.STARTED) {
                     device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                     deviceRepository.save(device);
                 }
@@ -162,14 +175,36 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     @Override
     @Transactional
     public List<MaintenanceSchedule> createSchedulesByUsage(MaintenanceScheduleByUsageRequestDto request) {
-        List<Device> devices = deviceRepository.findAll().stream()
-                .filter(device -> device.getUsageCount() != null
-                        && device.getUsageCount() >= request.getUsageCount())
+        if (request.getUsageDays() == null || request.getUsageDays() <= 0) {
+            throw new IllegalArgumentException("usageDays phải lớn hơn 0");
+        }
+        EnumSet<BookingStatus> countedStatuses = EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE, BookingStatus.COMPLETED);
+        Map<Long, Long> usageDaysByDevice = bookingCalendarRepository.findAll().stream()
+                .filter(booking -> booking.getDevice() != null
+                        && booking.getDevice().getDeviceId() != null
+                        && booking.getStartTime() != null
+                        && booking.getEndTime() != null
+                        && countedStatuses.contains(booking.getStatus()))
+                .collect(Collectors.groupingBy(
+                        booking -> booking.getDevice().getDeviceId(),
+                        Collectors.summingLong(booking -> {
+                            long days = ChronoUnit.DAYS.between(
+                                    booking.getStartTime().toLocalDate(),
+                                    booking.getEndTime().toLocalDate());
+                            return Math.max(days, 1L);
+                        })
+                ));
+
+        List<Long> deviceIds = usageDaysByDevice.entrySet().stream()
+                .filter(entry -> entry.getValue() >= request.getUsageDays())
+                .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
 
-        if (devices.isEmpty()) {
-            throw new IllegalArgumentException("No devices found with usage count >= " + request.getUsageCount());
+        if (deviceIds.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy thiết bị nào có tổng số ngày thuê >= " + request.getUsageDays());
         }
+
+        List<Device> devices = deviceRepository.findAllById(deviceIds);
 
         LocalDate endDate = request.getEndDate();
         if (request.getDurationDays() != null && request.getDurationDays() > 0) {
@@ -183,61 +218,13 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                     .maintenancePlan(null)
                     .startDate(request.getStartDate())
                     .endDate(endDate)
-                    .status(request.getStatus() != null ? request.getStatus() : "SCHEDULED")
+                    .status((request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.SCHEDULED).name())
                     .createdAt(LocalDateTime.now())
                     .build();
             schedules.add(scheduleRepository.save(schedule));
         }
 
         return schedules;
-    }
-
-    @Override
-    @Transactional
-    public List<MaintenanceConflictResponseDto> checkConflicts(MaintenanceConflictCheckRequestDto request) {
-        List<MaintenanceConflictResponseDto> conflicts = new ArrayList<>();
-
-        // Use criteria API to find all conflicting schedules at once
-        List<MaintenanceSchedule> overlappingSchedules = scheduleCustomRepository.findConflictingSchedules(
-                request.getDeviceIds(),
-                request.getStartDate(),
-                request.getEndDate()
-        );
-
-        // Group by device
-        var schedulesByDevice = overlappingSchedules.stream()
-                .collect(Collectors.groupingBy(schedule -> schedule.getDevice().getDeviceId()));
-
-        for (Long deviceId : request.getDeviceIds()) {
-            Device device = deviceRepository.findById(deviceId)
-                    .orElseThrow(() -> new IllegalArgumentException("Device not found: " + deviceId));
-
-            List<MaintenanceSchedule> deviceSchedules = schedulesByDevice.getOrDefault(deviceId, List.of());
-
-            if (!deviceSchedules.isEmpty()) {
-                List<MaintenanceConflictResponseDto.ConflictInfo> conflictInfos = deviceSchedules.stream()
-                        .map(schedule -> MaintenanceConflictResponseDto.ConflictInfo.builder()
-                                .scheduleId(schedule.getMaintenanceScheduleId())
-                                .scheduleStartDate(schedule.getStartDate())
-                                .scheduleEndDate(schedule.getEndDate())
-                                .scheduleStatus(schedule.getStatus())
-                                .build())
-                        .collect(Collectors.toList());
-
-                DeviceModel model = device.getDeviceModel();
-                String modelName = model != null ? model.getDeviceName() : null;
-                
-                MaintenanceConflictResponseDto conflict = MaintenanceConflictResponseDto.builder()
-                        .deviceId(device.getDeviceId())
-                        .deviceSerialNumber(device.getSerialNumber())
-                        .deviceModelName(modelName)
-                        .conflicts(conflictInfos)
-                        .build();
-                conflicts.add(conflict);
-            }
-        }
-
-        return conflicts;
     }
 
     @Override
@@ -315,6 +302,62 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         return scheduleCustomRepository.findActiveMaintenanceSchedules();
     }
 
+    @Override
+    @Transactional
+    public Page<MaintenanceSchedule> listByDateRange(LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("startDate và endDate không được để trống");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate phải lớn hơn hoặc bằng startDate");
+        }
+        return scheduleRepository.findByStartDateBetween(startDate, endDate, pageable);
+    }
+
+    private MaintenanceSchedule applyStatusAndEvidence(MaintenanceSchedule schedule,
+                                                       MaintenanceScheduleStatus status,
+                                                       List<String> evidenceUrls,
+                                                       boolean appendEvidence) {
+        Device device = schedule.getDevice();
+        MaintenanceScheduleStatus effectiveStatus = status != null ? status : parseStatus(schedule.getStatus());
+        if (status != null) {
+            schedule.setStatus(status.name());
+        }
+        if (evidenceUrls != null) {
+            List<String> sanitized = evidenceUrls.stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .collect(Collectors.toList());
+            List<String> target = schedule.getEvidenceUrls();
+            if (target == null) {
+                target = new ArrayList<>();
+                schedule.setEvidenceUrls(target);
+            }
+            if (!appendEvidence) {
+                target.clear();
+            }
+            target.addAll(sanitized);
+        }
+        MaintenanceSchedule saved = scheduleRepository.save(schedule);
+
+        if (device != null && effectiveStatus != null) {
+            if (effectiveStatus == MaintenanceScheduleStatus.IN_PROGRESS || effectiveStatus == MaintenanceScheduleStatus.STARTED) {
+                device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
+                deviceRepository.save(device);
+            } else if (effectiveStatus == MaintenanceScheduleStatus.COMPLETED || effectiveStatus == MaintenanceScheduleStatus.FINISHED) {
+                device.setStatus(DeviceStatus.AVAILABLE);
+                deviceRepository.save(device);
+            } else if (effectiveStatus == MaintenanceScheduleStatus.CANCELLED || effectiveStatus == MaintenanceScheduleStatus.CANCELED) {
+                if (device.getStatus() == DeviceStatus.UNDER_MAINTENANCE) {
+                    device.setStatus(DeviceStatus.AVAILABLE);
+                    deviceRepository.save(device);
+                }
+            }
+        }
+
+        return saved;
+    }
+
     private PriorityMaintenanceDeviceDto buildPriorityDeviceDto(Device device,
                                                                 MaintenanceSchedule schedule,
                                                                 String reason,
@@ -356,6 +399,17 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         }
 
         return builder.build();
+    }
+
+    private MaintenanceScheduleStatus parseStatus(String statusValue) {
+        if (!StringUtils.hasText(statusValue)) {
+            return null;
+        }
+        try {
+            return MaintenanceScheduleStatus.valueOf(statusValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private boolean hasRentalMaintenanceConflict(MaintenanceSchedule schedule, BookingCalendar booking) {

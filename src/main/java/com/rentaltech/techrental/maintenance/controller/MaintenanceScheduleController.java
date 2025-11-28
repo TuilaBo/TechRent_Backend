@@ -2,6 +2,7 @@ package com.rentaltech.techrental.maintenance.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import com.rentaltech.techrental.maintenance.model.dto.*;
 import com.rentaltech.techrental.maintenance.service.MaintenanceScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,11 +12,17 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.Locale;
 import java.util.List;
 
 @RestController
@@ -66,19 +73,6 @@ public class MaintenanceScheduleController {
         );
     }
 
-    @PostMapping("/check-conflicts")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Kiểm tra xung đột lịch bảo trì", description = "Xác định các thiết bị bị trùng lịch với đơn hàng hoặc bảo trì khác")
-    public ResponseEntity<?> checkConflicts(@RequestBody @Valid MaintenanceConflictCheckRequestDto request) {
-        List<MaintenanceConflictResponseDto> conflicts = maintenanceScheduleService.checkConflicts(request);
-        return ResponseUtil.createSuccessResponse(
-                conflicts.isEmpty() ? "Không có xung đột" : "Phát hiện xung đột lịch bảo trì",
-                conflicts.isEmpty() ? "Tất cả thiết bị đều sẵn sàng" : "Có " + conflicts.size() + " thiết bị bị xung đột",
-                conflicts,
-                HttpStatus.OK
-        );
-    }
-
     @GetMapping("/priority")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Danh sách thiết bị cần ưu tiên bảo trì", description = "Trả về các thiết bị có nhu cầu bảo trì gấp")
@@ -112,12 +106,53 @@ public class MaintenanceScheduleController {
         return ResponseUtil.createSuccessResponse("Danh sách lịch bảo trì", "Theo thiết bị", data, HttpStatus.OK);
     }
 
-    @PatchMapping("/{id}/status")
+    @GetMapping("/calendar")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Danh sách lịch bảo trì theo ngày/tháng", description = "Tra cứu lịch bảo trì theo phạm vi ngày hoặc tháng, hỗ trợ phân trang")
+    public ResponseEntity<?> listByCalendarScope(@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                 @RequestParam(value = "scope", defaultValue = "DAY") String scope,
+                                                 @RequestParam(value = "page", defaultValue = "0") int page,
+                                                 @RequestParam(value = "size", defaultValue = "20") int size) {
+        CalendarScope resolvedScope = CalendarScope.from(scope);
+        LocalDate start = resolvedScope == CalendarScope.DAY ? date : date.withDayOfMonth(1);
+        LocalDate end = resolvedScope == CalendarScope.DAY ? date : date.withDayOfMonth(date.lengthOfMonth());
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        Page<MaintenanceSchedule> schedules = maintenanceScheduleService.listByDateRange(
+                start,
+                end,
+                PageRequest.of(safePage, safeSize, Sort.by("startDate").ascending())
+        );
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách lịch bảo trì theo " + resolvedScope.name().toLowerCase(Locale.ROOT),
+                String.format("Khoảng thời gian %s -> %s", start, end),
+                schedules,
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping(value = "/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Cập nhật trạng thái lịch bảo trì", description = "Thay đổi trạng thái của một lịch bảo trì")
     public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, @RequestBody UpdateStatusRequest request) {
-        MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus());
+        MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus(), request.getEvidenceUrls());
         return ResponseUtil.createSuccessResponse("Cập nhật trạng thái lịch bảo trì", "Trạng thái đã được cập nhật", data, HttpStatus.OK);
+    }
+
+    @PatchMapping(value = "/{id}/status", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Cập nhật trạng thái kèm hình ảnh", description = "Cho phép tải trực tiếp ảnh bằng chứng từ thiết bị")
+    public ResponseEntity<?> updateStatusWithFiles(@PathVariable("id") Long id,
+                                                   @RequestPart("status") MaintenanceScheduleStatus status,
+                                                   @RequestPart(value = "evidenceUrls", required = false) List<String> evidenceUrls,
+                                                   @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+        MaintenanceSchedule data = maintenanceScheduleService.updateStatusWithUploads(id, status, evidenceUrls, files);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật trạng thái lịch bảo trì",
+                "Trạng thái và bằng chứng đã được cập nhật",
+                data,
+                HttpStatus.OK
+        );
     }
 
     @Data
@@ -128,12 +163,30 @@ public class MaintenanceScheduleController {
         private LocalDate startDate;
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         private LocalDate endDate;
-        private String status;
+        private MaintenanceScheduleStatus status;
     }
 
     @Data
     public static class UpdateStatusRequest {
-        private String status;
+        @jakarta.validation.constraints.NotNull
+        private MaintenanceScheduleStatus status;
+        private List<String> evidenceUrls;
+    }
+
+    private enum CalendarScope {
+        DAY,
+        MONTH;
+
+        static CalendarScope from(String value) {
+            if (value == null || value.isBlank()) {
+                return DAY;
+            }
+            try {
+                return CalendarScope.valueOf(value.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("scope chỉ chấp nhận DAY hoặc MONTH");
+            }
+        }
     }
 }
 

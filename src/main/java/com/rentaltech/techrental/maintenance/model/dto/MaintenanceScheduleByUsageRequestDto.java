@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.maintenance.model.dto;
 
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -17,7 +18,7 @@ import java.time.LocalDate;
 public class MaintenanceScheduleByUsageRequestDto {
     @NotNull(message = "Số lần sử dụng không được để trống")
     @Positive(message = "Số lần sử dụng phải lớn hơn 0")
-    private Integer usageCount;
+    private Integer usageDays;
 
     @NotNull(message = "Ngày bắt đầu không được để trống")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -30,7 +31,7 @@ public class MaintenanceScheduleByUsageRequestDto {
     @Positive(message = "Số ngày bảo trì phải lớn hơn 0")
     private Integer durationDays;
 
-    private String status;
+    private MaintenanceScheduleStatus status;
 }
 
 
