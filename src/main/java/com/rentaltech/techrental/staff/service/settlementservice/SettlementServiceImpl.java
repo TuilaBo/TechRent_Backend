@@ -68,18 +68,26 @@ public class SettlementServiceImpl implements SettlementService {
         if (orderId == null) {
             throw new IllegalArgumentException("orderId must not be null");
         }
+        RentalOrder order = rentalOrderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + orderId));
+        BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
+        BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
+        BigDecimal lateFee = BigDecimal.ZERO;
+        BigDecimal accessoryFee = BigDecimal.ZERO;
+        BigDecimal finalReturn = totalDeposit
+                .subtract(damageFee)
+                .subtract(lateFee)
+                .subtract(accessoryFee);
         return settlementRepository.findByRentalOrder_OrderId(orderId)
+                .map(existing -> {
+                    existing.setTotalDeposit(totalDeposit);
+                    existing.setDamageFee(damageFee);
+                    existing.setLateFee(lateFee);
+                    existing.setAccessoryFee(accessoryFee);
+                    existing.setFinalReturnAmount(finalReturn);
+                    return settlementRepository.save(existing);
+                })
                 .orElseGet(() -> {
-                    RentalOrder order = rentalOrderRepository.findById(orderId)
-                            .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + orderId));
-                    BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
-                    BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
-                    BigDecimal lateFee = BigDecimal.ZERO;
-                    BigDecimal accessoryFee = BigDecimal.ZERO;
-                    BigDecimal finalReturn = totalDeposit
-                            .subtract(damageFee)
-                            .subtract(lateFee)
-                            .subtract(accessoryFee);
                     SettlementCreateRequestDto request = SettlementCreateRequestDto.builder()
                             .orderId(orderId)
                             .totalDeposit(totalDeposit)

@@ -43,7 +43,7 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Tạo tác vụ thành công",
                 "Tác vụ đã được tạo",
-                mapToResponseDto(savedTask),
+                TaskResponseDto.from(savedTask),
                 HttpStatus.CREATED
         );
     }
@@ -63,7 +63,7 @@ public class TaskController {
         List<Task> tasks = taskService.getTasks(categoryId, orderId, assignedStaffId, status, username);
 
         List<TaskResponseDto> responseDtos = tasks.stream()
-                .map(this::mapToResponseDto)
+                .map(TaskResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseUtil.createSuccessResponse(
                 "Lấy danh sách tác vụ thành công",
@@ -87,7 +87,7 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy tác vụ thành công",
                 "Chi tiết tác vụ",
-                mapToResponseDto(task),
+                TaskResponseDto.from(task),
                 HttpStatus.OK
         );
     }
@@ -100,7 +100,7 @@ public class TaskController {
         List<Task> tasks = taskService.getTasksByOrder(orderId, username);
 
         List<TaskResponseDto> responseDtos = tasks.stream()
-                .map(this::mapToResponseDto)
+                .map(TaskResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseUtil.createSuccessResponse(
                 "Lấy danh sách tác vụ theo đơn hàng thành công",
@@ -125,7 +125,7 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật tác vụ thành công",
                 "Tác vụ đã được cập nhật",
-                mapToResponseDto(updatedTask),
+                TaskResponseDto.from(updatedTask),
                 HttpStatus.OK
         );
     }
@@ -149,7 +149,7 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Gán tác vụ thành công",
                 "Tác vụ đã được gán cho nhân viên",
-                mapToResponseDto(updatedTask),
+                TaskResponseDto.from(updatedTask),
                 HttpStatus.OK
         );
     }
@@ -185,7 +185,7 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Confirmed delivery",
                 "Task marked as IN_PROGRESS by assigned staff",
-                mapToResponseDto(updated),
+                TaskResponseDto.from(updated),
                 HttpStatus.OK
         );
     }
@@ -204,34 +204,9 @@ public class TaskController {
         return ResponseUtil.createSuccessResponse(
                 "Confirmed retrieval",
                 "Task marked as IN_PROGRESS by assigned staff",
-                mapToResponseDto(updated),
+                TaskResponseDto.from(updated),
                 HttpStatus.OK
         );
     }
 
-    private TaskResponseDto mapToResponseDto(Task task) {
-        List<TaskResponseDto.AssignedStaffSummary> assignedStaff = task.getAssignedStaff() == null
-                ? List.of()
-                : task.getAssignedStaff().stream()
-                .map(staff -> TaskResponseDto.AssignedStaffSummary.builder()
-                        .staffId(staff.getStaffId())
-                        .staffName(staff.getAccount() != null ? staff.getAccount().getUsername() : null)
-                        .staffRole(staff.getStaffRole() != null ? staff.getStaffRole().name() : null)
-                        .build())
-                .collect(Collectors.toList());
-
-        return TaskResponseDto.builder()
-                .taskId(task.getTaskId())
-                .taskCategoryId(task.getTaskCategory().getTaskCategoryId())
-                .taskCategoryName(task.getTaskCategory().getName())
-                .orderId(task.getOrderId())
-                .assignedStaff(assignedStaff)
-                .description(task.getDescription())
-                .plannedStart(task.getPlannedStart())
-                .plannedEnd(task.getPlannedEnd())
-                .status(task.getStatus())
-                .createdAt(task.getCreatedAt())
-                .completedAt(task.getCompletedAt())
-                .build();
-    }
 }

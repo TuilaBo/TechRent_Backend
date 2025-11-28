@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.device.model.dto;
 
+import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,4 +20,19 @@ public class DeviceResponseDto {
     private DeviceStatus status;
     private String shelfCode;
     private Long deviceModelId;
+
+    public static DeviceResponseDto from(Device entity) {
+        if (entity == null) {
+            return null;
+        }
+        var model = entity.getDeviceModel();
+        return DeviceResponseDto.builder()
+                .deviceId(entity.getDeviceId())
+                .serialNumber(entity.getSerialNumber())
+                .acquireAt(entity.getAcquireAt())
+                .status(entity.getStatus())
+                .shelfCode(null)
+                .deviceModelId(model != null ? model.getDeviceModelId() : null)
+                .build();
+    }
 }

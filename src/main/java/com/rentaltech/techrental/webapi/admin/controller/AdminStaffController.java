@@ -33,7 +33,7 @@ public class AdminStaffController {
     public ResponseEntity<StaffResponseDto> createStaffWithAccount(@RequestBody @Valid AdminStaffCreateWithAccountRequestDto request) {
         try {
             Staff savedStaff = staffService.createStaffWithAccount(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponseDto(savedStaff));
+            return ResponseEntity.status(HttpStatus.CREATED).body(StaffResponseDto.from(savedStaff));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
@@ -46,7 +46,7 @@ public class AdminStaffController {
     public ResponseEntity<List<StaffResponseDto>> getAllStaff() {
         List<Staff> staffList = staffService.getAllStaff();
         List<StaffResponseDto> responseDtos = staffList.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseDtos);
     }
@@ -56,7 +56,7 @@ public class AdminStaffController {
     @Operation(summary = "Get staff by ID", description = "Retrieve staff by ID")
     public ResponseEntity<StaffResponseDto> getStaffById(@PathVariable Long staffId) {
         return staffService.getStaffById(staffId)
-                .map(staff -> ResponseEntity.ok(mapToResponseDto(staff)))
+                .map(staff -> ResponseEntity.ok(StaffResponseDto.from(staff)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -65,7 +65,7 @@ public class AdminStaffController {
     @Operation(summary = "Get staff by account ID", description = "Retrieve staff by account ID")
     public ResponseEntity<StaffResponseDto> getStaffByAccountId(@PathVariable Long accountId) {
         return staffService.getStaffByAccountId(accountId)
-                .map(staff -> ResponseEntity.ok(mapToResponseDto(staff)))
+                .map(staff -> ResponseEntity.ok(StaffResponseDto.from(staff)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -75,7 +75,7 @@ public class AdminStaffController {
     public ResponseEntity<List<StaffResponseDto>> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseDtos);
     }
@@ -86,7 +86,7 @@ public class AdminStaffController {
     public ResponseEntity<List<StaffResponseDto>> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
         List<StaffResponseDto> responseDtos = activeStaff.stream()
-                .map(this::mapToResponseDto)
+                .map(StaffResponseDto::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseDtos);
     }
@@ -99,7 +99,7 @@ public class AdminStaffController {
                                                              @RequestParam Boolean isActive) {
         try {
             Staff updatedStaff = staffService.updateStaffStatus(staffId, isActive);
-            return ResponseEntity.ok(mapToResponseDto(updatedStaff));
+            return ResponseEntity.ok(StaffResponseDto.from(updatedStaff));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -113,7 +113,7 @@ public class AdminStaffController {
                                                            @RequestParam StaffRole staffRole) {
         try {
             Staff updatedStaff = staffService.updateStaffRole(staffId, staffRole);
-            return ResponseEntity.ok(mapToResponseDto(updatedStaff));
+            return ResponseEntity.ok(StaffResponseDto.from(updatedStaff));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -132,17 +132,4 @@ public class AdminStaffController {
         }
     }
 
-    private StaffResponseDto mapToResponseDto(Staff staff) {
-        return StaffResponseDto.builder()
-                .staffId(staff.getStaffId())
-                .accountId(staff.getAccount().getAccountId())
-                .username(staff.getAccount().getUsername())
-                .email(staff.getAccount().getEmail())
-                .phoneNumber(staff.getAccount().getPhoneNumber())
-                .staffRole(staff.getStaffRole())
-                .isActive(staff.getIsActive())
-                .createdAt(staff.getCreatedAt())
-                .updatedAt(staff.getUpdatedAt())
-                .build();
-    }
 }

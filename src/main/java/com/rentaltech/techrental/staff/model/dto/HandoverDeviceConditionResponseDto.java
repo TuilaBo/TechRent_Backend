@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 @Data
 @Builder
 public class HandoverDeviceConditionResponseDto {
-    private Long allocationId;
     private Long deviceId;
     private List<DeviceConditionSnapshotDto> baselineSnapshots;
     private List<DeviceConditionSnapshotDto> finalSnapshots;
@@ -24,7 +23,6 @@ public class HandoverDeviceConditionResponseDto {
                 .map(item -> item.getAllocation())
                 .filter(Objects::nonNull)
                 .map(allocation -> HandoverDeviceConditionResponseDto.builder()
-                        .allocationId(allocation.getAllocationId())
                         .deviceId(allocation.getDevice() != null ? allocation.getDevice().getDeviceId() : null)
                         .baselineSnapshots(allocation.getBaselineSnapshots() == null ? List.of()
                                 : allocation.getBaselineSnapshots().stream()

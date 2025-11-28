@@ -31,7 +31,7 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
                 .damage(request.isDamage())
                 .defaultCompensation(request.getDefaultCompensation())
                 .build();
-        return mapToDto(conditionDefinitionRepository.save(entity));
+        return ConditionDefinitionResponseDto.from(conditionDefinitionRepository.save(entity));
     }
 
     @Override
@@ -44,7 +44,7 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
         entity.setImpactRate(request.getImpactRate());
         entity.setDamage(request.isDamage());
         entity.setDefaultCompensation(request.getDefaultCompensation());
-        return mapToDto(conditionDefinitionRepository.save(entity));
+        return ConditionDefinitionResponseDto.from(conditionDefinitionRepository.save(entity));
     }
 
     @Override
@@ -52,14 +52,14 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
     public ConditionDefinitionResponseDto getById(Long id) {
         ConditionDefinition entity = conditionDefinitionRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + id));
-        return mapToDto(entity);
+        return ConditionDefinitionResponseDto.from(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ConditionDefinitionResponseDto> getAll() {
         return conditionDefinitionRepository.findAll().stream()
-                .map(this::mapToDto)
+                .map(ConditionDefinitionResponseDto::from)
                 .toList();
     }
 
@@ -67,7 +67,7 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
     @Transactional(readOnly = true)
     public List<ConditionDefinitionResponseDto> getByDeviceCategory(Long deviceCategoryId) {
         return conditionDefinitionRepository.findByDeviceCategory_DeviceCategoryId(deviceCategoryId).stream()
-                .map(this::mapToDto)
+                .map(ConditionDefinitionResponseDto::from)
                 .toList();
     }
 
@@ -87,17 +87,4 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy device category: " + deviceCategoryId));
     }
 
-    private ConditionDefinitionResponseDto mapToDto(ConditionDefinition entity) {
-        DeviceCategory category = entity.getDeviceCategory();
-        return ConditionDefinitionResponseDto.builder()
-                .conditionDefinitionId(entity.getConditionDefinitionId())
-                .name(entity.getName())
-                .deviceCategoryId(category != null ? category.getDeviceCategoryId() : null)
-                .deviceCategoryName(category != null ? category.getDeviceCategoryName() : null)
-                .description(entity.getDescription())
-                .impactRate(entity.getImpactRate())
-                .damage(entity.isDamage())
-                .defaultCompensation(entity.getDefaultCompensation())
-                .build();
-    }
 }

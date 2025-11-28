@@ -8,6 +8,8 @@ import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.dto.*;
 import com.rentaltech.techrental.contract.service.ContractService;
+import com.rentaltech.techrental.device.model.Device;
+import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +46,9 @@ public class ContractController {
     @Autowired
     private CustomerService customerService;
 
+    @Autowired
+    private DeviceAllocationQueryService deviceAllocationQueryService;
+
     // ========== HELPER METHODS ==========
     
     /**
@@ -79,10 +84,13 @@ public class ContractController {
     public ResponseEntity<?> getAllContracts() {
         try {
             List<Contract> contracts = contractService.getAllContracts();
+            List<ContractResponseDto> dtoList = contracts.stream()
+                    .map(this::mapToResponseDto)
+                    .toList();
             return ResponseUtil.createSuccessResponse(
                     "Lấy danh sách hợp đồng thành công",
                     "Danh sách tất cả hợp đồng trong hệ thống",
-                    contracts,
+                    dtoList,
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -103,7 +111,7 @@ public class ContractController {
                 return ResponseUtil.createSuccessResponse(
                         "Lấy thông tin hợp đồng thành công",
                         "Thông tin chi tiết hợp đồng",
-                        contract.get(),
+                        mapToResponseDto(contract.get()),
                         HttpStatus.OK
                 );
             } else {
@@ -147,7 +155,7 @@ public class ContractController {
             return ResponseUtil.createSuccessResponse(
                     "Tạo hợp đồng từ đơn thuê thành công!",
                     "Hợp đồng đã được tạo tự động từ thông tin đơn thuê",
-                    contract,
+                    mapToResponseDto(contract),
                     HttpStatus.CREATED
             );
         } catch (Exception e) {
@@ -173,7 +181,7 @@ public class ContractController {
             return ResponseUtil.createSuccessResponse(
                     "Cập nhật hợp đồng thành công!",
                     "Thông tin hợp đồng đã được cập nhật",
-                    contract,
+                    mapToResponseDto(contract),
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -203,7 +211,7 @@ public class ContractController {
             return ResponseUtil.createSuccessResponse(
                     "Gửi hợp đồng để ký thành công!",
                     "Hợp đồng đã được chuyển sang trạng thái chờ admin ký",
-                    contract,
+                    mapToResponseDto(contract),
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -233,7 +241,7 @@ public class ContractController {
             return ResponseUtil.createSuccessResponse(
                     "Cập nhật trạng thái hợp đồng thành công!",
                     "Trạng thái hợp đồng đã được cập nhật thành: " + status,
-                    contract,
+                    mapToResponseDto(contract),
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -446,7 +454,7 @@ public class ContractController {
             return ResponseUtil.createSuccessResponse(
                     "Hủy hợp đồng thành công!",
                     "Hợp đồng đã được hủy bỏ",
-                    contract,
+                    mapToResponseDto(contract),
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -468,10 +476,13 @@ public class ContractController {
     public ResponseEntity<?> getCustomerContracts(@PathVariable Long customerId) {
         try {
             List<Contract> contracts = contractService.getContractsByCustomerId(customerId);
+            List<ContractResponseDto> dtoList = contracts.stream()
+                    .map(this::mapToResponseDto)
+                    .toList();
             return ResponseUtil.createSuccessResponse(
                     "Lấy danh sách hợp đồng khách hàng thành công",
                     "Danh sách hợp đồng của khách hàng",
-                    contracts,
+                    dtoList,
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -494,11 +505,14 @@ public class ContractController {
             // Lấy customerId từ authenticated user
             Customer customer = getCustomerFromPrincipal(principal);
             List<Contract> contracts = contractService.getContractsByCustomerId(customer.getCustomerId());
+            List<ContractResponseDto> dtoList = contracts.stream()
+                    .map(this::mapToResponseDto)
+                    .toList();
             
             return ResponseUtil.createSuccessResponse(
                     "Lấy danh sách hợp đồng thành công",
                     "Danh sách hợp đồng của bạn",
-                    contracts,
+                    dtoList,
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -523,11 +537,14 @@ public class ContractController {
                     customer.getCustomerId(), 
                     ContractStatus.PENDING_SIGNATURE
             );
+            List<ContractResponseDto> dtoList = contracts.stream()
+                    .map(this::mapToResponseDto)
+                    .toList();
             
             return ResponseUtil.createSuccessResponse(
                     "Lấy danh sách hợp đồng chờ ký thành công",
                     "Các hợp đồng chờ bạn ký",
-                    contracts,
+                    dtoList,
                     HttpStatus.OK
             );
         } catch (Exception e) {
@@ -538,6 +555,14 @@ public class ContractController {
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
+    }
+
+    private ContractResponseDto mapToResponseDto(Contract contract) {
+        if (contract == null) {
+            return null;
+        }
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(contract.getOrderId());
+        return ContractResponseDto.from(contract, allocatedDevices);
     }
 
     /**

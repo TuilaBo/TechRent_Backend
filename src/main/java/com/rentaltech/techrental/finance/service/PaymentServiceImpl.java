@@ -103,20 +103,8 @@ public class PaymentServiceImpl implements PaymentService {
         Invoice invoice;
         if (paymentMethod == PaymentMethod.VNPAY) {
             String vnpayTransactionId = generateVnpayTransactionId();
-            invoice = Invoice.builder()
-                    .rentalOrder(rentalOrder)
-                    .invoiceType(invoiceType)
-                    .paymentMethod(paymentMethod)
-                    .paymentDate(null)
-                    .subTotal(expectedSubTotal)
-                    .taxAmount(taxAmount)
-                    .discountAmount(discountAmount)
-                    .totalAmount(totalAmount)
-                    .depositApplied(depositApplied)
-                    .dueDate(LocalDateTime.now().plusDays(3))
-                    .invoiceStatus(InvoiceStatus.PROCESSING)
-                    .pdfUrl(null)
-                    .issueDate(null)
+            invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
+                            taxAmount, discountAmount, depositApplied, totalAmount)
                     .vnpayTransactionId(vnpayTransactionId)
                     .frontendSuccessUrl(request.getFrontendSuccessUrl())
                     .frontendFailureUrl(request.getFrontendFailureUrl())
@@ -131,20 +119,8 @@ public class PaymentServiceImpl implements PaymentService {
                     .build();
         } else {
             long payosOrderCode = generateUniquePayosOrderCode();
-            invoice = Invoice.builder()
-                    .rentalOrder(rentalOrder)
-                    .invoiceType(invoiceType)
-                    .paymentMethod(paymentMethod)
-                    .paymentDate(null)
-                    .subTotal(expectedSubTotal)
-                    .taxAmount(taxAmount)
-                    .discountAmount(discountAmount)
-                    .totalAmount(totalAmount)
-                    .depositApplied(depositApplied)
-                    .dueDate(LocalDateTime.now().plusDays(3))
-                    .invoiceStatus(InvoiceStatus.PROCESSING)
-                    .pdfUrl(null)
-                    .issueDate(null)
+            invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
+                            taxAmount, discountAmount, depositApplied, totalAmount)
                     .payosOrderCode(payosOrderCode)
                     .build();
             invoice = invoiceRepository.save(invoice);
@@ -210,15 +186,8 @@ public class PaymentServiceImpl implements PaymentService {
             boolean transactionCreated = false;
             if (!transactionRepository.existsByInvoice(invoice)) {
                 BigDecimal transactionAmount = Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO);
-
-                Transaction transaction = Transaction.builder()
-                        .amount(transactionAmount)
-                        .transactionType(TrasactionType.TRANSACTION_IN)
-                        .invoice(invoice)
-                        .build();
-
-                transactionRepository.save(transaction);
-                transactionRepository.flush();
+                Transaction transaction = buildTransaction(transactionAmount, TrasactionType.TRANSACTION_IN, invoice, null);
+                transactionRepository.saveAndFlush(transaction);
                 transactionCreated = true;
             }
 
@@ -481,8 +450,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalStateException("Settlement chưa gắn với đơn thuê");
         }
 
-        BigDecimal subTotal = Optional.ofNullable(settlement.getFinalReturnAmount()).orElse(BigDecimal.ZERO);
-        BigDecimal depositApplied = Optional.ofNullable(settlement.getTotalDeposit()).orElse(BigDecimal.ZERO);
+        BigDecimal subTotal = defaultZero(settlement.getFinalReturnAmount());
+        BigDecimal depositApplied = defaultZero(settlement.getTotalDeposit());
 
         Invoice invoice = Invoice.builder()
                 .rentalOrder(order)
@@ -509,18 +478,33 @@ public class PaymentServiceImpl implements PaymentService {
         }
         settlementRepository.save(settlement);
 
-        Transaction transaction = Transaction.builder()
-                .amount(subTotal)
-                .transactionType(TrasactionType.TRANSACTION_OUT)
-                .invoice(savedInvoice)
-                .createdBy(username)
-                .build();
-        transactionRepository.save(transaction);
+        transactionRepository.save(buildTransaction(subTotal, TrasactionType.TRANSACTION_OUT, savedInvoice, username));
 
         notifyCustomerDepositRefund(order);
         notifyOperatorsDepositRefund(order.getOrderId(), savedInvoice.getInvoiceId());
+        createPostRentalQcTask(order);
 
         return InvoiceResponseDto.from(savedInvoice);
+    }
+
+    private void createPostRentalQcTask(RentalOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        Optional<TaskCategory> categoryOpt = taskCategoryRepository.findByNameIgnoreCase("Post rental QC");
+        if (categoryOpt.isEmpty()) {
+            log.warn("Không tìm thấy task category Post rental QC nên không thể tạo task");
+            return;
+        }
+        Task task = Task.builder()
+                .taskCategory(categoryOpt.get())
+                .orderId(order.getOrderId())
+                .description("QC sau thuê sau khi hoàn cọc")
+                .plannedStart(LocalDateTime.now())
+                .plannedEnd(LocalDateTime.now().plusHours(6))
+                .status(TaskStatus.PENDING)
+                .build();
+        taskRepository.save(task);
     }
 
     @Transactional
@@ -629,5 +613,42 @@ public class PaymentServiceImpl implements PaymentService {
         if (invoice.getRentalOrder() != null) {
             log.info("Order {} status: {}", invoice.getRentalOrder().getOrderId(), invoice.getRentalOrder().getOrderStatus());
         }
+    }
+
+    private Invoice.InvoiceBuilder processingInvoiceBuilder(RentalOrder rentalOrder,
+                                                            InvoiceType invoiceType,
+                                                            PaymentMethod paymentMethod,
+                                                            BigDecimal subTotal,
+                                                            BigDecimal taxAmount,
+                                                            BigDecimal discountAmount,
+                                                            BigDecimal depositApplied,
+                                                            BigDecimal totalAmount) {
+        return Invoice.builder()
+                .rentalOrder(rentalOrder)
+                .invoiceType(invoiceType)
+                .paymentMethod(paymentMethod)
+                .paymentDate(null)
+                .subTotal(subTotal)
+                .taxAmount(taxAmount)
+                .discountAmount(discountAmount)
+                .totalAmount(totalAmount)
+                .depositApplied(depositApplied)
+                .dueDate(LocalDateTime.now().plusDays(3))
+                .invoiceStatus(InvoiceStatus.PROCESSING)
+                .pdfUrl(null)
+                .issueDate(null);
+    }
+
+    private Transaction buildTransaction(BigDecimal amount, TrasactionType type, Invoice invoice, String createdBy) {
+        return Transaction.builder()
+                .amount(amount)
+                .transactionType(type)
+                .invoice(invoice)
+                .createdBy(createdBy)
+                .build();
+    }
+
+    private BigDecimal defaultZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }
