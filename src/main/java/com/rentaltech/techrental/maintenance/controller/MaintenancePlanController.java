@@ -4,6 +4,7 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlanScopeType;
 import com.rentaltech.techrental.maintenance.model.MaintenanceRuleType;
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import com.rentaltech.techrental.maintenance.service.MaintenancePlanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -61,7 +62,7 @@ public class MaintenancePlanController {
         private LocalDate startDate;
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         private LocalDate endDate;
-        private String scheduleStatus;
+        private MaintenanceScheduleStatus scheduleStatus;
     }
 }
 

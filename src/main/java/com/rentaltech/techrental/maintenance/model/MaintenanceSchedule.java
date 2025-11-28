@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "MaintenanceSchedule")
@@ -42,6 +44,12 @@ public class MaintenanceSchedule {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @ElementCollection
+    @CollectionTable(name = "maintenance_schedule_evidence", joinColumns = @JoinColumn(name = "maintenance_schedule_id"))
+    @Column(name = "evidence_url", length = 2048)
+    @Builder.Default
+    private List<String> evidenceUrls = new ArrayList<>();
 }
 
 

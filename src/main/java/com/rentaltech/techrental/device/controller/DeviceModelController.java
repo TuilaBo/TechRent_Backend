@@ -80,6 +80,23 @@ public class DeviceModelController {
         );
     }
 
+    @GetMapping("/by-category/{categoryId}")
+    @Operation(summary = "List device models by category", description = "Retrieve all device models thuộc một danh mục thiết bị")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "400", description = "Invalid category id"),
+            @ApiResponse(responseCode = "404", description = "Category not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<?> getByCategory(@Parameter(description = "Device category ID") @PathVariable Long categoryId) {
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách mẫu thiết bị theo danh mục",
+                "Các mẫu thiết bị thuộc danh mục " + categoryId,
+                service.findByDeviceCategory(categoryId),
+                HttpStatus.OK
+        );
+    }
+
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update device model", description = "Update device model by ID")

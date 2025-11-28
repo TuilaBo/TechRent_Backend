@@ -3,6 +3,7 @@ package com.rentaltech.techrental.maintenance.service;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
 import com.rentaltech.techrental.maintenance.model.MaintenancePlanScopeType;
 import com.rentaltech.techrental.maintenance.model.MaintenanceRuleType;
+import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -16,7 +17,7 @@ public interface MaintenancePlanService {
                                List<Long> deviceIds,
                                LocalDate startDate,
                                LocalDate endDate,
-                               String scheduleStatus);
+                               MaintenanceScheduleStatus scheduleStatus);
 
     List<MaintenancePlan> listPlans();
     

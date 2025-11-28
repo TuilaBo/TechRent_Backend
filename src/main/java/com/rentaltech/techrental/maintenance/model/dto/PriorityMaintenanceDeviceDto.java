@@ -16,11 +16,20 @@ public class PriorityMaintenanceDeviceDto {
     private String deviceSerialNumber;
     private String deviceModelName;
     private String deviceCategoryName;
+
     private Integer currentUsageCount;
     private Integer requiredUsageCount;
+
     private LocalDate nextMaintenanceDate;
-    private String priorityReason; // "USAGE_THRESHOLD", "SCHEDULED_MAINTENANCE"
+    private String priorityReason; // "USAGE_THRESHOLD", "SCHEDULED_MAINTENANCE", "RENTAL_CONFLICT"
     private Long maintenanceScheduleId;
+
+    private Long conflictBookingId;
+    private Long conflictOrderId;
+    private LocalDate conflictRentalStartDate;
+    private LocalDate conflictRentalEndDate;
+    private String conflictCustomerName;
 }
+
 
 

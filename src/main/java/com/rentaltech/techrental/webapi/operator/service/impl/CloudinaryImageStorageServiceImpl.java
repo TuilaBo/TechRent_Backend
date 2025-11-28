@@ -51,6 +51,15 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
         return uploadFile(file, buildOptions(folder, safeName));
     }
 
+    @Override
+    public String uploadMaintenanceEvidence(MultipartFile file, Long maintenanceScheduleId, String label) {
+        String folder = maintenanceScheduleId != null
+                ? String.format("techrental/maintenance/schedule_%d", maintenanceScheduleId)
+                : "techrental/maintenance";
+        String safeName = slugify(label, "maintenance-evidence");
+        return uploadFile(file, buildOptions(folder, safeName));
+    }
+
     private String uploadFile(MultipartFile file, Map<String, Object> options) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Tệp rỗng");

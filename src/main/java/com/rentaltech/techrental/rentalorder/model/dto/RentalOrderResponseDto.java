@@ -2,9 +2,12 @@ package com.rentaltech.techrental.rentalorder.model.dto;
 
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
+import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.webapi.technician.model.dto.QCReportDeviceConditionResponseDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,10 +38,20 @@ public class RentalOrderResponseDto {
     private Long customerId;
     private List<OrderDetailResponseDto> orderDetails;
     private List<DeviceResponseDto> allocatedDevices;
+    private List<DiscrepancyReportResponseDto> discrepancies;
+    private List<QCReportDeviceConditionResponseDto> deviceConditions;
 
     public static RentalOrderResponseDto from(RentalOrder order,
                                               List<OrderDetail> details,
                                               List<Device> allocatedDevices) {
+        return from(order, details, allocatedDevices, List.of(), List.of());
+    }
+
+    public static RentalOrderResponseDto from(RentalOrder order,
+                                              List<OrderDetail> details,
+                                              List<Device> allocatedDevices,
+                                              List<DiscrepancyReport> discrepancies,
+                                              List<QCReportDeviceConditionResponseDto> deviceConditions) {
         if (order == null) {
             return null;
         }
@@ -54,6 +67,17 @@ public class RentalOrderResponseDto {
                 : allocatedDevices.stream()
                 .filter(Objects::nonNull)
                 .map(DeviceResponseDto::from)
+                .toList();
+        List<DiscrepancyReportResponseDto> discrepancyDtos = discrepancies == null
+                ? List.of()
+                : discrepancies.stream()
+                .filter(Objects::nonNull)
+                .map(DiscrepancyReportResponseDto::from)
+                .toList();
+        List<QCReportDeviceConditionResponseDto> deviceConditionDtos = deviceConditions == null
+                ? List.of()
+                : deviceConditions.stream()
+                .filter(Objects::nonNull)
                 .toList();
         return RentalOrderResponseDto.builder()
                 .orderId(order.getOrderId())
@@ -71,6 +95,8 @@ public class RentalOrderResponseDto {
                 .customerId(customer != null ? customer.getCustomerId() : null)
                 .orderDetails(detailDtos)
                 .allocatedDevices(allocatedDeviceDtos)
+                .discrepancies(discrepancyDtos)
+                .deviceConditions(deviceConditionDtos)
                 .build();
     }
 }

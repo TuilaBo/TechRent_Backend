@@ -4,6 +4,7 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.ContractType;
+import com.rentaltech.techrental.contract.model.DeviceContractTerm;
 import com.rentaltech.techrental.contract.model.dto.ContractCreateRequestDto;
 import com.rentaltech.techrental.contract.model.dto.DigitalSignatureRequestDto;
 import com.rentaltech.techrental.contract.model.dto.DigitalSignatureResponseDto;
@@ -12,6 +13,7 @@ import com.rentaltech.techrental.contract.service.ContractService;
 import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
+import com.rentaltech.techrental.contract.service.DeviceContractTermService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
@@ -66,6 +68,9 @@ public class ContractServiceImpl implements ContractService {
 
     @Autowired
     private OrderDetailRepository orderDetailRepository;
+
+    @Autowired
+    private DeviceContractTermService deviceContractTermService;
 
     public ContractServiceImpl() {
         // Cleanup expired PIN codes every minute
@@ -513,6 +518,15 @@ public class ContractServiceImpl implements ContractService {
                     .expiresAt(request.getExpiresAt())
                     .createdBy(createdBy)
                     .build();
+
+            if (request.getOrderId() != null) {
+                RentalOrder linkedOrder = rentalOrderRepository.findById(request.getOrderId()).orElse(null);
+                if (linkedOrder != null) {
+                    List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(request.getOrderId());
+                    String enrichedTerms = appendDeviceTerms(contract.getTermsAndConditions(), linkedOrder, orderDetails);
+                    contract.setTermsAndConditions(enrichedTerms);
+                }
+            }
             
             // Lưu vào database
             return contractRepository.save(contract);
@@ -562,6 +576,7 @@ public class ContractServiceImpl implements ContractService {
             
             // Tạo điều khoản
             String termsAndConditions = buildTermsAndConditions(order, orderDetails);
+            termsAndConditions = appendDeviceTerms(termsAndConditions, order, orderDetails);
             
             // Tạo contract number
             String contractNumber = generateContractNumber();
@@ -632,6 +647,42 @@ public class ContractServiceImpl implements ContractService {
         terms.append("4. Khách hàng phải trả lại thiết bị đúng hạn, nếu quá hạn sẽ bị phạt 10% giá trị thiết bị mỗi ngày.\n");
         terms.append("5. Mọi tranh chấp sẽ được giải quyết theo pháp luật Việt Nam.\n");
         return terms.toString();
+    }
+
+    private String appendDeviceTerms(String baseTerms, RentalOrder order, List<OrderDetail> orderDetails) {
+        List<DeviceContractTerm> deviceTerms = deviceContractTermService.findApplicableTerms(order, orderDetails);
+        if (deviceTerms.isEmpty()) {
+            return baseTerms;
+        }
+        StringBuilder builder = new StringBuilder(baseTerms != null ? baseTerms.trim() : "");
+        if (builder.length() > 0) {
+            builder.append("\n\n");
+        }
+        builder.append("ĐIỀU KHOẢN RIÊNG CHO THIẾT BỊ\n");
+        int index = 1;
+        for (DeviceContractTerm term : deviceTerms) {
+            builder.append(index++)
+                    .append(". [")
+                    .append(resolveScopeLabel(term))
+                    .append("] ")
+                    .append(term.getTitle())
+                    .append("\n")
+                    .append(term.getContent())
+                    .append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private String resolveScopeLabel(DeviceContractTerm term) {
+        if (term.getDevice() != null) {
+            return term.getDevice().getSerialNumber() != null
+                    ? "Thiết bị " + term.getDevice().getSerialNumber()
+                    : "Thiết bị #" + term.getDevice().getDeviceId();
+        }
+        if (term.getDeviceCategory() != null) {
+            return "Loại " + term.getDeviceCategory().getDeviceCategoryName();
+        }
+        return "Mặc định";
     }
 
     @Override

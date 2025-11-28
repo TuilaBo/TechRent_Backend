@@ -540,14 +540,14 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             throw new IllegalStateException("Report has already been signed by customer");
         }
 
-//        String key = buildPinKeyForReport(handoverReportId);
-//        String storedPin = getPinCode(key);
-//        if (storedPin == null) {
-//            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
-//        }
-//        if (!storedPin.equals(request.getPinCode())) {
-//            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
-//        }
+        String key = buildPinKeyForReport(handoverReportId);
+        String storedPin = getPinCode(key);
+        if (storedPin == null) {
+            throw new IllegalArgumentException("PIN has expired or not requested for report " + handoverReportId);
+        }
+        if (!storedPin.equals(request.getPinCode())) {
+            throw new IllegalArgumentException("Invalid PIN code for report " + handoverReportId);
+        }
 
         report.setCustomerSigned(true);
         report.setCustomerSignedAt(LocalDateTime.now());
@@ -616,14 +616,16 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     }
 
     private List<DiscrepancyReport> findDiscrepancies(HandoverReport report) {
-        Long orderId = Optional.ofNullable(report)
-                .map(HandoverReport::getRentalOrder)
-                .map(RentalOrder::getOrderId)
+        Long handoverReportId = Optional.ofNullable(report)
+                .map(HandoverReport::getHandoverReportId)
                 .orElse(null);
-        if (orderId == null) {
+        if (handoverReportId == null) {
             return List.of();
         }
-        return discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId);
+        return discrepancyReportRepository.findByCreatedFromAndRefIdOrderByCreatedAtDesc(
+                DiscrepancyCreatedFrom.HANDOVER_REPORT,
+                handoverReportId
+        );
     }
 
     private void markDevicesForPostRentalQc(RentalOrder rentalOrder, List<HandoverReportItem> items) {
@@ -782,39 +784,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             allocationConditionSnapshotRepository.saveAll(snapshots);
         }
     }
-
-//    private List<DeviceQualityInfo> resolveDeviceQualityInfos(HandoverReportBaseCreateRequestDto request, RentalOrder rentalOrder) {
-//        // If device quality infos are provided in request, use them
-//        if (!CollectionUtils.isEmpty(request.getDeviceQualityInfos())) {
-//            return request.getDeviceQualityInfos().stream()
-//                    .filter(Objects::nonNull)
-//                    .map(DeviceQualityInfoDto::toEntity)
-//                    .collect(Collectors.toList());
-//        }
-//
-//        // Otherwise, auto-populate from allocations
-//        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(rentalOrder.getOrderId());
-//        if (CollectionUtils.isEmpty(allocations)) {
-//            log.warn("No allocations found for order {}", rentalOrder.getOrderId());
-//            return List.of();
-//        }
-//
-//        return allocations.stream()
-//                .filter(allocation -> allocation.getDevice() != null)
-//                .map(allocation -> {
-//                    Device device = allocation.getDevice();
-//                    DeviceModel model = device.getDeviceModel();
-//                    String modelName = model != null ? model.getDeviceName() : null;
-//
-//                    return DeviceQualityInfo.builder()
-//                            .deviceSerialNumber(device.getSerialNumber())
-//                            .qualityStatus("GOOD") // Default status, can be updated later
-//                            .qualityDescription(null) // No description by default
-//                            .deviceModelName(modelName)
-//                            .build();
-//                })
-//                .collect(Collectors.toList());
-//    }
 
     private void replaceDiscrepancies(Long handoverReportId, List<DiscrepancyInlineRequestDto> discrepancies) {
         if (handoverReportId == null) {
