@@ -12,6 +12,9 @@ import com.rentaltech.techrental.maintenance.model.dto.*;
 import com.rentaltech.techrental.maintenance.repository.MaintenancePlanRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleCustomRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepository;
+import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
+import com.rentaltech.techrental.rentalorder.model.BookingStatus;
+import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,7 +22,11 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +38,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     private final MaintenancePlanRepository planRepository;
     private final DeviceRepository deviceRepository;
     private final DeviceCategoryRepository deviceCategoryRepository;
+    private final BookingCalendarRepository bookingCalendarRepository;
+
+    private static final long RENTAL_CONFLICT_LOOKAHEAD_DAYS = 14L;
 
     @Override
     @Transactional
@@ -235,6 +245,22 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     public List<PriorityMaintenanceDeviceDto> getPriorityMaintenanceDevices() {
         List<Device> allDevices = deviceRepository.findAll();
         List<PriorityMaintenanceDeviceDto> priorityDevices = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lookAhead = now.plusDays(RENTAL_CONFLICT_LOOKAHEAD_DAYS);
+        List<BookingCalendar> upcomingBookings = bookingCalendarRepository.findUpcomingBookings(
+                now,
+                lookAhead,
+                EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE)
+        );
+        Map<Long, List<BookingCalendar>> bookingsByDevice = upcomingBookings.stream()
+                .filter(booking -> booking.getDevice() != null && booking.getDevice().getDeviceId() != null)
+                .collect(Collectors.groupingBy(booking -> booking.getDevice().getDeviceId()));
+
+        List<MaintenancePlan> usagePlans = planRepository.findAll().stream()
+                .filter(plan -> plan.getRuleType() != null
+                        && plan.getRuleType().name().equals("ByUsage")
+                        && plan.getActive() != null && plan.getActive())
+                .collect(Collectors.toList());
 
         for (Device device : allDevices) {
             List<MaintenanceSchedule> upcomingSchedules = scheduleRepository.findByDevice_DeviceId(device.getDeviceId()).stream()
@@ -242,57 +268,34 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                         LocalDate startDate = schedule.getStartDate();
                         return startDate != null && !startDate.isBefore(LocalDate.now());
                     })
-                    .sorted((s1, s2) -> {
-                        if (s1.getStartDate() == null || s2.getStartDate() == null) return 0;
-                        return s1.getStartDate().compareTo(s2.getStartDate());
-                    })
+                    .sorted(Comparator.comparing(MaintenanceSchedule::getStartDate, Comparator.nullsLast(LocalDate::compareTo)))
                     .collect(Collectors.toList());
+            MaintenanceSchedule nextSchedule = upcomingSchedules.isEmpty() ? null : upcomingSchedules.get(0);
+            Optional<BookingCalendar> nextBooking = Optional.ofNullable(bookingsByDevice.get(device.getDeviceId()))
+                    .flatMap(bookings -> bookings.stream()
+                            .sorted(Comparator.comparing(BookingCalendar::getStartTime))
+                            .findFirst());
 
-            if (!upcomingSchedules.isEmpty()) {
-                MaintenanceSchedule nextSchedule = upcomingSchedules.get(0);
-                DeviceModel model = device.getDeviceModel();
-                String modelName = model != null ? model.getDeviceName() : null;
-                
-                PriorityMaintenanceDeviceDto dto = PriorityMaintenanceDeviceDto.builder()
-                        .deviceId(device.getDeviceId())
-                        .deviceSerialNumber(device.getSerialNumber())
-                        .deviceModelName(modelName)
-                        .deviceCategoryName(model != null && model.getDeviceCategory() != null
-                                ? model.getDeviceCategory().getDeviceCategoryName() : null)
-                        .currentUsageCount(device.getUsageCount() != null ? device.getUsageCount() : 0)
-                        .nextMaintenanceDate(nextSchedule.getStartDate())
-                        .priorityReason("SCHEDULED_MAINTENANCE")
-                        .maintenanceScheduleId(nextSchedule.getMaintenanceScheduleId())
-                        .build();
-                priorityDevices.add(dto);
-            } else {
-                // Check for devices that need maintenance based on usage
-                List<MaintenancePlan> usagePlans = planRepository.findAll().stream()
-                        .filter(plan -> plan.getRuleType() != null
-                                && plan.getRuleType().name().equals("ByUsage")
-                                && plan.getActive() != null && plan.getActive())
-                        .collect(Collectors.toList());
+            if (nextSchedule != null && nextBooking.isPresent()
+                    && hasRentalMaintenanceConflict(nextSchedule, nextBooking.get())) {
+                priorityDevices.add(buildPriorityDeviceDto(device, nextSchedule, "RENTAL_CONFLICT",
+                        nextBooking.get(), null));
+                continue;
+            }
 
-                for (MaintenancePlan plan : usagePlans) {
-                    if (plan.getRuleValue() != null
-                            && device.getUsageCount() != null
-                            && device.getUsageCount() >= plan.getRuleValue()) {
-                        DeviceModel model = device.getDeviceModel();
-                        String modelName = model != null ? model.getDeviceName() : null;
-                        
-                        PriorityMaintenanceDeviceDto dto = PriorityMaintenanceDeviceDto.builder()
-                                .deviceId(device.getDeviceId())
-                                .deviceSerialNumber(device.getSerialNumber())
-                                .deviceModelName(modelName)
-                                .deviceCategoryName(model != null && model.getDeviceCategory() != null
-                                        ? model.getDeviceCategory().getDeviceCategoryName() : null)
-                                .currentUsageCount(device.getUsageCount())
-                                .requiredUsageCount(plan.getRuleValue())
-                                .priorityReason("USAGE_THRESHOLD")
-                                .build();
-                        priorityDevices.add(dto);
-                        break;
-                    }
+            if (nextSchedule != null) {
+                priorityDevices.add(buildPriorityDeviceDto(device, nextSchedule, "SCHEDULED_MAINTENANCE",
+                        null, null));
+                continue;
+            }
+
+            for (MaintenancePlan plan : usagePlans) {
+                if (plan.getRuleValue() != null
+                        && device.getUsageCount() != null
+                        && device.getUsageCount() >= plan.getRuleValue()) {
+                    priorityDevices.add(buildPriorityDeviceDto(device, null, "USAGE_THRESHOLD",
+                            null, plan.getRuleValue()));
+                    break;
                 }
             }
         }
@@ -310,6 +313,68 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     @Override
     public List<MaintenanceSchedule> getActiveMaintenanceSchedules() {
         return scheduleCustomRepository.findActiveMaintenanceSchedules();
+    }
+
+    private PriorityMaintenanceDeviceDto buildPriorityDeviceDto(Device device,
+                                                                MaintenanceSchedule schedule,
+                                                                String reason,
+                                                                BookingCalendar conflictBooking,
+                                                                Integer requiredUsageCount) {
+        DeviceModel model = device.getDeviceModel();
+        PriorityMaintenanceDeviceDto.PriorityMaintenanceDeviceDtoBuilder builder = PriorityMaintenanceDeviceDto.builder()
+                .deviceId(device.getDeviceId())
+                .deviceSerialNumber(device.getSerialNumber())
+                .deviceModelName(model != null ? model.getDeviceName() : null)
+                .deviceCategoryName(model != null && model.getDeviceCategory() != null
+                        ? model.getDeviceCategory().getDeviceCategoryName() : null)
+                .currentUsageCount(device.getUsageCount() != null ? device.getUsageCount() : 0)
+                .priorityReason(reason);
+
+        if (schedule != null) {
+            builder.nextMaintenanceDate(schedule.getStartDate())
+                    .maintenanceScheduleId(schedule.getMaintenanceScheduleId());
+        }
+
+        if (requiredUsageCount != null) {
+            builder.requiredUsageCount(requiredUsageCount);
+        }
+
+        if (conflictBooking != null) {
+            builder.conflictBookingId(conflictBooking.getBookingId())
+                    .conflictOrderId(conflictBooking.getRentalOrder() != null
+                            ? conflictBooking.getRentalOrder().getOrderId()
+                            : null)
+                    .conflictRentalStartDate(conflictBooking.getStartTime() != null
+                            ? conflictBooking.getStartTime().toLocalDate()
+                            : null)
+                    .conflictRentalEndDate(conflictBooking.getEndTime() != null
+                            ? conflictBooking.getEndTime().toLocalDate()
+                            : conflictBooking.getStartTime() != null
+                            ? conflictBooking.getStartTime().toLocalDate()
+                            : null)
+                    .conflictCustomerName(resolveCustomerName(conflictBooking));
+        }
+
+        return builder.build();
+    }
+
+    private boolean hasRentalMaintenanceConflict(MaintenanceSchedule schedule, BookingCalendar booking) {
+        if (schedule == null || booking == null || schedule.getStartDate() == null || booking.getStartTime() == null) {
+            return false;
+        }
+        LocalDate scheduleStart = schedule.getStartDate();
+        LocalDate scheduleEnd = schedule.getEndDate() != null ? schedule.getEndDate() : scheduleStart;
+        LocalDate bookingStart = booking.getStartTime().toLocalDate();
+        LocalDate bookingEnd = booking.getEndTime() != null ? booking.getEndTime().toLocalDate() : bookingStart;
+
+        return !scheduleEnd.isBefore(bookingStart) && !scheduleStart.isAfter(bookingEnd);
+    }
+
+    private String resolveCustomerName(BookingCalendar booking) {
+        if (booking.getRentalOrder() != null && booking.getRentalOrder().getCustomer() != null) {
+            return booking.getRentalOrder().getCustomer().getFullName();
+        }
+        return null;
     }
 }
 
