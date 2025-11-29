@@ -27,7 +27,6 @@ public class DiscrepancyReportResponseDto {
     private String deviceModelName;
     private BigDecimal penaltyAmount;
     private String staffNote;
-    private String customerNote;
     private LocalDateTime createdAt;
 
     public static DiscrepancyReportResponseDto from(DiscrepancyReport entity) {
@@ -50,7 +49,6 @@ public class DiscrepancyReportResponseDto {
                 .deviceModelName(deviceModel != null ? deviceModel.getDeviceName() : null)
                 .penaltyAmount(entity.getPenaltyAmount())
                 .staffNote(entity.getStaffNote())
-                .customerNote(entity.getCustomerNote())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

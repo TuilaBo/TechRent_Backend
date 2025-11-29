@@ -57,11 +57,11 @@ public class ConditionDefinitionController {
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách condition definition", description = "Lọc theo deviceCategoryId nếu cần")
-    public ResponseEntity<?> getAll(@RequestParam(required = false) Long deviceCategoryId) {
-        var data = deviceCategoryId == null
+    @Operation(summary = "Danh sách condition definition", description = "Lọc theo deviceModelId nếu cần")
+    public ResponseEntity<?> getAll(@RequestParam(required = false) Long deviceModelId) {
+        var data = deviceModelId == null
                 ? conditionDefinitionService.getAll()
-                : conditionDefinitionService.getByDeviceCategory(deviceCategoryId);
+                : conditionDefinitionService.getByDeviceModel(deviceModelId);
         return ResponseUtil.createSuccessResponse(
                 "Danh sách định nghĩa tình trạng",
                 "Tất cả condition definition hiện có",

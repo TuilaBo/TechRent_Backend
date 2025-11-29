@@ -37,7 +37,6 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
                 .allocation(resolveAllocation(request.getOrderDetailId(), request.getDeviceId()))
                 .penaltyAmount(resolvePenalty(condition))
                 .staffNote(request.getStaffNote())
-                .customerNote(request.getCustomerNote())
                 .build();
         return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
@@ -54,7 +53,6 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
         entity.setAllocation(resolveAllocation(request.getOrderDetailId(), request.getDeviceId()));
         entity.setPenaltyAmount(resolvePenalty(condition));
         entity.setStaffNote(request.getStaffNote());
-        entity.setCustomerNote(request.getCustomerNote());
         return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
 

@@ -10,6 +10,6 @@ public interface ConditionDefinitionService {
     ConditionDefinitionResponseDto update(Long id, ConditionDefinitionRequestDto request);
     ConditionDefinitionResponseDto getById(Long id);
     List<ConditionDefinitionResponseDto> getAll();
-    List<ConditionDefinitionResponseDto> getByDeviceCategory(Long deviceCategoryId);
+    List<ConditionDefinitionResponseDto> getByDeviceModel(Long deviceModelId);
     void delete(Long id);
 }

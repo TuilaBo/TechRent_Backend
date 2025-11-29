@@ -25,8 +25,8 @@ public class ConditionDefinition {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_category_id")
-    private DeviceCategory deviceCategory;
+    @JoinColumn(name = "device_model_id", nullable = false)
+    private DeviceModel deviceModel;
 
     @Column(name = "description", columnDefinition = "text")
     private String description;
