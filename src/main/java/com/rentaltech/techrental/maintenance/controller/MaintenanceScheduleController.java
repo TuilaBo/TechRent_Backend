@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.maintenance.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.maintenance.model.CalendarScope;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
 import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import com.rentaltech.techrental.maintenance.model.dto.*;
@@ -8,7 +9,6 @@ import com.rentaltech.techrental.maintenance.service.MaintenanceScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
-import java.util.Locale;
 import java.util.List;
 
 @RestController
@@ -35,11 +34,11 @@ public class MaintenanceScheduleController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Tạo lịch bảo trì", description = "Tạo lịch bảo trì cho thiết bị dựa trên plan cụ thể")
-    public ResponseEntity<?> create(@RequestBody @Valid CreateScheduleRequest request) {
+    @Operation(summary = "Tạo lịch bảo trì", description = "Tạo lịch bảo trì cho thiết bị")
+    public ResponseEntity<?> create(@RequestBody @Valid CreateScheduleRequestDto request) {
         MaintenanceSchedule data = maintenanceScheduleService.createSchedule(
                 request.getDeviceId(),
-                request.getMaintenancePlanId(),
+                null,
                 request.getStartDate(),
                 request.getEndDate(),
                 request.getStatus()
@@ -124,7 +123,7 @@ public class MaintenanceScheduleController {
                 PageRequest.of(safePage, safeSize, Sort.by("startDate").ascending())
         );
         return ResponseUtil.createSuccessResponse(
-                "Danh sách lịch bảo trì theo " + resolvedScope.name().toLowerCase(Locale.ROOT),
+                "Danh sách lịch bảo trì theo " + resolvedScope.name().toLowerCase(java.util.Locale.ROOT),
                 String.format("Khoảng thời gian %s -> %s", start, end),
                 schedules,
                 HttpStatus.OK
@@ -134,7 +133,7 @@ public class MaintenanceScheduleController {
     @PatchMapping(value = "/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Cập nhật trạng thái lịch bảo trì", description = "Thay đổi trạng thái của một lịch bảo trì")
-    public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, @RequestBody UpdateStatusRequest request) {
+    public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, @RequestBody @Valid UpdateStatusRequestDto request) {
         MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus(), request.getEvidenceUrls());
         return ResponseUtil.createSuccessResponse("Cập nhật trạng thái lịch bảo trì", "Trạng thái đã được cập nhật", data, HttpStatus.OK);
     }
@@ -155,38 +154,17 @@ public class MaintenanceScheduleController {
         );
     }
 
-    @Data
-    public static class CreateScheduleRequest {
-        private Long deviceId;
-        private Long maintenancePlanId;
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-        private LocalDate startDate;
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-        private LocalDate endDate;
-        private MaintenanceScheduleStatus status;
-    }
-
-    @Data
-    public static class UpdateStatusRequest {
-        @jakarta.validation.constraints.NotNull
-        private MaintenanceScheduleStatus status;
-        private List<String> evidenceUrls;
-    }
-
-    private enum CalendarScope {
-        DAY,
-        MONTH;
-
-        static CalendarScope from(String value) {
-            if (value == null || value.isBlank()) {
-                return DAY;
-            }
-            try {
-                return CalendarScope.valueOf(value.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException("scope chỉ chấp nhận DAY hoặc MONTH");
-            }
-        }
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Xóa lịch bảo trì", description = "Xóa một lịch bảo trì cụ thể")
+    public ResponseEntity<?> deleteSchedule(@PathVariable("id") Long id) {
+        maintenanceScheduleService.deleteSchedule(id);
+        return ResponseUtil.createSuccessResponse(
+                "Xóa lịch bảo trì thành công",
+                "Lịch bảo trì đã được xóa",
+                null,
+                HttpStatus.OK
+        );
     }
 }
 

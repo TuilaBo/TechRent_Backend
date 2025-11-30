@@ -674,10 +674,8 @@ public class ContractServiceImpl implements ContractService {
     }
 
     private String resolveScopeLabel(DeviceContractTerm term) {
-        if (term.getDevice() != null) {
-            return term.getDevice().getSerialNumber() != null
-                    ? "Thiết bị " + term.getDevice().getSerialNumber()
-                    : "Thiết bị #" + term.getDevice().getDeviceId();
+        if (term.getDeviceModel() != null) {
+            return "Model " + term.getDeviceModel().getDeviceName();
         }
         if (term.getDeviceCategory() != null) {
             return "Loại " + term.getDeviceCategory().getDeviceCategoryName();

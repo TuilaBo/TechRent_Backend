@@ -14,8 +14,8 @@ public class DeviceContractTermResponseDto {
     String title;
     String content;
     boolean active;
-    Long deviceId;
-    String deviceSerialNumber;
+    Long deviceModelId;
+    String deviceModelName;
     Long deviceCategoryId;
     String deviceCategoryName;
     LocalDateTime createdAt;
@@ -27,8 +27,8 @@ public class DeviceContractTermResponseDto {
                 .title(term.getTitle())
                 .content(term.getContent())
                 .active(Boolean.TRUE.equals(term.getActive()))
-                .deviceId(term.getDevice() != null ? term.getDevice().getDeviceId() : null)
-                .deviceSerialNumber(term.getDevice() != null ? term.getDevice().getSerialNumber() : null)
+                .deviceModelId(term.getDeviceModel() != null ? term.getDeviceModel().getDeviceModelId() : null)
+                .deviceModelName(term.getDeviceModel() != null ? term.getDeviceModel().getDeviceName() : null)
                 .deviceCategoryId(term.getDeviceCategory() != null ? term.getDeviceCategory().getDeviceCategoryId() : null)
                 .deviceCategoryName(term.getDeviceCategory() != null ? term.getDeviceCategory().getDeviceCategoryName() : null)
                 .createdAt(term.getCreatedAt())

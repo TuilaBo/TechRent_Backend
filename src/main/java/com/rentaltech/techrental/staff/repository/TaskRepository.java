@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -61,4 +62,46 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime,
             @Param("role") com.rentaltech.techrental.staff.model.StaffRole role);
+
+    @Query("""
+            select count(distinct t)
+            from Task t
+            join t.assignedStaff s
+            where s.staffId = :staffId
+              and t.status in (com.rentaltech.techrental.staff.model.TaskStatus.PENDING,
+                               com.rentaltech.techrental.staff.model.TaskStatus.IN_PROGRESS)
+              and (
+                    (t.plannedStart is not null and function('DATE', t.plannedStart) = :targetDate)
+                    or (t.plannedStart is null and function('DATE', t.createdAt) = :targetDate)
+                  )
+            """)
+    long countActiveTasksByStaffAndDate(@Param("staffId") Long staffId,
+                                        @Param("targetDate") LocalDate targetDate);
+
+    @Query("""
+            select t
+            from Task t
+            join t.assignedStaff s
+            where s.staffId = :staffId
+              and (
+                    (t.plannedStart is not null and function('DATE', t.plannedStart) = :targetDate)
+                    or (t.plannedStart is null and function('DATE', t.createdAt) = :targetDate)
+                  )
+            order by t.plannedStart asc
+            """)
+    List<Task> findAssignmentsForStaffOnDate(@Param("staffId") Long staffId,
+                                             @Param("targetDate") LocalDate targetDate);
+
+    @Query("""
+            select t.taskCategory.name, count(t)
+            from Task t
+            where t.status = com.rentaltech.techrental.staff.model.TaskStatus.COMPLETED
+              and t.completedAt between :startTime and :endTime
+              and (:categoryId is null or t.taskCategory.taskCategoryId = :categoryId)
+            group by t.taskCategory.name
+            order by t.taskCategory.name
+            """)
+    List<Object[]> countCompletedTasksByCategory(@Param("startTime") LocalDateTime startTime,
+                                                 @Param("endTime") LocalDateTime endTime,
+                                                 @Param("categoryId") Long categoryId);
 }

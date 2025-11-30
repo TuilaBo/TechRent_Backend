@@ -14,7 +14,7 @@ public class DeviceContractTermRequestDto {
     @NotBlank
     private String content;
 
-    private Long deviceId;
+    private Long deviceModelId;
 
     private Long deviceCategoryId;
 

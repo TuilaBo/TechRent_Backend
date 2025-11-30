@@ -178,7 +178,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         if (request.getUsageDays() == null || request.getUsageDays() <= 0) {
             throw new IllegalArgumentException("usageDays phải lớn hơn 0");
         }
-        EnumSet<BookingStatus> countedStatuses = EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE, BookingStatus.COMPLETED);
+        EnumSet<BookingStatus> countedStatuses = EnumSet.of(BookingStatus.COMPLETED);
         Map<Long, Long> usageDaysByDevice = bookingCalendarRepository.findAll().stream()
                 .filter(booking -> booking.getDevice() != null
                         && booking.getDevice().getDeviceId() != null
@@ -312,6 +312,41 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             throw new IllegalArgumentException("endDate phải lớn hơn hoặc bằng startDate");
         }
         return scheduleRepository.findByStartDateBetween(startDate, endDate, pageable);
+    }
+
+    @Override
+    @Transactional
+    public void deleteSchedule(Long maintenanceScheduleId) {
+        MaintenanceSchedule schedule = scheduleRepository.findById(maintenanceScheduleId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lịch bảo trì với ID: " + maintenanceScheduleId));
+        
+        Device device = schedule.getDevice();
+        MaintenanceScheduleStatus currentStatus = parseStatus(schedule.getStatus());
+        
+        // Nếu schedule đang IN_PROGRESS/STARTED và device đang UNDER_MAINTENANCE,
+        // kiểm tra xem có schedule active khác không, nếu không thì set device về AVAILABLE
+        if (device != null && currentStatus != null 
+                && (currentStatus == MaintenanceScheduleStatus.IN_PROGRESS || currentStatus == MaintenanceScheduleStatus.STARTED)) {
+            if (device.getStatus() == DeviceStatus.UNDER_MAINTENANCE) {
+                // Kiểm tra xem có schedule active khác cho device này không
+                List<MaintenanceSchedule> activeSchedules = scheduleRepository.findByDevice_DeviceId(device.getDeviceId())
+                        .stream()
+                        .filter(s -> s.getMaintenanceScheduleId() != maintenanceScheduleId)
+                        .filter(s -> {
+                            MaintenanceScheduleStatus sStatus = parseStatus(s.getStatus());
+                            return sStatus != null && (sStatus == MaintenanceScheduleStatus.IN_PROGRESS || sStatus == MaintenanceScheduleStatus.STARTED);
+                        })
+                        .collect(Collectors.toList());
+                
+                // Nếu không còn schedule active nào, set device về AVAILABLE
+                if (activeSchedules.isEmpty()) {
+                    device.setStatus(DeviceStatus.AVAILABLE);
+                    deviceRepository.save(device);
+                }
+            }
+        }
+        
+        scheduleRepository.deleteById(maintenanceScheduleId);
     }
 
     private MaintenanceSchedule applyStatusAndEvidence(MaintenanceSchedule schedule,
