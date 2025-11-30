@@ -12,6 +12,7 @@ import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyInlineRequestDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
@@ -20,6 +21,7 @@ import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
+import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
@@ -86,6 +88,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final DiscrepancyReportService discrepancyReportService;
     private final DiscrepancyReportRepository discrepancyReportRepository;
     private final AllocationSnapshotService allocationSnapshotService;
+    private final DeviceConditionService deviceConditionService;
     private final SettlementService settlementService;
 
     @Autowired(required = false)
@@ -175,7 +178,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         HandoverReport saved = handoverReportRepository.save(report);
         if (handoverType == HandoverType.CHECKIN) {
             createHandoverSnapshots(saved.getItems(), handoverType, createdByStaff);
-            createDiscrepancies(discrepancies, saved.getHandoverReportId());
+            createDiscrepancies(discrepancies, saved.getHandoverReportId(), createdByStaff);
             markDevicesForPostRentalQc(rentalOrder, saved.getItems());
         } else {
             createSnapshotsFromDeviceConditions(saved, deviceConditions, createdByStaff);
@@ -247,7 +250,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         clearSnapshotsForOrder(orderId, expectedType);
         if (expectedType == HandoverType.CHECKIN) {
             createHandoverSnapshots(saved.getItems(), expectedType, staff);
-            replaceDiscrepancies(saved.getHandoverReportId(), discrepancies);
+            replaceDiscrepancies(saved.getHandoverReportId(), discrepancies, staff);
             markDevicesForPostRentalQc(rentalOrder, saved.getItems());
         } else {
             createSnapshotsFromDeviceConditions(saved, deviceConditions, staff);
@@ -739,15 +742,22 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private void createSnapshotsFromDeviceConditions(HandoverReport report,
                                                      List<HandoverDeviceConditionRequestDto> deviceConditions,
                                                      Staff staff) {
-        if (report == null || report.getRentalOrder() == null
-                || CollectionUtils.isEmpty(deviceConditions)) {
+        if (report == null || report.getRentalOrder() == null) {
             return;
         }
         Long orderId = report.getRentalOrder().getOrderId();
         if (orderId == null) {
             return;
         }
-        Set<Long> conditionDefinitionIds = deviceConditions.stream()
+        List<Allocation> allocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId);
+        if (CollectionUtils.isEmpty(allocations)) {
+            return;
+        }
+        Map<Long, Allocation> allocationByDevice = allocations.stream()
+                .filter(allocation -> allocation.getDevice() != null && allocation.getDevice().getDeviceId() != null)
+                .collect(Collectors.toMap(allocation -> allocation.getDevice().getDeviceId(), Function.identity(), (l, r) -> l, LinkedHashMap::new));
+        Set<Long> conditionDefinitionIds = CollectionUtils.isEmpty(deviceConditions) ? Collections.emptySet()
+                : deviceConditions.stream()
                 .filter(Objects::nonNull)
                 .map(HandoverDeviceConditionRequestDto::getConditionDefinitionId)
                 .filter(Objects::nonNull)
@@ -757,35 +767,89 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 : conditionDefinitionRepository.findAllById(conditionDefinitionIds).stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(ConditionDefinition::getConditionDefinitionId, Function.identity()));
-        List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
-        for (HandoverDeviceConditionRequestDto condition : deviceConditions) {
-            if (condition == null || condition.getDeviceId() == null || condition.getConditionDefinitionId() == null) {
-                continue;
+        Map<Long, List<ConditionSnapshotPayload>> payloadsByDevice = new LinkedHashMap<>();
+        if (!CollectionUtils.isEmpty(deviceConditions)) {
+            deviceConditions.stream()
+                    .map(HandoverDeviceConditionRequestDto::getDeviceId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet())
+                    .forEach(deviceConditionService::deleteByDevice);
+            for (HandoverDeviceConditionRequestDto condition : deviceConditions) {
+                if (condition == null || condition.getDeviceId() == null || condition.getConditionDefinitionId() == null) {
+                    continue;
+                }
+                ConditionDefinition definition = conditionDefinitionsById.get(condition.getConditionDefinitionId());
+                List<String> images = condition.getImages() == null ? new ArrayList<>() : new ArrayList<>(condition.getImages());
+                payloadsByDevice.computeIfAbsent(condition.getDeviceId(), id -> new ArrayList<>())
+                        .add(new ConditionSnapshotPayload(
+                                condition.getConditionDefinitionId(),
+                                definition != null ? definition.getName() : null,
+                                condition.getSeverity(),
+                                images,
+                                true));
             }
-            ConditionDefinition conditionDefinition = conditionDefinitionsById.get(condition.getConditionDefinitionId());
-            allocationRepository.findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(orderId, condition.getDeviceId())
-                    .ifPresentOrElse(allocation -> {
-                        AllocationConditionSnapshot snapshot = AllocationConditionSnapshot.builder()
-                                .allocation(allocation)
-                                .snapshotType(AllocationSnapshotType.BASELINE)
-                                .source(AllocationSnapshotSource.HANDOVER_OUT)
-                                .conditionDetails(List.of(AllocationConditionDetail.builder()
-                                        .conditionDefinitionId(condition.getConditionDefinitionId())
-                                        .conditionDefinitionName(conditionDefinition != null ? conditionDefinition.getName() : null)
-                                        .severity(condition.getSeverity())
-                                        .build()))
-                                .images(condition.getImages() == null ? new ArrayList<>() : new ArrayList<>(condition.getImages()))
-                                .staff(staff)
-                                .build();
-                        snapshots.add(snapshot);
-                    }, () -> log.warn("Không tìm thấy allocation cho device {} thuộc order {}", condition.getDeviceId(), orderId));
         }
+        allocationByDevice.keySet().forEach(deviceId -> {
+            if (!payloadsByDevice.containsKey(deviceId)) {
+                List<DeviceConditionResponseDto> stored = deviceConditionService.getByDevice(deviceId);
+                if (!CollectionUtils.isEmpty(stored)) {
+                            payloadsByDevice.put(
+                                    deviceId,
+                                    stored.stream()
+                                            .map(dc -> new ConditionSnapshotPayload(
+                                                    dc.getConditionDefinitionId(),
+                                                    dc.getConditionDefinitionName(),
+                                                    dc.getSeverity(),
+                                                    dc.getImages() == null ? new ArrayList<>() : new ArrayList<>(dc.getImages()),
+                                                    false))
+                                            .toList());
+                }
+            }
+        });
+        List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
+        final Long staffId = staff != null ? staff.getStaffId() : null;
+        payloadsByDevice.forEach((deviceId, payloads) -> {
+            Allocation allocation = allocationByDevice.get(deviceId);
+            if (allocation == null) {
+                log.warn("Không tìm thấy allocation cho device {} thuộc order {}", deviceId, orderId);
+                return;
+            }
+            for (ConditionSnapshotPayload payload : payloads) {
+                if (payload.conditionDefinitionId() == null) {
+                    continue;
+                }
+                AllocationConditionSnapshot snapshot = AllocationConditionSnapshot.builder()
+                        .allocation(allocation)
+                        .snapshotType(AllocationSnapshotType.BASELINE)
+                        .source(AllocationSnapshotSource.HANDOVER_OUT)
+                        .conditionDetails(List.of(AllocationConditionDetail.builder()
+                                .conditionDefinitionId(payload.conditionDefinitionId())
+                                .conditionDefinitionName(payload.conditionDefinitionName())
+                                .severity(payload.severity())
+                                .build()))
+                        .images(new ArrayList<>(payload.images()))
+                        .staff(staff)
+                        .build();
+                snapshots.add(snapshot);
+                if (payload.shouldPersist()) {
+                    deviceConditionService.updateCondition(
+                            deviceId,
+                            payload.conditionDefinitionId(),
+                            payload.severity(),
+                            null,
+                            payload.images(),
+                            staffId);
+                }
+            }
+        });
         if (!snapshots.isEmpty()) {
             allocationConditionSnapshotRepository.saveAll(snapshots);
         }
     }
 
-    private void replaceDiscrepancies(Long handoverReportId, List<DiscrepancyInlineRequestDto> discrepancies) {
+    private void replaceDiscrepancies(Long handoverReportId,
+                                      List<DiscrepancyInlineRequestDto> discrepancies,
+                                      Staff staff) {
         if (handoverReportId == null) {
             return;
         }
@@ -794,13 +858,21 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         if (!CollectionUtils.isEmpty(existing)) {
             discrepancyReportRepository.deleteAll(existing);
         }
-        createDiscrepancies(discrepancies, handoverReportId);
+        createDiscrepancies(discrepancies, handoverReportId, staff);
     }
 
-    private void createDiscrepancies(List<DiscrepancyInlineRequestDto> discrepancies, Long handoverReportId) {
+    private void createDiscrepancies(List<DiscrepancyInlineRequestDto> discrepancies,
+                                     Long handoverReportId,
+                                     Staff staff) {
         if (handoverReportId == null || discrepancies == null || discrepancies.isEmpty()) {
             return;
         }
+        Long staffId = staff != null ? staff.getStaffId() : null;
+        discrepancies.stream()
+                .map(DiscrepancyInlineRequestDto::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+                .forEach(deviceConditionService::deleteByDevice);
         discrepancies.stream()
                 .filter(Objects::nonNull)
                 .forEach(dto -> discrepancyReportService.create(
@@ -812,9 +884,17 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                                 .orderDetailId(dto.getOrderDetailId())
                                 .deviceId(dto.getDeviceId())
                                 .staffNote(dto.getStaffNote())
-                                .customerNote(dto.getCustomerNote())
                                 .build()
                 ));
+        discrepancies.stream()
+                .filter(dto -> dto != null && dto.getDeviceId() != null && dto.getConditionDefinitionId() != null)
+                .forEach(dto -> deviceConditionService.updateCondition(
+                        dto.getDeviceId(),
+                        dto.getConditionDefinitionId(),
+                        dto.getDiscrepancyType() != null ? dto.getDiscrepancyType().name() : null,
+                        dto.getStaffNote(),
+                        null,
+                        staffId));
     }
 
     private String generatePinCode() {
@@ -907,5 +987,12 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         boolean isExpired() {
             return System.currentTimeMillis() > expiryTime;
         }
+    }
+
+    private record ConditionSnapshotPayload(Long conditionDefinitionId,
+                                            String conditionDefinitionName,
+                                            String severity,
+                                            List<String> images,
+                                            boolean shouldPersist) {
     }
 }

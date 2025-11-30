@@ -43,9 +43,6 @@ public class DiscrepancyReport {
     @Column(name = "staff_note", columnDefinition = "text")
     private String staffNote;
 
-    @Column(name = "customer_note", columnDefinition = "text")
-    private String customerNote;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

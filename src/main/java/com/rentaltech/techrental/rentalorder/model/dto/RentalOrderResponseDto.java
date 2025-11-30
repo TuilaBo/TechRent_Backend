@@ -36,6 +36,8 @@ public class RentalOrderResponseDto {
     private BigDecimal pricePerDay;
     private LocalDateTime createdAt;
     private Long customerId;
+    private Boolean extended;
+    private Long parentOrderId;
     private List<OrderDetailResponseDto> orderDetails;
     private List<DeviceResponseDto> allocatedDevices;
     private List<DiscrepancyReportResponseDto> discrepancies;
@@ -93,6 +95,8 @@ public class RentalOrderResponseDto {
                 .pricePerDay(order.getPricePerDay())
                 .createdAt(order.getCreatedAt())
                 .customerId(customer != null ? customer.getCustomerId() : null)
+                .extended(order.isExtended())
+                .parentOrderId(order.getParentOrder() != null ? order.getParentOrder().getOrderId() : null)
                 .orderDetails(detailDtos)
                 .allocatedDevices(allocatedDeviceDtos)
                 .discrepancies(discrepancyDtos)

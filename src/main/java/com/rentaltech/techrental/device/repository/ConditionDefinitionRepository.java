@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ConditionDefinitionRepository extends JpaRepository<ConditionDefinition, Long> {
-    List<ConditionDefinition> findByDeviceCategory_DeviceCategoryId(Long deviceCategoryId);
+    List<ConditionDefinition> findByDeviceModel_DeviceModelId(Long deviceModelId);
     boolean existsByNameIgnoreCase(String name);
 }

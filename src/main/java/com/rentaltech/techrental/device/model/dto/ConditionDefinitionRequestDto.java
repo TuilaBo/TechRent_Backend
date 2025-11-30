@@ -18,7 +18,8 @@ public class ConditionDefinitionRequestDto {
     @Size(max = 200)
     private String name;
 
-    private Long deviceCategoryId;
+    @NotNull
+    private Long deviceModelId;
 
     @Size(max = 2000)
     private String description;

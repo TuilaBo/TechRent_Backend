@@ -1,8 +1,10 @@
 package com.rentaltech.techrental.device.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionUpdateRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
 import com.rentaltech.techrental.device.service.DeviceService;
+import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
@@ -33,6 +35,7 @@ public class DeviceController {
     private final DeviceService service;
     private final OrderDetailRepository orderDetailRepository;
     private final CustomerService customerService;
+    private final DeviceConditionService deviceConditionService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -63,6 +66,31 @@ public class DeviceController {
                 "Thiết bị tìm thấy",
                 "Thiết bị với id " + id + " đã được tìm thấy",
                 service.findById(id),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/{id}/conditions")
+    @Operation(summary = "Danh sách tình trạng hiện tại của thiết bị")
+    public ResponseEntity<?> getDeviceConditions(@PathVariable Long id) {
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách tình trạng thiết bị",
+                "Tình trạng mới nhất của thiết bị",
+                deviceConditionService.getByDevice(id),
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping("/{id}/conditions")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật tình trạng hiện tại của thiết bị")
+    public ResponseEntity<?> upsertDeviceConditions(@PathVariable Long id,
+                                                    @Valid @RequestBody DeviceConditionUpdateRequestDto request) {
+        var updated = deviceConditionService.upsertConditions(id, request.getConditions(), request.getCapturedByStaffId());
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật tình trạng thành công",
+                "Tình trạng thiết bị đã được lưu",
+                updated,
                 HttpStatus.OK
         );
     }
@@ -110,7 +138,7 @@ public class DeviceController {
         OrderDetail orderDetail = orderDetailRepository.findById(orderDetailId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy OrderDetail với id: " + orderDetailId));
 
-        if (authentication != null && hasRole(authentication, "ROLE_CUSTOMER")) {
+        if (hasRole(authentication, "ROLE_CUSTOMER")) {
             Long ownerCustomerId = orderDetail.getRentalOrder().getCustomer().getCustomerId();
             Long currentCustomerId = customerService.getCustomerByUsernameOrThrow(authentication.getName()).getCustomerId();
             if (!ownerCustomerId.equals(currentCustomerId)) {

@@ -14,6 +14,7 @@ import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
 import com.rentaltech.techrental.device.model.DiscrepancyType;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyInlineRequestDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
@@ -22,6 +23,7 @@ import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
+import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
@@ -78,6 +80,7 @@ public class QCReportServiceImpl implements QCReportService {
     private final AllocationRepository allocationRepository;
     private final ConditionDefinitionRepository conditionDefinitionRepository;
     private final AllocationSnapshotService allocationSnapshotService;
+    private final DeviceConditionService deviceConditionService;
     private final AccountService accountService;
     private final StaffService staffService;
     private final NotificationService notificationService;
@@ -158,7 +161,7 @@ public class QCReportServiceImpl implements QCReportService {
             createBaselineSnapshots(allocations, deviceConditions, currentStaff);
         }
         if (!CollectionUtils.isEmpty(discrepancies)) {
-            handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, saved.getQcReportId());
+            handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, saved.getQcReportId(), currentStaff);
         }
         if (phase == QCPhase.POST_RENTAL && saved.getResult() == QCResult.READY_FOR_RE_STOCK) {
             updateDevicesAfterPostRentalQc(saved);
@@ -266,7 +269,7 @@ public class QCReportServiceImpl implements QCReportService {
 
         QCReport updated = qcReportRepository.save(report);
         qcReportRepository.flush();
-        handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, updated.getQcReportId());
+        handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, updated.getQcReportId(), currentStaff);
         notifyCustomer(updated);
         QcReportDtoContext context = prepareQcReportDtoContext(updated);
         return QCReportResponseDto.from(updated, context.allocations(), context.discrepancies());
@@ -316,10 +319,17 @@ public class QCReportServiceImpl implements QCReportService {
 
     private void handleDiscrepancies(List<DiscrepancyInlineRequestDto> discrepancies,
                                      DiscrepancyCreatedFrom createdFrom,
-                                     Long refId) {
+                                     Long refId,
+                                     Staff staff) {
         if (refId == null || discrepancies == null || discrepancies.isEmpty()) {
             return;
         }
+        Long staffId = staff != null ? staff.getStaffId() : null;
+        discrepancies.stream()
+                .map(DiscrepancyInlineRequestDto::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+                .forEach(deviceConditionService::deleteByDevice);
         discrepancies.stream()
                 .filter(Objects::nonNull)
                 .forEach(dto -> discrepancyReportService.create(
@@ -331,9 +341,17 @@ public class QCReportServiceImpl implements QCReportService {
                                 .orderDetailId(dto.getOrderDetailId())
                                 .deviceId(dto.getDeviceId())
                                 .staffNote(dto.getStaffNote())
-                                .customerNote(dto.getCustomerNote())
                                 .build()
                 ));
+        discrepancies.stream()
+                .filter(dto -> dto != null && dto.getDeviceId() != null && dto.getConditionDefinitionId() != null)
+                .forEach(dto -> deviceConditionService.updateCondition(
+                        dto.getDeviceId(),
+                        dto.getConditionDefinitionId(),
+                        dto.getDiscrepancyType() != null ? dto.getDiscrepancyType().name() : null,
+                        dto.getStaffNote(),
+                        null,
+                        staffId));
     }
 
     private void notifyCustomer(QCReport qcReport) {
@@ -532,14 +550,6 @@ public class QCReportServiceImpl implements QCReportService {
         if (CollectionUtils.isEmpty(allocations)) {
             return;
         }
-        if (CollectionUtils.isEmpty(deviceConditions)) {
-            allocationSnapshotService.createSnapshots(
-                    allocations,
-                    AllocationSnapshotType.BASELINE,
-                    AllocationSnapshotSource.QC_BEFORE,
-                    staff);
-            return;
-        }
         Map<Long, Allocation> allocationsByDeviceId = allocations.stream()
                 .filter(Objects::nonNull)
                 .filter(allocation -> allocation.getDevice() != null && allocation.getDevice().getDeviceId() != null)
@@ -556,22 +566,18 @@ public class QCReportServiceImpl implements QCReportService {
                     staff);
             return;
         }
-        Map<Long, List<QCDeviceConditionRequestDto>> conditionsByDeviceId = deviceConditions.stream()
+        List<QCDeviceConditionRequestDto> normalizedConditions = deviceConditions == null ? List.of() : deviceConditions;
+        Map<Long, List<QCDeviceConditionRequestDto>> conditionsByDeviceId = normalizedConditions.stream()
                 .filter(Objects::nonNull)
                 .filter(condition -> condition.getDeviceId() != null && condition.getConditionDefinitionId() != null)
                 .collect(Collectors.groupingBy(
                         QCDeviceConditionRequestDto::getDeviceId,
                         LinkedHashMap::new,
                         Collectors.toList()));
-        if (conditionsByDeviceId.isEmpty()) {
-            allocationSnapshotService.createSnapshots(
-                    allocations,
-                    AllocationSnapshotType.BASELINE,
-                    AllocationSnapshotSource.QC_BEFORE,
-                    staff);
-            return;
-        }
-        Set<Long> conditionDefinitionIds = deviceConditions.stream()
+        conditionsByDeviceId.keySet().stream()
+                .filter(Objects::nonNull)
+                .forEach(deviceConditionService::deleteByDevice);
+        Set<Long> conditionDefinitionIds = normalizedConditions.stream()
                 .filter(Objects::nonNull)
                 .map(QCDeviceConditionRequestDto::getConditionDefinitionId)
                 .filter(Objects::nonNull)
@@ -581,35 +587,84 @@ public class QCReportServiceImpl implements QCReportService {
                 : conditionDefinitionRepository.findAllById(conditionDefinitionIds).stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(ConditionDefinition::getConditionDefinitionId, Function.identity()));
-        List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
+        Map<Long, List<ConditionSnapshotPayload>> payloadsByDevice = new LinkedHashMap<>();
         conditionsByDeviceId.forEach((deviceId, conditions) -> {
+            List<ConditionSnapshotPayload> payloads = conditions.stream()
+                    .map(condition -> {
+                        ConditionDefinition definition = conditionDefinitionsById.get(condition.getConditionDefinitionId());
+                        List<String> images = CollectionUtils.isEmpty(condition.getImages())
+                                ? new ArrayList<>()
+                                : new ArrayList<>(condition.getImages());
+                        return new ConditionSnapshotPayload(
+                                condition.getConditionDefinitionId(),
+                                definition != null ? definition.getName() : null,
+                                condition.getSeverity(),
+                                images,
+                                true);
+                    })
+                    .toList();
+            payloadsByDevice.put(deviceId, new ArrayList<>(payloads));
+        });
+        allocationsByDeviceId.keySet().forEach(deviceId -> {
+            if (!payloadsByDevice.containsKey(deviceId)) {
+                List<DeviceConditionResponseDto> stored = deviceConditionService.getByDevice(deviceId);
+                if (!CollectionUtils.isEmpty(stored)) {
+                            payloadsByDevice.put(
+                                    deviceId,
+                                    stored.stream()
+                                            .map(dc -> new ConditionSnapshotPayload(
+                                                    dc.getConditionDefinitionId(),
+                                                    dc.getConditionDefinitionName(),
+                                                    dc.getSeverity(),
+                                                    dc.getImages() == null ? new ArrayList<>() : new ArrayList<>(dc.getImages()),
+                                                    false))
+                                            .toList());
+                }
+            }
+        });
+        if (payloadsByDevice.isEmpty()) {
+            allocationSnapshotService.createSnapshots(
+                    allocations,
+                    AllocationSnapshotType.BASELINE,
+                    AllocationSnapshotSource.QC_BEFORE,
+                    staff);
+            return;
+        }
+        List<AllocationConditionSnapshot> snapshots = new ArrayList<>();
+        final Long staffId = staff != null ? staff.getStaffId() : null;
+        payloadsByDevice.forEach((deviceId, payloads) -> {
             Allocation allocation = allocationsByDeviceId.get(deviceId);
             if (allocation == null) {
                 log.warn("Không tìm thấy allocation tương ứng cho device {}", deviceId);
                 return;
             }
             removeExistingQcBaselineSnapshots(allocation);
-            for (QCDeviceConditionRequestDto condition : conditions) {
-                if (condition == null || condition.getConditionDefinitionId() == null) {
+            for (ConditionSnapshotPayload payload : payloads) {
+                if (payload.conditionDefinitionId() == null) {
                     continue;
                 }
-                ConditionDefinition conditionDefinition = conditionDefinitionsById.get(condition.getConditionDefinitionId());
-                List<String> images = CollectionUtils.isEmpty(condition.getImages())
-                        ? new ArrayList<>()
-                        : new ArrayList<>(condition.getImages());
                 AllocationConditionSnapshot snapshot = AllocationConditionSnapshot.builder()
                         .allocation(allocation)
                         .snapshotType(AllocationSnapshotType.BASELINE)
                         .source(AllocationSnapshotSource.QC_BEFORE)
                         .conditionDetails(List.of(AllocationConditionDetail.builder()
-                                .conditionDefinitionId(condition.getConditionDefinitionId())
-                                .conditionDefinitionName(conditionDefinition != null ? conditionDefinition.getName() : null)
-                                .severity(condition.getSeverity())
+                                .conditionDefinitionId(payload.conditionDefinitionId())
+                                .conditionDefinitionName(payload.conditionDefinitionName())
+                                .severity(payload.severity())
                                 .build()))
-                        .images(images)
+                        .images(new ArrayList<>(payload.images()))
                         .staff(staff)
                         .build();
                 snapshots.add(snapshot);
+                if (payload.shouldPersist()) {
+                    deviceConditionService.updateCondition(
+                            deviceId,
+                            payload.conditionDefinitionId(),
+                            payload.severity(),
+                            null,
+                            payload.images(),
+                            staffId);
+                }
             }
         });
         if (snapshots.isEmpty()) {
@@ -971,5 +1026,12 @@ public class QCReportServiceImpl implements QCReportService {
         if (orderId != null) {
             reservationService.moveToUnderReview(orderId);
         }
+    }
+
+    private record ConditionSnapshotPayload(Long conditionDefinitionId,
+                                            String conditionDefinitionName,
+                                            String severity,
+                                            List<String> images,
+                                            boolean shouldPersist) {
     }
 }
