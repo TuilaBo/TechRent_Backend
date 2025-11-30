@@ -3,6 +3,10 @@ package com.rentaltech.techrental.finance.service;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.repository.AccountRepository;
+import com.rentaltech.techrental.contract.model.Contract;
+import com.rentaltech.techrental.contract.model.ContractStatus;
+import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepository;
+import com.rentaltech.techrental.contract.repository.ContractRepository;
 import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
@@ -57,6 +61,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final TransactionRepository transactionRepository;
     private final RentalOrderRepository rentalOrderRepository;
+    private final ContractRepository contractRepository;
+    private final ContractExtensionAnnexRepository contractExtensionAnnexRepository;
     private final NotificationService notificationService;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
@@ -174,13 +180,15 @@ public class PaymentServiceImpl implements PaymentService {
         if (newStatus == InvoiceStatus.SUCCEEDED) {
             invoice.setPaymentDate(LocalDateTime.now());
 
+            boolean extensionOrder = isExtensionOrder(rentalOrder);
             if (rentalOrder != null) {
                 System.out.println("Updating rental order status for order " + rentalOrder);
-                rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
+                rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
                 createBookingsForOrder(rentalOrder);
+                updateContractStatusAfterPayment(rentalOrder);
             }
 
             boolean transactionCreated = false;
@@ -193,7 +201,9 @@ public class PaymentServiceImpl implements PaymentService {
 
             if (transactionCreated && rentalOrder != null) {
                 notifyPaymentSuccess(rentalOrder);
-                createDeliveryTaskIfNeeded(rentalOrder);
+                if (!extensionOrder) {
+                    createDeliveryTaskIfNeeded(rentalOrder);
+                }
             }
 
         } else {
@@ -256,6 +266,16 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         bookingCalendarService.createBookingsForAllocations(allocations);
+    }
+
+    private boolean isExtensionOrder(RentalOrder rentalOrder) {
+        if (rentalOrder == null) {
+            return false;
+        }
+        if (rentalOrder.getParentOrder() != null) {
+            return true;
+        }
+        return rentalOrder.isExtended();
     }
 
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
@@ -550,9 +570,10 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setPaymentDate(LocalDateTime.now());
 
             RentalOrder rentalOrder = invoice.getRentalOrder();
+            boolean extensionOrder = isExtensionOrder(rentalOrder);
             if (rentalOrder != null) {
-                log.info("VNPAY payment succeeded for order {} - updating status to DELIVERY_CONFIRMED", rentalOrder.getOrderId());
-                rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
+                log.info("VNPAY payment succeeded for order {} - updating status", rentalOrder.getOrderId());
+                rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush(); // Ensure order status is persisted before proceeding
                 log.info("VNPAY order {} status updated to DELIVERY_CONFIRMED successfully", rentalOrder.getOrderId());
@@ -568,6 +589,11 @@ public class PaymentServiceImpl implements PaymentService {
                     createBookingsForOrder(rentalOrder);
                 } catch (Exception e) {
                     log.error("Failed to create bookings for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
+                try {
+                    updateContractStatusAfterPayment(rentalOrder);
+                } catch (Exception e) {
+                    log.error("Failed to update contract status for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
             } else {
                 log.warn("VNPAY payment succeeded but rentalOrder is null for invoice {}", invoice.getInvoiceId());
@@ -595,10 +621,12 @@ public class PaymentServiceImpl implements PaymentService {
                     log.error("Failed to send payment success notification for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
 
-                try {
-                    createDeliveryTaskIfNeeded(rentalOrder);
-                } catch (Exception e) {
-                    log.error("Failed to create delivery task for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                if (!extensionOrder) {
+                    try {
+                        createDeliveryTaskIfNeeded(rentalOrder);
+                    } catch (Exception e) {
+                        log.error("Failed to create delivery task for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                    }
                 }
             }
         } else {
@@ -650,5 +678,25 @@ public class PaymentServiceImpl implements PaymentService {
 
     private BigDecimal defaultZero(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private void updateContractStatusAfterPayment(RentalOrder rentalOrder) {
+        if (rentalOrder == null || rentalOrder.getOrderId() == null) {
+            return;
+        }
+        if (isExtensionOrder(rentalOrder)) {
+            contractExtensionAnnexRepository.findFirstByExtensionOrder_OrderId(rentalOrder.getOrderId())
+                    .ifPresent(annex -> {
+                        annex.setStatus(ContractStatus.ACTIVE);
+                        contractExtensionAnnexRepository.save(annex);
+                    });
+        } else {
+            contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(rentalOrder.getOrderId())
+                    .ifPresent(contract -> {
+                        contract.setStatus(ContractStatus.ACTIVE);
+                        contract.setSignedAt(Optional.ofNullable(contract.getSignedAt()).orElse(LocalDateTime.now()));
+                        contractRepository.save(contract);
+                    });
+        }
     }
 }

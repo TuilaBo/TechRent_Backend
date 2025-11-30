@@ -3,6 +3,7 @@ package com.rentaltech.techrental.contract.model.dto;
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.ContractType;
+import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import lombok.AllArgsConstructor;
@@ -54,6 +55,7 @@ public class ContractResponseDto {
     private boolean isExpiringSoon; // Sắp hết hạn
     private long daysUntilExpiry; // Số ngày còn lại
     private List<DeviceResponseDto> allocatedDevices;
+    private List<ContractExtensionAnnexResponseDto> extensionAnnexes;
 
     public static ContractResponseDto from(Contract contract, List<Device> allocatedDevices) {
         if (contract == null) {
@@ -64,6 +66,12 @@ public class ContractResponseDto {
                 : allocatedDevices.stream()
                 .filter(Objects::nonNull)
                 .map(DeviceResponseDto::from)
+                .toList();
+        List<ContractExtensionAnnex> annexes = contract.getExtensionAnnexes();
+        List<ContractExtensionAnnexResponseDto> annexDtos = annexes == null
+                ? List.of()
+                : annexes.stream()
+                .map(ContractExtensionAnnexResponseDto::from)
                 .toList();
         return ContractResponseDto.builder()
                 .contractId(contract.getContractId())
@@ -89,6 +97,7 @@ public class ContractResponseDto {
                 .createdBy(contract.getCreatedBy())
                 .updatedBy(contract.getUpdatedBy())
                 .allocatedDevices(allocatedDeviceDtos)
+                .extensionAnnexes(annexDtos)
                 .build();
     }
 }

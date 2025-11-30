@@ -489,8 +489,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         if (clonedAllocations.isEmpty()) {
             return;
         }
-        List<Allocation> savedAllocations = allocationRepository.saveAll(clonedAllocations);
-        bookingCalendarService.createBookingsForAllocations(savedAllocations);
+        allocationRepository.saveAll(clonedAllocations);
+        // Không tạo booking calendar ngay; sẽ tạo sau khi khách thanh toán phụ lục gia hạn
     }
 
     private List<AllocationConditionSnapshot> cloneSnapshots(List<AllocationConditionSnapshot> originals,
