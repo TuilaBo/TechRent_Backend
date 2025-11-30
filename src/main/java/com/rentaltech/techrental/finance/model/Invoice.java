@@ -67,8 +67,8 @@ public class Invoice {
     @Column(name = "invoice_status", nullable = false)
     private InvoiceStatus invoiceStatus;
 
-    @Column(name = "pdf_url")
-    private String pdfUrl;
+    @Column(name = "proof_url")
+    private String proofUrl;
 
     @Column(name = "issue_date")
     private LocalDateTime issueDate;

@@ -30,12 +30,14 @@ import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.payos.PayOS;
 import vn.payos.exception.PayOSException;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
@@ -73,6 +75,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final SettlementRepository settlementRepository;
     private final StaffService staffService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ImageStorageService imageStorageService;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
@@ -455,12 +458,16 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public InvoiceResponseDto confirmDepositRefund(Long settlementId, String username) {
+    public InvoiceResponseDto confirmDepositRefund(Long settlementId, String username, MultipartFile proofFile) {
         Account account = Optional.ofNullable(accountRepository.findByUsername(username))
                 .orElseThrow(() -> new AccessDeniedException("Không tìm thấy tài khoản xác thực"));
         Role role = account.getRole();
         if (role != Role.ADMIN && role != Role.OPERATOR && role != Role.TECHNICIAN && role != Role.CUSTOMER_SUPPORT_STAFF) {
             throw new AccessDeniedException("Không có quyền xác nhận hoàn cọc");
+        }
+
+        if (proofFile == null || proofFile.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng cung cấp file bằng chứng hoàn cọc");
         }
 
         Settlement settlement = settlementRepository.findById(settlementId)
@@ -472,6 +479,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         BigDecimal subTotal = defaultZero(settlement.getFinalReturnAmount());
         BigDecimal depositApplied = defaultZero(settlement.getTotalDeposit());
+        String proofUrl = imageStorageService.uploadInvoiceProof(proofFile, settlementId);
 
         Invoice invoice = Invoice.builder()
                 .rentalOrder(order)
@@ -485,6 +493,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .invoiceStatus(InvoiceStatus.SUCCEEDED)
                 .paymentDate(LocalDateTime.now())
                 .issueDate(LocalDateTime.now())
+                .proofUrl(proofUrl)
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
@@ -663,7 +672,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .depositApplied(depositApplied)
                 .dueDate(LocalDateTime.now().plusDays(3))
                 .invoiceStatus(InvoiceStatus.PROCESSING)
-                .pdfUrl(null)
+                .proofUrl(null)
                 .issueDate(null);
     }
 

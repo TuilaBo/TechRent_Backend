@@ -286,7 +286,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .depositApplied(depositApplied)
                 .dueDate(LocalDateTime.now().plusDays(3))
                 .invoiceStatus(InvoiceStatus.PROCESSING)
-                .pdfUrl(null)
+                .proofUrl(null)
                 .issueDate(LocalDateTime.now())
                 .build();
         return invoiceRepository.save(invoice);

@@ -20,7 +20,9 @@ import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,6 +87,9 @@ public class ContractServiceImpl implements ContractService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private CustomerRepository customerRepository;
 
     public ContractServiceImpl() {
         // Cleanup expired PIN codes every minute
@@ -391,7 +396,8 @@ public class ContractServiceImpl implements ContractService {
             
             // Bước 6: Chuyển sang trạng thái chờ customer ký
             contract.setStatus(ContractStatus.PENDING_SIGNATURE);
-            contractRepository.save(contract);
+            Contract savedContract = contractRepository.save(contract);
+            notifyCustomerContractReadyForSignature(savedContract);
             
             // Bước 7: Lưu thông tin chữ ký
             DigitalSignatureResponseDto response = DigitalSignatureResponseDto.builder()
@@ -408,7 +414,7 @@ public class ContractServiceImpl implements ContractService {
                     .build();
             
             return response;
-            
+
         } catch (Exception e) {
             throw new RuntimeException("Admin ký hợp đồng thất bại: " + e.getMessage());
         }
@@ -662,6 +668,26 @@ public class ContractServiceImpl implements ContractService {
             notifyAnnexCreation(baseContract, originalOrder, annex);
         } catch (Exception ex) {
             log.error("Không thể tạo phụ lục cho đơn gia hạn {}: {}", extensionOrder.getOrderId(), ex.getMessage(), ex);
+        }
+    }
+
+    private void notifyCustomerContractReadyForSignature(Contract contract) {
+        if (contract == null || contract.getCustomerId() == null) {
+            return;
+        }
+        try {
+            Customer customer = customerRepository.findById(contract.getCustomerId()).orElse(null);
+            if (customer == null || customer.getAccount() == null) {
+                return;
+            }
+            notificationService.notifyAccount(
+                    customer.getAccount().getAccountId(),
+                    NotificationType.CONTRACT_SIGNATURE_REQUIRED,
+                    "Hợp đồng cần bạn ký",
+                    "Hợp đồng " + contract.getContractNumber() + " đã được admin ký, vui lòng hoàn tất chữ ký."
+            );
+        } catch (Exception ex) {
+            log.error("Không thể gửi thông báo ký hợp đồng cho customer {}: {}", contract.getCustomerId(), ex.getMessage());
         }
     }
 
