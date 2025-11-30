@@ -28,6 +28,7 @@ public interface MaintenanceScheduleService {
     List<PriorityMaintenanceDeviceDto> getPriorityMaintenanceDevices();
     List<MaintenanceSchedule> getActiveMaintenanceSchedules();
     Page<MaintenanceSchedule> listByDateRange(LocalDate startDate, LocalDate endDate, Pageable pageable);
+    void deleteSchedule(Long maintenanceScheduleId);
 }
 
 

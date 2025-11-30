@@ -57,11 +57,11 @@ public class AdminDeviceContractTermController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Danh sách điều khoản", description = "Có thể lọc theo deviceId, deviceCategoryId, active")
-    public ResponseEntity<?> list(@RequestParam(required = false) Long deviceId,
+    @Operation(summary = "Danh sách điều khoản", description = "Có thể lọc theo deviceModelId, deviceCategoryId, active")
+    public ResponseEntity<?> list(@RequestParam(required = false) Long deviceModelId,
                                   @RequestParam(required = false) Long deviceCategoryId,
                                   @RequestParam(required = false) Boolean active) {
-        List<DeviceContractTermResponseDto> terms = deviceContractTermService.list(deviceId, deviceCategoryId, active);
+        List<DeviceContractTermResponseDto> terms = deviceContractTermService.list(deviceModelId, deviceCategoryId, active);
         return ResponseUtil.createSuccessResponse(
                 "Danh sách điều khoản",
                 "Truy vấn thành công",

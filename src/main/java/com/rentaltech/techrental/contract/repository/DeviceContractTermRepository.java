@@ -10,13 +10,13 @@ import java.util.List;
 @Repository
 public interface DeviceContractTermRepository extends JpaRepository<DeviceContractTerm, Long> {
 
-    List<DeviceContractTerm> findByDevice_DeviceIdInAndActiveIsTrue(Collection<Long> deviceIds);
+    List<DeviceContractTerm> findByDeviceModel_DeviceModelIdInAndActiveIsTrue(Collection<Long> deviceModelIds);
 
     List<DeviceContractTerm> findByDeviceCategory_DeviceCategoryIdInAndActiveIsTrue(Collection<Long> categoryIds);
 
-    List<DeviceContractTerm> findByDeviceIsNullAndDeviceCategoryIsNullAndActiveIsTrue();
+    List<DeviceContractTerm> findByDeviceModelIsNullAndDeviceCategoryIsNullAndActiveIsTrue();
 
-    List<DeviceContractTerm> findByDevice_DeviceId(Long deviceId);
+    List<DeviceContractTerm> findByDeviceModel_DeviceModelId(Long deviceModelId);
 
     List<DeviceContractTerm> findByDeviceCategory_DeviceCategoryId(Long categoryId);
 }

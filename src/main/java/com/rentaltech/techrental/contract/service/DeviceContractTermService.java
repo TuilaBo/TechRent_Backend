@@ -18,7 +18,7 @@ public interface DeviceContractTermService {
 
     DeviceContractTermResponseDto get(Long termId);
 
-    List<DeviceContractTermResponseDto> list(Long deviceId, Long deviceCategoryId, Boolean active);
+    List<DeviceContractTermResponseDto> list(Long deviceModelId, Long deviceCategoryId, Boolean active);
 
     List<DeviceContractTerm> findApplicableTerms(RentalOrder order, List<OrderDetail> orderDetails);
 }
