@@ -13,6 +13,7 @@ import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.*;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
+import com.rentaltech.techrental.staff.service.taskruleservice.TaskRuleService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -66,6 +68,9 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private TaskRuleService taskRuleService;
+
     @Override
     public Task createTask(TaskCreateRequestDto request, String username) {
         AccessContext access = resolveAccessContext(username);
@@ -79,6 +84,7 @@ public class TaskServiceImpl implements TaskService {
 
             // Tìm danh sách staff được assign (nếu có)
             Set<Staff> assignedStaff = resolveStaffMembers(request.getAssignedStaffIds());
+            enforceDailyCapacity(assignedStaff, request.getPlannedStart());
 
             Task task = Task.builder()
                     .taskCategory(category)
@@ -207,6 +213,8 @@ public class TaskServiceImpl implements TaskService {
         Set<Staff> staffMembersForNotification = null;
         if (request.getAssignedStaffIds() != null) {
             Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
+            LocalDateTime referenceDateTime = request.getPlannedStart() != null ? request.getPlannedStart() : task.getPlannedStart();
+            enforceDailyCapacity(staffMembers, referenceDateTime);
             task.setAssignedStaff(staffMembers);
             staffMembersForNotification = staffMembers;
         }
@@ -294,6 +302,42 @@ public class TaskServiceImpl implements TaskService {
         return taskRepository.save(task);
     }
 
+    @Override
+    public List<com.rentaltech.techrental.staff.model.dto.StaffAssignmentDto> getStaffAssignmentsForDate(Long staffId,
+                                                                                                        LocalDate targetDate,
+                                                                                                        String username) {
+        AccessContext access = resolveAccessContext(username);
+        Long effectiveStaffId = resolveEffectiveAssignedStaff(staffId, access);
+        if (effectiveStaffId == null) {
+            throw new IllegalArgumentException("Cần cung cấp staffId");
+        }
+        LocalDate date = targetDate != null ? targetDate : LocalDate.now();
+        List<Task> tasks = taskRepository.findAssignmentsForStaffOnDate(effectiveStaffId, date);
+        return tasks.stream()
+                .map(com.rentaltech.techrental.staff.model.dto.StaffAssignmentDto::from)
+                .toList();
+    }
+
+    @Override
+    public List<com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto> getMonthlyCompletionStats(int year,
+                                                                                                            int month,
+                                                                                                            Long categoryId) {
+        if (month < 1 || month > 12) {
+            throw new IllegalArgumentException("Tháng không hợp lệ");
+        }
+        LocalDateTime start = LocalDate.of(year, month, 1).atStartOfDay();
+        LocalDateTime end = start.plusMonths(1);
+        List<Object[]> records = taskRepository.countCompletedTasksByCategory(start, end, categoryId);
+        return records.stream()
+                .map(com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto::fromRecord)
+                .toList();
+    }
+
+    @Override
+    public com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto getActiveTaskRule() {
+        return taskRuleService.getActiveRule();
+    }
+
     private AccessContext resolveAccessContext(String username) {
         Account account = accountService.getByUsername(username)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản"));
@@ -320,6 +364,28 @@ public class TaskServiceImpl implements TaskService {
         }
         if (!isTaskAssignedTo(task, access.staffId())) {
             throw new AccessDeniedException("Không có quyền truy cập tác vụ này");
+        }
+    }
+
+    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart) {
+        if (staffMembers == null || staffMembers.isEmpty()) {
+            return;
+        }
+        TaskRule activeRule = taskRuleService.getActiveRuleEntity();
+        if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
+            return;
+        }
+        LocalDate targetDate = plannedStart != null ? plannedStart.toLocalDate() : LocalDate.now();
+        int maxPerDay = activeRule.getMaxTasksPerDay();
+        for (Staff staff : staffMembers) {
+            if (staff == null || staff.getStaffId() == null) {
+                continue;
+            }
+            long currentCount = taskRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate);
+            if (currentCount >= maxPerDay) {
+                throw new IllegalStateException("Nhân viên " + staff.getStaffId()
+                        + " đã đạt giới hạn " + maxPerDay + " công việc trong ngày " + targetDate);
+            }
         }
     }
 

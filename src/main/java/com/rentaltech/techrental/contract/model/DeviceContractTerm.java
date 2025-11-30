@@ -1,7 +1,7 @@
 package com.rentaltech.techrental.contract.model;
 
-import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceCategory;
+import com.rentaltech.techrental.device.model.DeviceModel;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,8 +30,8 @@ public class DeviceContractTerm {
     private String content;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_id")
-    private Device device;
+    @JoinColumn(name = "device_model_id")
+    private DeviceModel deviceModel;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_category_id")

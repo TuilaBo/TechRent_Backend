@@ -5,11 +5,10 @@ import com.rentaltech.techrental.contract.model.dto.DeviceContractTermRequestDto
 import com.rentaltech.techrental.contract.model.dto.DeviceContractTermResponseDto;
 import com.rentaltech.techrental.contract.repository.DeviceContractTermRepository;
 import com.rentaltech.techrental.contract.service.DeviceContractTermService;
-import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceCategory;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
+import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
-import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import lombok.RequiredArgsConstructor;
@@ -32,19 +31,18 @@ import java.util.stream.Collectors;
 public class DeviceContractTermServiceImpl implements DeviceContractTermService {
 
     private final DeviceContractTermRepository termRepository;
-    private final DeviceRepository deviceRepository;
+    private final DeviceModelRepository deviceModelRepository;
     private final DeviceCategoryRepository deviceCategoryRepository;
-    private final AllocationRepository allocationRepository;
 
     @Override
     public DeviceContractTermResponseDto create(DeviceContractTermRequestDto request, Long adminId) {
         validateScope(request);
-        Device device = resolveDevice(request.getDeviceId());
+        DeviceModel deviceModel = resolveDeviceModel(request.getDeviceModelId());
         DeviceCategory category = resolveCategory(request.getDeviceCategoryId());
         DeviceContractTerm term = DeviceContractTerm.builder()
                 .title(request.getTitle())
                 .content(request.getContent())
-                .device(device)
+                .deviceModel(deviceModel)
                 .deviceCategory(category)
                 .active(Boolean.TRUE.equals(request.getActive()))
                 .createdAt(LocalDateTime.now())
@@ -62,7 +60,7 @@ public class DeviceContractTermServiceImpl implements DeviceContractTermService 
         validateScope(request);
         term.setTitle(request.getTitle());
         term.setContent(request.getContent());
-        term.setDevice(resolveDevice(request.getDeviceId()));
+        term.setDeviceModel(resolveDeviceModel(request.getDeviceModelId()));
         term.setDeviceCategory(resolveCategory(request.getDeviceCategoryId()));
         term.setActive(Boolean.TRUE.equals(request.getActive()));
         term.setUpdatedAt(LocalDateTime.now());
@@ -87,10 +85,10 @@ public class DeviceContractTermServiceImpl implements DeviceContractTermService 
 
     @Override
     @Transactional(readOnly = true)
-    public List<DeviceContractTermResponseDto> list(Long deviceId, Long deviceCategoryId, Boolean active) {
+    public List<DeviceContractTermResponseDto> list(Long deviceModelId, Long deviceCategoryId, Boolean active) {
         List<DeviceContractTerm> terms;
-        if (deviceId != null) {
-            terms = termRepository.findByDevice_DeviceId(deviceId);
+        if (deviceModelId != null) {
+            terms = termRepository.findByDeviceModel_DeviceModelId(deviceModelId);
         } else if (deviceCategoryId != null) {
             terms = termRepository.findByDeviceCategory_DeviceCategoryId(deviceCategoryId);
         } else {
@@ -107,40 +105,43 @@ public class DeviceContractTermServiceImpl implements DeviceContractTermService 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceContractTerm> findApplicableTerms(RentalOrder order, List<OrderDetail> orderDetails) {
-        if (order == null) {
+        if (order == null || orderDetails == null) {
             return List.of();
         }
-        Set<Long> deviceIds = allocationRepository.findByOrderDetail_RentalOrder_OrderId(order.getOrderId()).stream()
-                .map(allocation -> allocation.getDevice() != null ? allocation.getDevice().getDeviceId() : null)
+
+        Set<Long> deviceModelIds = orderDetails.stream()
+                .map(OrderDetail::getDeviceModel)
+                .filter(Objects::nonNull)
+                .map(DeviceModel::getDeviceModelId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Set<Long> categoryIds = orderDetails.stream()
                 .map(OrderDetail::getDeviceModel)
                 .filter(Objects::nonNull)
-                .map(model -> model.getDeviceCategory())
+                .map(DeviceModel::getDeviceCategory)
                 .filter(Objects::nonNull)
                 .map(DeviceCategory::getDeviceCategoryId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         List<DeviceContractTerm> result = new ArrayList<>();
-        if (!deviceIds.isEmpty()) {
-            result.addAll(termRepository.findByDevice_DeviceIdInAndActiveIsTrue(deviceIds));
+        if (!deviceModelIds.isEmpty()) {
+            result.addAll(termRepository.findByDeviceModel_DeviceModelIdInAndActiveIsTrue(deviceModelIds));
         }
         if (!categoryIds.isEmpty()) {
             result.addAll(termRepository.findByDeviceCategory_DeviceCategoryIdInAndActiveIsTrue(categoryIds));
         }
-        result.addAll(termRepository.findByDeviceIsNullAndDeviceCategoryIsNullAndActiveIsTrue());
+        result.addAll(termRepository.findByDeviceModelIsNullAndDeviceCategoryIsNullAndActiveIsTrue());
         return deduplicate(result);
     }
 
-    private Device resolveDevice(Long deviceId) {
-        if (deviceId == null) {
+    private DeviceModel resolveDeviceModel(Long deviceModelId) {
+        if (deviceModelId == null) {
             return null;
         }
-        return deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị với id " + deviceId));
+        return deviceModelRepository.findById(deviceModelId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy model thiết bị với id " + deviceModelId));
     }
 
     private DeviceCategory resolveCategory(Long categoryId) {
@@ -152,8 +153,11 @@ public class DeviceContractTermServiceImpl implements DeviceContractTermService 
     }
 
     private void validateScope(DeviceContractTermRequestDto request) {
-        if (request.getDeviceId() == null && request.getDeviceCategoryId() == null) {
-            throw new IllegalArgumentException("Cần chọn thiết bị hoặc loại thiết bị cho điều khoản");
+        if (request.getDeviceModelId() == null && request.getDeviceCategoryId() == null) {
+            throw new IllegalArgumentException("Cần chọn model thiết bị hoặc loại thiết bị cho điều khoản");
+        }
+        if (request.getDeviceModelId() != null && request.getDeviceCategoryId() != null) {
+            throw new IllegalArgumentException("Chỉ được chọn một trong hai: model thiết bị hoặc loại thiết bị");
         }
     }
 

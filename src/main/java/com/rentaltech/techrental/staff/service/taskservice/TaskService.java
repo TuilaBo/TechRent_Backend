@@ -4,6 +4,7 @@ import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface TaskService {
@@ -19,4 +20,14 @@ public interface TaskService {
     List<Task> getOverdueTasks();
     Task confirmDelivery(Long taskId, String username);
     Task confirmRetrieval(Long taskId, String username);
+
+    List<com.rentaltech.techrental.staff.model.dto.StaffAssignmentDto> getStaffAssignmentsForDate(Long staffId,
+                                                                                                  LocalDate targetDate,
+                                                                                                  String username);
+
+    List<com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto> getMonthlyCompletionStats(int year,
+                                                                                                     int month,
+                                                                                                     Long categoryId);
+
+    com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto getActiveTaskRule();
 }

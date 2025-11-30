@@ -2,9 +2,7 @@ package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
-import com.rentaltech.techrental.staff.model.dto.TaskResponseDto;
-import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -205,6 +204,51 @@ public class TaskController {
                 "Confirmed retrieval",
                 "Task marked as IN_PROGRESS by assigned staff",
                 TaskResponseDto.from(updated),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/staff-assignments")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Lịch làm việc trong ngày của staff")
+    public ResponseEntity<?> getStaffAssignments(@RequestParam(required = false) Long staffId,
+                                                 @RequestParam(required = false) @io.swagger.v3.oas.annotations.media.Schema(example = "2025-12-01") String date,
+                                                 Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
+        List<StaffAssignmentDto> assignments = taskService.getStaffAssignmentsForDate(staffId, targetDate, username);
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách công việc trong ngày",
+                "Staff assignments",
+                assignments,
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/completion-stats")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Thống kê công việc hoàn thành theo category trong tháng")
+    public ResponseEntity<?> getCompletionStats(@RequestParam int year,
+                                                @RequestParam int month,
+                                                @RequestParam(required = false) Long taskCategoryId) {
+        List<TaskCompletionStatsDto> stats = taskService.getMonthlyCompletionStats(year, month, taskCategoryId);
+        return ResponseUtil.createSuccessResponse(
+                "Thống kê hoàn thành",
+                "Theo category",
+                stats,
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/active-rule")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Rule tác vụ hiện hành")
+    public ResponseEntity<?> getActiveRule() {
+        TaskRuleResponseDto rule = taskService.getActiveTaskRule();
+        return ResponseUtil.createSuccessResponse(
+                "Rule hiện hành",
+                "",
+                rule,
                 HttpStatus.OK
         );
     }
