@@ -31,7 +31,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/customers")
 @AllArgsConstructor
-@Tag(name = "Customers", description = "Customer profile APIs")
+@Tag(name = "Khách hàng", description = "API quản lý hồ sơ và tác vụ liên quan đến khách hàng")
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -39,9 +39,9 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "List customers", description = "Retrieve all customers")
+    @Operation(summary = "Danh sách khách hàng", description = "Liệt kê toàn bộ khách hàng trong hệ thống")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách khách hàng")
     })
     public ResponseEntity<?> getAllCustomers() {
         List<Customer> customers = customerService.getAllCustomers();
@@ -58,10 +58,10 @@ public class CustomerController {
 
     @GetMapping("/{customerId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get customer by ID", description = "Retrieve customer by ID")
+    @Operation(summary = "Chi tiết khách hàng", description = "Tra cứu thông tin khách hàng theo ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "404", description = "Not found")
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin khách hàng"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khách hàng")
     })
     public ResponseEntity<?> getCustomerById(@PathVariable Long customerId) {
         Customer customer = customerService.getCustomerByIdOrThrow(customerId);
@@ -75,10 +75,10 @@ public class CustomerController {
 
     @GetMapping("/profile")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "My profile", description = "Get current customer's profile")
+    @Operation(summary = "Hồ sơ của tôi", description = "Khách hàng xem thông tin hồ sơ của chính mình")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin hồ sơ"),
+            @ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
     })
     public ResponseEntity<?> getMyProfile(
             @AuthenticationPrincipal UserDetails principal) {
@@ -96,11 +96,11 @@ public class CustomerController {
 
     @PutMapping("/profile")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Update my profile", description = "Update current customer's profile")
+    @Operation(summary = "Cập nhật hồ sơ cá nhân", description = "Khách hàng chỉnh sửa hồ sơ của bản thân")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Bad request"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
+            @ApiResponse(responseCode = "200", description = "Cập nhật hồ sơ thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
     })
     public ResponseEntity<?> updateMyProfile(
             @RequestBody @Valid CustomerUpdateRequestDto request,
@@ -119,10 +119,10 @@ public class CustomerController {
 
     @PutMapping("/{customerId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Update customer", description = "Update customer by ID")
+    @Operation(summary = "Cập nhật khách hàng", description = "Quản trị viên cập nhật thông tin khách hàng theo ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Bad request")
+            @ApiResponse(responseCode = "200", description = "Cập nhật thông tin khách hàng thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ")
     })
     public ResponseEntity<?> updateCustomer(
             @PathVariable Long customerId,
@@ -138,10 +138,10 @@ public class CustomerController {
 
     @DeleteMapping("/{customerId}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete customer", description = "Delete customer by ID")
+    @Operation(summary = "Xóa khách hàng", description = "Xóa khách hàng theo ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Deleted"),
-            @ApiResponse(responseCode = "404", description = "Not found")
+            @ApiResponse(responseCode = "204", description = "Xóa khách hàng thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khách hàng")
     })
     public ResponseEntity<?> deleteCustomer(@PathVariable Long customerId) {
         customerService.deleteCustomer(customerId);
@@ -154,11 +154,11 @@ public class CustomerController {
 
     @PostMapping("/fcm-token")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Save FCM token", description = "Lưu token FCM cho khách hàng hiện tại")
+    @Operation(summary = "Lưu FCM token", description = "Lưu token thông báo đẩy của khách hàng hiện tại")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Bad request"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
+            @ApiResponse(responseCode = "200", description = "Lưu token thành công"),
+            @ApiResponse(responseCode = "400", description = "Token không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
     })
     public ResponseEntity<?> saveFcmToken(@AuthenticationPrincipal UserDetails principal,
                                           @RequestBody @Valid SaveFcmTokenRequestDto request) {
@@ -181,7 +181,11 @@ public class CustomerController {
      */
     @GetMapping("/me/kyc")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Get my KYC info", description = "Get current customer's KYC information")
+    @Operation(summary = "Xem thông tin KYC của tôi", description = "Trả về thông tin KYC hiện tại của khách hàng đang đăng nhập")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin KYC"),
+            @ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
+    })
     public ResponseEntity<?> getMyKyc(@AuthenticationPrincipal UserDetails principal) {
         if (principal == null) {
             return ResponseUtil.unauthorized();
@@ -203,7 +207,12 @@ public class CustomerController {
      */
     @PostMapping(value = "/me/kyc/documents/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Upload KYC documents batch", description = "Upload multiple KYC documents with personal information")
+    @Operation(summary = "Tải lên bộ hồ sơ KYC", description = "Khách hàng tải nhiều ảnh giấy tờ tùy thân phục vụ định danh")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tải lên hồ sơ KYC thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu hoặc file tải lên không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
+    })
     public ResponseEntity<?> uploadKycDocumentsBatch(
             @Parameter(description = "Ảnh CCCD mặt trước", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
             @RequestPart(value = "front", required = false) MultipartFile front,

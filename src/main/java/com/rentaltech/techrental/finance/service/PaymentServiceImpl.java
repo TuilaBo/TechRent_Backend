@@ -33,10 +33,12 @@ import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import vn.payos.PayOS;
 import vn.payos.exception.PayOSException;
@@ -77,6 +79,12 @@ public class PaymentServiceImpl implements PaymentService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ImageStorageService imageStorageService;
 
+    @Value("${payos.return-url:http://localhost:8080/api/v1/payos/return}")
+    private String payosReturnUrl;
+
+    @Value("${payos.cancel-url:http://localhost:8080/api/v1/payos/cancel}")
+    private String payosCancelUrl;
+
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
     @Override
@@ -84,24 +92,24 @@ public class PaymentServiceImpl implements PaymentService {
     public CreatePaymentResponse createPayment(CreatePaymentRequest request) {
         InvoiceType invoiceType = request.getInvoiceType();
         if (invoiceType != InvoiceType.RENT_PAYMENT) {
-            throw new UnsupportedOperationException("TODO: unsupported invoice type " + invoiceType);
+            throw new UnsupportedOperationException("Hiện chưa hỗ trợ loại hóa đơn: " + invoiceType);
         }
 
         PaymentMethod paymentMethod = request.getPaymentMethod();
         if (paymentMethod == PaymentMethod.MOMO || paymentMethod == PaymentMethod.BANK_ACCOUNT) {
-            throw new UnsupportedOperationException("TODO: unsupported payment method " + paymentMethod);
+            throw new UnsupportedOperationException("Hiện chưa hỗ trợ phương thức thanh toán: " + paymentMethod);
         }
 
         if (paymentMethod != PaymentMethod.PAYOS && paymentMethod != PaymentMethod.VNPAY) {
-            throw new IllegalArgumentException("Unsupported payment method: " + paymentMethod);
+            throw new IllegalArgumentException("Phương thức thanh toán không hợp lệ: " + paymentMethod);
         }
 
         RentalOrder rentalOrder = rentalOrderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new IllegalArgumentException("Rental order not found: " + request.getOrderId()));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn thuê: " + request.getOrderId()));
 
         BigDecimal expectedSubTotal = safeSum(rentalOrder.getDepositAmount(), rentalOrder.getTotalPrice());
         if (request.getAmount() == null || request.getAmount().compareTo(expectedSubTotal) != 0) {
-            throw new IllegalArgumentException("Amount does not match deposit + total price for order " + request.getOrderId());
+            throw new IllegalArgumentException("Số tiền không khớp với tiền cọc + tổng chi phí của đơn thuê " + request.getOrderId());
         }
 
         BigDecimal taxAmount = BigDecimal.ZERO;
@@ -131,6 +139,8 @@ public class PaymentServiceImpl implements PaymentService {
             invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
                             taxAmount, discountAmount, depositApplied, totalAmount)
                     .payosOrderCode(payosOrderCode)
+                    .frontendSuccessUrl(request.getFrontendSuccessUrl())
+                    .frontendFailureUrl(request.getFrontendFailureUrl())
                     .build();
             invoice = invoiceRepository.save(invoice);
             invoiceRepository.flush();
@@ -147,7 +157,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .status(response.getStatus().getValue())
                         .build();
             } catch (PayOSException ex) {
-                throw new IllegalStateException("Failed to create PayOS payment link", ex);
+                throw new IllegalStateException("Không thể tạo liên kết thanh toán PayOS", ex);
             }
         }
     }
@@ -170,22 +180,34 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
 
-        Optional<InvoiceStatus> targetStatus = code.equals("00") ? Optional.of(InvoiceStatus.SUCCEEDED) : Optional.of(InvoiceStatus.FAILED);
+        boolean success = "00".equals(code);
+        applyPayosPaymentResult(orderCode, success);
+    }
 
-        InvoiceStatus newStatus = targetStatus.get();
+    @Override
+    @Transactional
+    public boolean handlePayOsReturn(Long orderCode, boolean success) {
+        if (orderCode == null) {
+            log.warn("PayOS return URL called without orderCode");
+            return false;
+        }
+        applyPayosPaymentResult(orderCode, success);
+        return success;
+    }
 
+    private void applyPayosPaymentResult(Long orderCode, boolean success) {
         Invoice invoice = invoiceRepository.findByPayosOrderCode(orderCode)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found for PayOS order code: " + orderCode));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn tương ứng với order code PayOS: " + orderCode));
         RentalOrder rentalOrder = invoice.getRentalOrder();
-
+        InvoiceStatus newStatus = success ? InvoiceStatus.SUCCEEDED : InvoiceStatus.FAILED;
         invoice.setInvoiceStatus(newStatus);
 
-        if (newStatus == InvoiceStatus.SUCCEEDED) {
+        if (success) {
             invoice.setPaymentDate(LocalDateTime.now());
 
             boolean extensionOrder = isExtensionOrder(rentalOrder);
             if (rentalOrder != null) {
-                System.out.println("Updating rental order status for order " + rentalOrder);
+                log.info("Updating rental order status for order {}", rentalOrder.getOrderId());
                 rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush();
@@ -208,7 +230,6 @@ public class PaymentServiceImpl implements PaymentService {
                     createDeliveryTaskIfNeeded(rentalOrder);
                 }
             }
-
         } else {
             invoice.setPaymentDate(null);
         }
@@ -282,11 +303,25 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
-        if (request.getReturnUrl() == null) {
-            throw new IllegalStateException("Return URL not configured for PayOS payment");
+        String providedReturnUrl = StringUtils.hasText(request.getReturnUrl()) && !"string".equalsIgnoreCase(request.getReturnUrl().trim())
+                ? request.getReturnUrl().trim()
+                : null;
+        String providedCancelUrl = StringUtils.hasText(request.getCancelUrl()) && !"string".equalsIgnoreCase(request.getCancelUrl().trim())
+                ? request.getCancelUrl().trim()
+                : null;
+
+        String effectiveReturnUrl = StringUtils.hasText(providedReturnUrl)
+                ? providedReturnUrl
+                : payosReturnUrl;
+        String effectiveCancelUrl = StringUtils.hasText(providedCancelUrl)
+                ? providedCancelUrl
+                : payosCancelUrl;
+
+        if (!StringUtils.hasText(effectiveReturnUrl)) {
+            throw new IllegalStateException("URL trả về chưa được cấu hình cho PayOS");
         }
-        if (request.getCancelUrl() == null) {
-            throw new IllegalStateException("Cancel URL not configured for PayOS payment");
+        if (!StringUtils.hasText(effectiveCancelUrl)) {
+            throw new IllegalStateException("URL hủy chưa được cấu hình cho PayOS");
         }
 
         PaymentLinkItem itemData = PaymentLinkItem.builder()
@@ -298,38 +333,42 @@ public class PaymentServiceImpl implements PaymentService {
         return CreatePaymentLinkRequest.builder()
                 .orderCode(invoice.getPayosOrderCode())
                 .amount(request.getAmount().longValueExact())
-                .description("Thanh toan")
-                .returnUrl("https://your-url.com/success")
-                .cancelUrl("https://your-url.com/cancel")
+                .description("Thanh toán")
+                .returnUrl(effectiveReturnUrl)
+                .cancelUrl(effectiveCancelUrl)
                 .item(itemData)
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public InvoiceResponseDto getInvoiceForCustomer(Long rentalOrderId, String username) {
-        Invoice invoice = invoiceRepository.findFirstByRentalOrder_OrderIdOrderByInvoiceIdDesc(rentalOrderId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn cho đơn hàng: " + rentalOrderId));
-
-        RentalOrder rentalOrder = invoice.getRentalOrder();
+    public List<InvoiceResponseDto> getInvoiceForCustomer(Long rentalOrderId, String username) {
+        RentalOrder rentalOrder = rentalOrderRepository.findById(rentalOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng: " + rentalOrderId));
 
         Account requester = Optional.ofNullable(accountRepository.findByUsername(username))
                 .orElseThrow(() -> new AccessDeniedException("Không tìm thấy tài khoản người dùng hiện tại"));
 
         Role requesterRole = requester.getRole();
-        if (requesterRole == Role.OPERATOR || requesterRole == Role.CUSTOMER_SUPPORT_STAFF) {
-            return InvoiceResponseDto.from(invoice);
-        }
-
         if (requesterRole == Role.CUSTOMER) {
-            String ownerUsername = rentalOrder.getCustomer().getAccount().getUsername();
+            String ownerUsername = Optional.ofNullable(rentalOrder.getCustomer())
+                    .map(customer -> customer.getAccount())
+                    .map(Account::getUsername)
+                    .orElse(null);
             if (ownerUsername == null || !ownerUsername.equalsIgnoreCase(username)) {
                 throw new AccessDeniedException("Bạn không thể xem hóa đơn của đơn hàng này");
             }
-            return InvoiceResponseDto.from(invoice);
+        } else if (requesterRole != Role.OPERATOR && requesterRole != Role.CUSTOMER_SUPPORT_STAFF && requesterRole != Role.ADMIN) {
+            throw new AccessDeniedException("Bạn không có quyền truy cập hóa đơn này");
         }
 
-        throw new AccessDeniedException("Bạn không có quyền truy cập hóa đơn này");
+        List<InvoiceResponseDto> invoices = invoiceRepository.findByRentalOrder_OrderIdOrderByInvoiceIdDesc(rentalOrderId).stream()
+                .map(InvoiceResponseDto::from)
+                .toList();
+        if (invoices.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy hóa đơn cho đơn hàng: " + rentalOrderId);
+        }
+        return invoices;
     }
 
     private BigDecimal safeSum(BigDecimal first, BigDecimal second) {
@@ -435,7 +474,7 @@ public class PaymentServiceImpl implements PaymentService {
         // Create hash BEFORE adding vnp_SecureHash to params
         String secureHash = VnpayUtil.hashAllFields(vnpParams, vnpayConfig.getHashSecret());
         if (secureHash == null) {
-            throw new IllegalStateException("Failed to generate VNPAY secure hash");
+            throw new IllegalStateException("Không thể sinh chữ ký bảo mật cho VNPAY");
         }
 
         log.info("VNPAY params before hash: {}", vnpParams);
@@ -457,6 +496,15 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceResponseDto> getAllInvoices() {
+        return invoiceRepository.findAll().stream()
+                .sorted(Comparator.comparing(Invoice::getInvoiceId).reversed())
+                .map(InvoiceResponseDto::from)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public InvoiceResponseDto confirmDepositRefund(Long settlementId, String username, MultipartFile proofFile) {
         Account account = Optional.ofNullable(accountRepository.findByUsername(username))
@@ -474,7 +522,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy settlement: " + settlementId));
         RentalOrder order = settlement.getRentalOrder();
         if (order == null) {
-            throw new IllegalStateException("Settlement chưa gắn với đơn thuê");
+            throw new IllegalStateException("Biên bản thanh lý (settlement) chưa gắn với đơn thuê");
         }
 
         BigDecimal subTotal = defaultZero(settlement.getFinalReturnAmount());
@@ -564,11 +612,11 @@ public class PaymentServiceImpl implements PaymentService {
         if (!secureHash.equals(vnp_SecureHash)) {
             log.error("Invalid VNPAY checksum for transaction: {}. Expected: {}, Got: {}", vnp_TxnRef, secureHash, vnp_SecureHash);
             log.error("All params for hash: {}", paramsForHash);
-            throw new IllegalStateException("Invalid VNPAY checksum");
+            throw new IllegalStateException("Chữ ký VNPAY không hợp lệ");
         }
 
         Invoice invoice = invoiceRepository.findByVnpayTransactionId(vnp_TxnRef)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found for VNPAY transaction: " + vnp_TxnRef));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn tương ứng giao dịch VNPAY: " + vnp_TxnRef));
 
         boolean isSuccess = "00".equals(vnp_ResponseCode) && "00".equals(vnp_TransactionStatus);
         InvoiceStatus newStatus = isSuccess ? InvoiceStatus.SUCCEEDED : InvoiceStatus.FAILED;

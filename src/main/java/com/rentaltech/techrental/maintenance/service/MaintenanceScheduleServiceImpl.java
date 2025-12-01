@@ -126,7 +126,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     @Transactional
     public List<MaintenanceSchedule> createSchedulesByCategory(MaintenanceScheduleByCategoryRequestDto request) {
         DeviceCategory category = deviceCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new IllegalArgumentException("Category not found: " + request.getCategoryId()));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục thiết bị: " + request.getCategoryId()));
 
         List<Device> devices = deviceRepository.findAll().stream()
                 .filter(device -> device.getDeviceModel() != null
@@ -135,7 +135,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 .collect(Collectors.toList());
 
         if (devices.isEmpty()) {
-            throw new IllegalArgumentException("No devices found for category: " + category.getDeviceCategoryName());
+            throw new IllegalArgumentException("Không tìm thấy thiết bị thuộc danh mục: " + category.getDeviceCategoryName());
         }
 
         LocalDate endDate = request.getEndDate();

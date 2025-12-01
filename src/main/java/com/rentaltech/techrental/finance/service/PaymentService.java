@@ -15,9 +15,12 @@ public interface PaymentService {
 
     void handleWebhook(WebhookData webhookData);
 
-    InvoiceResponseDto getInvoiceForCustomer(Long rentalOrderId, String username);
+    boolean handlePayOsReturn(Long orderCode, boolean success);
+
+    List<InvoiceResponseDto> getInvoiceForCustomer(Long rentalOrderId, String username);
 
     List<TransactionResponseDto> getAllTransactions();
+    List<InvoiceResponseDto> getAllInvoices();
 
     InvoiceResponseDto confirmDepositRefund(Long settlementId, String username, MultipartFile proofFile);
 }

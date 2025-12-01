@@ -25,21 +25,21 @@ import java.math.BigDecimal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/device-models")
-@Tag(name = "Device Models", description = "Device model management APIs")
+@Tag(name = "Quản lý mẫu thiết bị", description = "Các API phục vụ quản lý model thiết bị, bao gồm tạo mới, chỉnh sửa, tìm kiếm")
 public class DeviceModelController {
 
     private final DeviceModelService service;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create device model", description = "Create a new device model")
+    @Operation(summary = "Tạo mẫu thiết bị", description = "Thêm mới một model thiết bị kèm thông tin chi tiết")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Created"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "201", description = "Tạo mẫu thiết bị thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> create(@RequestPart("request") @Valid DeviceModelRequestDto request,
-                                    @Parameter(description = "Ành thiết bị", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+                                    @Parameter(description = "Ảnh thiết bị", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
                                     @RequestPart(value = "image", required = false) MultipartFile imageFile) {
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị được tạo thành công",
@@ -50,26 +50,26 @@ public class DeviceModelController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get device model by ID", description = "Retrieve device model by ID")
+    @Operation(summary = "Chi tiết mẫu thiết bị", description = "Lấy thông tin mẫu thiết bị theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin mẫu thiết bị"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy mẫu thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "Device model ID") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Mã mẫu thiết bị") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị tìm thấy",
-                "Mẫu thiết bị với id " + id + " đã được tìm thấy",
+                "Mẫu thiết bị với mã " + id + " đã được tìm thấy",
                 service.findById(id),
                 HttpStatus.OK
         );
     }
 
     @GetMapping
-    @Operation(summary = "List device models", description = "Retrieve all device models")
+    @Operation(summary = "Danh sách mẫu thiết bị", description = "Liệt kê tất cả mẫu thiết bị trong hệ thống")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách mẫu thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -81,17 +81,17 @@ public class DeviceModelController {
     }
 
     @GetMapping("/by-category/{categoryId}")
-    @Operation(summary = "List device models by category", description = "Retrieve all device models thuộc một danh mục thiết bị")
+    @Operation(summary = "Danh sách mẫu thiết bị theo danh mục", description = "Trả về toàn bộ mẫu thiết bị thuộc một danh mục cụ thể")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "400", description = "Invalid category id"),
-            @ApiResponse(responseCode = "404", description = "Category not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách mẫu thiết bị"),
+            @ApiResponse(responseCode = "400", description = "Mã danh mục không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy danh mục"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> getByCategory(@Parameter(description = "Device category ID") @PathVariable Long categoryId) {
+    public ResponseEntity<?> getByCategory(@Parameter(description = "Mã danh mục thiết bị") @PathVariable Long categoryId) {
         return ResponseUtil.createSuccessResponse(
                 "Danh sách mẫu thiết bị theo danh mục",
-                "Các mẫu thiết bị thuộc danh mục " + categoryId,
+                "Các mẫu thiết bị thuộc danh mục mã " + categoryId,
                 service.findByDeviceCategory(categoryId),
                 HttpStatus.OK
         );
@@ -99,19 +99,19 @@ public class DeviceModelController {
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update device model", description = "Update device model by ID")
+    @Operation(summary = "Cập nhật mẫu thiết bị", description = "Chỉnh sửa thông tin mẫu thiết bị theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Cập nhật mẫu thiết bị thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy mẫu thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> update(@Parameter(description = "Device model ID") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Mã mẫu thiết bị") @PathVariable Long id,
                                     @RequestPart("request") @Valid DeviceModelRequestDto request,
                                     @RequestPart(value = "image", required = false) MultipartFile imageFile) {
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị được cập nhật thành công",
-                "Mẫu thiết bị với id " + id + " đã được cập nhật",
+                "Mẫu thiết bị với mã " + id + " đã được cập nhật",
                 service.update(id, request, imageFile),
                 HttpStatus.OK
         );
@@ -119,26 +119,26 @@ public class DeviceModelController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete device model", description = "Delete device model by ID")
+    @Operation(summary = "Xóa mẫu thiết bị", description = "Xóa model thiết bị theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Deleted"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "204", description = "Xóa mẫu thiết bị thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy mẫu thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "Device model ID") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Mã mẫu thiết bị") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Mẫu thiết bị được xóa thành công",
-                "Mẫu thiết bị với id " + id + " đã bị xóa khỏi hệ thống",
+                "Mẫu thiết bị với mã " + id + " đã bị xóa khỏi hệ thống",
                 HttpStatus.NO_CONTENT
         );
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search/sort/filter device models", description = "Search device models with pagination, sorting and filtering")
+    @Operation(summary = "Tìm kiếm/lọc mẫu thiết bị", description = "Tra cứu mẫu thiết bị có hỗ trợ phân trang, sắp xếp và bộ lọc")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách thỏa điều kiện"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> search(
             @RequestParam(required = false) String deviceName,

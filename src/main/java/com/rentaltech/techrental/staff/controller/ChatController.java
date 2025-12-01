@@ -8,6 +8,8 @@ import com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.ChatMessageResponseDto;
 import com.rentaltech.techrental.staff.service.chatservice.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.Data;
@@ -20,14 +22,19 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@Tag(name = "Chat", description = "Chat message APIs for Customer and Customer Support Staff")
+@Tag(name = "Trò chuyện hỗ trợ", description = "API phục vụ chat giữa khách hàng và nhân viên CSKH")
 public class ChatController {
 
     private final ChatService chatService;
 
     @PostMapping("/conversations/customer/{customerId}")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get or create conversation by customer", description = "Get existing conversation or create new one for customer")
+    @Operation(summary = "Lấy/tạo conversation theo khách hàng", description = "Lấy conversation hiện có hoặc tạo mới cho khách hàng")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lấy conversation thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khách hàng"),
+            @ApiResponse(responseCode = "500", description = "Không thể xử lý do lỗi hệ thống")
+    })
     public ResponseEntity<?> getOrCreateConversationByCustomer(@PathVariable Long customerId) {
         Conversation conversation = chatService.getOrCreateConversationByCustomer(customerId);
         return ResponseUtil.createSuccessResponse(
@@ -40,7 +47,12 @@ public class ChatController {
 
     @PostMapping("/messages")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Send message", description = "Send a chat message")
+    @Operation(summary = "Gửi tin nhắn", description = "Gửi tin nhắn chat giữa khách hàng và nhân viên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Gửi tin nhắn thành công"),
+            @ApiResponse(responseCode = "400", description = "Nội dung tin nhắn không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể gửi tin nhắn do lỗi hệ thống")
+    })
     public ResponseEntity<?> sendMessage(@Valid @RequestBody ChatMessageCreateRequestDto request) {
         ChatMessage message = chatService.sendMessage(request);
         return ResponseUtil.createSuccessResponse(
@@ -53,7 +65,12 @@ public class ChatController {
 
     @GetMapping("/messages/conversation/{conversationId}")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get messages", description = "Get messages from a conversation with pagination")
+    @Operation(summary = "Danh sách tin nhắn", description = "Lấy tin nhắn trong conversation có phân trang")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách tin nhắn"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy conversation"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getMessages(
             @PathVariable Long conversationId,
             @RequestParam(defaultValue = "0") int page,
@@ -72,7 +89,12 @@ public class ChatController {
 
     @PostMapping("/messages/conversation/{conversationId}/mark-read")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Mark messages as read", description = "Mark all unread messages in conversation as read")
+    @Operation(summary = "Đánh dấu tin nhắn đã đọc", description = "Đánh dấu toàn bộ tin chưa đọc trong conversation")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đánh dấu đã đọc thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy conversation"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> markAsRead(@PathVariable Long conversationId, @RequestBody MarkReadRequest request) {
         chatService.markMessagesAsRead(conversationId, request.getUserId(), request.getUserType());
         return ResponseUtil.createSuccessResponse(
@@ -85,7 +107,11 @@ public class ChatController {
 
     @GetMapping("/messages/conversation/{conversationId}/unread-count")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get unread count", description = "Get count of unread messages for current user")
+    @Operation(summary = "Đếm tin nhắn chưa đọc", description = "Lấy số lượng tin chưa đọc cho người dùng hiện tại")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về số lượng tin chưa đọc"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getUnreadCount(@PathVariable Long conversationId,
                                            @RequestParam Long userId,
                                            @RequestParam ChatMessageSenderType userType) {
@@ -100,7 +126,11 @@ public class ChatController {
 
     @GetMapping("/conversations/staff/{staffId}")
     @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get conversations by staff", description = "Get all conversations assigned to a staff member with pagination")
+    @Operation(summary = "Conversations theo nhân viên CSKH", description = "Danh sách conversation được gán cho nhân viên, có phân trang")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách conversation"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getConversationsByStaff(
             @PathVariable Long staffId,
             @RequestParam(defaultValue = "0") int page,

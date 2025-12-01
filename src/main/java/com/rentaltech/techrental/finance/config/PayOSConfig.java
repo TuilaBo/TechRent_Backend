@@ -21,13 +21,13 @@ public class PayOSConfig {
     @Bean
     public PayOS payosClient() {
         if (clientId == null || clientId.isBlank()) {
-            throw new IllegalStateException("PayOS clientId is not configured");
+            throw new IllegalStateException("Chưa cấu hình clientId cho PayOS");
         }
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("PayOS apiKey is not configured");
+            throw new IllegalStateException("Chưa cấu hình apiKey cho PayOS");
         }
         if (checksumKey == null || checksumKey.isBlank()) {
-            throw new IllegalStateException("PayOS checksumKey is not configured");
+            throw new IllegalStateException("Chưa cấu hình checksumKey cho PayOS");
         }
 
         return new PayOS(ClientOptions.builder()

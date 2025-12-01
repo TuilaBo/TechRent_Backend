@@ -21,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -29,7 +31,7 @@ import java.util.NoSuchElementException;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/devices")
-@Tag(name = "Devices", description = "Device management APIs")
+@Tag(name = "Quản lý thiết bị", description = "Các API phục vụ quản trị thiết bị, tình trạng, phân bổ và tra cứu chi tiết")
 public class DeviceController {
 
     private final DeviceService service;
@@ -39,11 +41,11 @@ public class DeviceController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create device", description = "Create a new device")
+    @Operation(summary = "Tạo thiết bị", description = "Thêm mới một thiết bị vào hệ thống")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Created"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "201", description = "Tạo thiết bị thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> create(@Valid @RequestBody DeviceRequestDto request) {
         return ResponseUtil.createSuccessResponse(
@@ -55,23 +57,28 @@ public class DeviceController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get device by ID", description = "Retrieve device by ID")
+    @Operation(summary = "Chi tiết thiết bị", description = "Lấy thông tin thiết bị theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin thiết bị"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "Device ID") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Mã thiết bị") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Thiết bị tìm thấy",
-                "Thiết bị với id " + id + " đã được tìm thấy",
+                "Thiết bị với mã " + id + " đã được tìm thấy",
                 service.findById(id),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/{id}/conditions")
-    @Operation(summary = "Danh sách tình trạng hiện tại của thiết bị")
+    @Operation(summary = "Danh sách tình trạng hiện tại của thiết bị", description = "Lấy lịch sử tình trạng gần nhất của thiết bị")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách tình trạng"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getDeviceConditions(@PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Danh sách tình trạng thiết bị",
@@ -83,10 +90,20 @@ public class DeviceController {
 
     @PutMapping("/{id}/conditions")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('OPERATOR')")
-    @Operation(summary = "Cập nhật tình trạng hiện tại của thiết bị")
+    @Operation(summary = "Cập nhật tình trạng thiết bị", description = "Ghi nhận lại các hạng mục tình trạng mới nhất của thiết bị")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật tình trạng thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu tình trạng không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> upsertDeviceConditions(@PathVariable Long id,
-                                                    @Valid @RequestBody DeviceConditionUpdateRequestDto request) {
-        var updated = deviceConditionService.upsertConditions(id, request.getConditions(), request.getCapturedByStaffId());
+                                                    @Valid @RequestBody DeviceConditionUpdateRequestDto request,
+                                                    @AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) {
+            return ResponseUtil.unauthorized();
+        }
+        var updated = deviceConditionService.upsertConditions(id, request.getConditions(), principal.getUsername());
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật tình trạng thành công",
                 "Tình trạng thiết bị đã được lưu",
@@ -96,10 +113,10 @@ public class DeviceController {
     }
 
     @GetMapping
-    @Operation(summary = "List devices", description = "Retrieve all devices")
+    @Operation(summary = "Danh sách thiết bị", description = "Liệt kê toàn bộ thiết bị trong hệ thống")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -111,8 +128,12 @@ public class DeviceController {
     }
 
     @GetMapping("/model/{deviceModelId}")
-    @Operation(summary = "Get available devices by model within time range",
-            description = "Return devices of a model that remain available throughout the requested time window (uses the same availability buffer as /api/devices/models/{id}/availability).")
+    @Operation(summary = "Thiết bị khả dụng theo model", description = "Trả về danh sách thiết bị thuộc model còn trống trong khoảng thời gian yêu cầu (áp dụng buffer giống endpoint khả dụng)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách thiết bị khả dụng"),
+            @ApiResponse(responseCode = "400", description = "Khoảng thời gian không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getAvailableDevicesByModel(@PathVariable Long deviceModelId,
                                                         @RequestParam("start") LocalDateTime start,
                                                         @RequestParam("end") LocalDateTime end) {
@@ -132,11 +153,17 @@ public class DeviceController {
     }
 
     @GetMapping("/order-detail/{orderDetailId}")
-    @Operation(summary = "Get devices by order detail", description = "Retrieve allocated devices for an order detail")
+    @Operation(summary = "Thiết bị theo chi tiết đơn thuê", description = "Lấy danh sách thiết bị đã được phân bổ cho một chi tiết đơn thuê")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách thiết bị"),
+            @ApiResponse(responseCode = "403", description = "Khách hàng không có quyền xem chi tiết đơn thuê"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy chi tiết đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getByOrderDetail(@PathVariable Long orderDetailId,
                                               Authentication authentication) {
         OrderDetail orderDetail = orderDetailRepository.findById(orderDetailId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy OrderDetail với id: " + orderDetailId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy chi tiết đơn thuê với mã: " + orderDetailId));
 
         if (hasRole(authentication, "ROLE_CUSTOMER")) {
             Long ownerCustomerId = orderDetail.getRentalOrder().getCustomer().getCustomerId();
@@ -145,22 +172,27 @@ public class DeviceController {
                 return ResponseUtil.createErrorResponse(
                         "FORBIDDEN",
                         "Không có quyền truy cập",
-                        "Order detail không thuộc quyền sở hữu",
+                        "Chi tiết đơn thuê không thuộc quyền sở hữu",
                         HttpStatus.FORBIDDEN
                 );
             }
         }
 
         return ResponseUtil.createSuccessResponse(
-                "Danh sách thiết bị theo order detail",
-                "Danh sách thiết bị của order detail " + orderDetailId,
+                "Danh sách thiết bị theo chi tiết đơn thuê",
+                "Danh sách thiết bị của chi tiết đơn thuê " + orderDetailId,
                 service.findByOrderDetail(orderDetailId),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/serial/{serialNumber}")
-    @Operation(summary = "Get device by serial number", description = "Retrieve device by serial number")
+    @Operation(summary = "Tra thiết bị theo serial", description = "Lấy thông tin thiết bị dựa trên số serial")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin thiết bị"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị với serial cung cấp"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getBySerial(@PathVariable String serialNumber) {
         return ResponseUtil.createSuccessResponse(
                 "Thiết bị theo serial",
@@ -172,18 +204,18 @@ public class DeviceController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Update device", description = "Update device by ID")
+    @Operation(summary = "Cập nhật thiết bị", description = "Chỉnh sửa thông tin thiết bị theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Cập nhật thiết bị thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> update(@Parameter(description = "Device ID") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Mã thiết bị") @PathVariable Long id,
                                     @Valid @RequestBody DeviceRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Thiết bị được cập nhật thành công",
-                "Thiết bị với id " + id + " đã được cập nhật",
+                "Thiết bị với mã " + id + " đã được cập nhật",
                 service.update(id, request),
                 HttpStatus.OK
         );
@@ -191,26 +223,26 @@ public class DeviceController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete device", description = "Delete device by ID")
+    @Operation(summary = "Xóa thiết bị", description = "Xóa thiết bị khỏi hệ thống theo mã")
     @ApiResponses({
-        @ApiResponse(responseCode = "204", description = "Deleted"),
-        @ApiResponse(responseCode = "404", description = "Not found"),
-        @ApiResponse(responseCode = "500", description = "Server error")
+        @ApiResponse(responseCode = "204", description = "Xóa thiết bị thành công"),
+        @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+        @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "Device ID") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Mã thiết bị") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Thiết bị được xóa thành công",
-                "Thiết bị với id " + id + " đã bị xóa khỏi hệ thống",
+                "Thiết bị với mã " + id + " đã bị xóa khỏi hệ thống",
                 HttpStatus.NO_CONTENT
         );
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search/sort/filter devices", description = "Search devices with pagination, sorting and filtering")
+    @Operation(summary = "Tìm kiếm/lọc thiết bị", description = "Tra cứu thiết bị với hỗ trợ phân trang, sắp xếp và lọc")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách thiết bị thỏa điều kiện"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
     })
     public ResponseEntity<?> search(
             @RequestParam(required = false) String serialNumber,

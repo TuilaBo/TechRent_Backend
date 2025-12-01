@@ -35,7 +35,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/contracts")
-@Tag(name = "Contract Management", description = "APIs để quản lý hợp đồng ")
+@Tag(name = "Quản lý hợp đồng", description = "Nhóm API phục vụ tạo, ký và theo dõi hợp đồng thuê thiết bị")
 public class ContractController {
 
     @Autowired
@@ -62,7 +62,7 @@ public class ContractController {
         try {
             String username = principal.getUsername();
             return accountService.getByUsername(username).orElseThrow(
-                () -> new RuntimeException("Không tìm thấy tài khoản với username: " + username)
+                () -> new RuntimeException("Không tìm thấy tài khoản với tên đăng nhập: " + username)
             ).getAccountId();
         } catch (Exception e) {
             throw new RuntimeException("Không thể lấy thông tin tài khoản: " + e.getMessage());
@@ -72,10 +72,15 @@ public class ContractController {
     // ========== TEST UTF-8 ==========
     
     @GetMapping("/test-utf8")
+    @Operation(summary = "Kiểm tra hiển thị tiếng Việt", description = "API kiểm tra mã hóa UTF-8 cho tài liệu hợp đồng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Kiểm tra UTF-8 thành công"),
+            @ApiResponse(responseCode = "500", description = "Không kiểm tra được mã hóa UTF-8")
+    })
     public ResponseEntity<?> testUTF8() {
         return ResponseUtil.createSuccessResponse(
-                "Test UTF-8 thành công!",
-                "Kiểm tra encoding tiếng Việt: Điều khoản và điều kiện hợp đồng thuê thiết bị",
+                "Kiểm tra UTF-8 thành công!",
+                "Đã kiểm tra mã hóa tiếng Việt: Điều khoản và điều kiện hợp đồng thuê thiết bị",
                 "Tiếng Việt có dấu: àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ",
                 HttpStatus.OK
         );
@@ -85,6 +90,11 @@ public class ContractController {
     
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Danh sách hợp đồng", description = "Quản trị viên/Điều phối viên xem toàn bộ hợp đồng hiện có trong hệ thống")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách hợp đồng"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống khi lấy danh sách hợp đồng")
+    })
     public ResponseEntity<?> getAllContracts() {
         try {
             List<Contract> contracts = contractService.getAllContracts();
@@ -108,6 +118,12 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}")
+    @Operation(summary = "Chi tiết hợp đồng", description = "Lấy thông tin chi tiết một hợp đồng theo mã")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin hợp đồng"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng theo mã"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống khi lấy chi tiết hợp đồng")
+    })
     public ResponseEntity<?> getContractById(@PathVariable Long contractId) {
         try {
             Optional<Contract> contract = contractService.getContractById(contractId);
@@ -122,7 +138,7 @@ public class ContractController {
                 return ResponseUtil.createErrorResponse(
                         "CONTRACT_NOT_FOUND",
                         "Không tìm thấy hợp đồng",
-                        "Hợp đồng với ID " + contractId + " không tồn tại",
+                        "Hợp đồng với mã " + contractId + " không tồn tại",
                         HttpStatus.NOT_FOUND
                 );
             }
@@ -139,7 +155,7 @@ public class ContractController {
 
     @PostMapping("/from-order/{orderId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(description = "Tạo hợp đồng tự động từ đơn thuê")
+    @Operation(summary = "Tạo hợp đồng từ đơn thuê", description = "Tự động sinh hợp đồng dựa trên thông tin một đơn thuê đã tồn tại")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Tạo hợp đồng từ đơn thuê thành công",
                     content = @Content(schema = @Schema(implementation = SuccessResponseDto.class))),
@@ -149,7 +165,7 @@ public class ContractController {
             @ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
     })
     public ResponseEntity<?> createContractFromOrder(
-            @Parameter(description = "ID của đơn thuê cần tạo hợp đồng", required = true)
+            @Parameter(description = "Mã của đơn thuê cần tạo hợp đồng", required = true)
             @PathVariable Long orderId,
             @AuthenticationPrincipal UserDetails principal) {
         try {
@@ -174,6 +190,12 @@ public class ContractController {
 
     @PutMapping("/{contractId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật hợp đồng", description = "Quản trị viên/Điều phối viên chỉnh sửa nội dung hợp đồng đã tạo")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cập nhật hợp đồng thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng cần cập nhật")
+    })
     public ResponseEntity<?> updateContract(
             @PathVariable Long contractId,
             @RequestBody @Valid ContractCreateRequestDto request,
@@ -205,6 +227,12 @@ public class ContractController {
      */
     @PostMapping("/{contractId}/send-for-signature")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Gửi hợp đồng để ký", description = "Đưa hợp đồng sang trạng thái chờ quản trị viên ký và thông báo quy trình ký điện tử")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đã chuyển hợp đồng sang trạng thái chờ ký"),
+            @ApiResponse(responseCode = "400", description = "Không thể gửi hợp đồng do dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng cần gửi ký")
+    })
     public ResponseEntity<?> sendForSignature(
             @PathVariable Long contractId,
             @AuthenticationPrincipal UserDetails principal) {
@@ -214,7 +242,7 @@ public class ContractController {
             
             return ResponseUtil.createSuccessResponse(
                     "Gửi hợp đồng để ký thành công!",
-                    "Hợp đồng đã được chuyển sang trạng thái chờ admin ký",
+                    "Hợp đồng đã được chuyển sang trạng thái chờ quản trị viên ký",
                     mapToResponseDto(contract),
                     HttpStatus.OK
             );
@@ -233,6 +261,12 @@ public class ContractController {
      */
     @PutMapping("/{contractId}/status")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Đổi trạng thái hợp đồng", description = "Cập nhật trạng thái bất kỳ của hợp đồng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cập nhật trạng thái hợp đồng thành công"),
+            @ApiResponse(responseCode = "400", description = "Trạng thái yêu cầu không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng cần cập nhật trạng thái")
+    })
     public ResponseEntity<?> updateContractStatus(
             @PathVariable Long contractId,
             @RequestBody Map<String, String> request) {
@@ -265,6 +299,11 @@ public class ContractController {
      */
     @PostMapping("/{contractId}/send-pin/sms")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    @Operation(summary = "Gửi PIN qua SMS", description = "Gửi mã PIN ký hợp đồng cho khách hàng bằng SMS")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đã gửi mã PIN qua SMS"),
+            @ApiResponse(responseCode = "400", description = "Số điện thoại hoặc trạng thái hợp đồng không hợp lệ")
+    })
     public ResponseEntity<?> sendSMSPIN(
             @PathVariable Long contractId,
             @RequestBody @Valid SmsPinRequestDto request) {
@@ -287,6 +326,11 @@ public class ContractController {
      */
     @PostMapping("/{contractId}/send-pin/email")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    @Operation(summary = "Gửi PIN qua email", description = "Gửi mã PIN ký hợp đồng cho khách hàng bằng email")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đã gửi mã PIN qua email"),
+            @ApiResponse(responseCode = "400", description = "Email hoặc trạng thái hợp đồng không hợp lệ")
+    })
     public ResponseEntity<?> sendEmailPIN(
             @PathVariable Long contractId,
             @RequestBody @Valid EmailPinRequestDto request) {
@@ -312,6 +356,12 @@ public class ContractController {
      */
     @PostMapping("/{contractId}/sign")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách hàng ký hợp đồng", description = "Khách hàng xác nhận chữ ký điện tử sau khi đã nhận được mã PIN")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Ký hợp đồng thành công"),
+            @ApiResponse(responseCode = "400", description = "Hợp đồng chưa sẵn sàng hoặc dữ liệu chữ ký không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể xử lý yêu cầu ký hợp đồng")
+    })
     public ResponseEntity<?> signContract(
             @PathVariable Long contractId,
             @RequestBody @Valid DigitalSignatureRequestDto request) {
@@ -321,7 +371,7 @@ public class ContractController {
                 return ResponseUtil.createErrorResponse(
                         "CONTRACT_NOT_READY",
                         "Hợp đồng chưa sẵn sàng để ký",
-                        "Hợp đồng phải ở trạng thái 'Chờ khách hàng ký' và admin đã ký trước",
+                        "Hợp đồng phải ở trạng thái 'Chờ khách hàng ký' và quản trị viên đã ký trước",
                         HttpStatus.BAD_REQUEST
                 );
             }
@@ -360,6 +410,12 @@ public class ContractController {
      */
     @PostMapping("/{contractId}/admin/sign")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Quản trị viên ký hợp đồng", description = "Quản trị viên/Điều phối viên ký và chuyển hợp đồng sang trạng thái chờ khách hàng ký")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Quản trị viên đã ký hợp đồng thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu chữ ký không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng để ký")
+    })
     public ResponseEntity<?> signContractByAdmin(
             @PathVariable Long contractId,
             @RequestBody @Valid DigitalSignatureRequestDto request,
@@ -380,15 +436,15 @@ public class ContractController {
             DigitalSignatureResponseDto signatureResponse = contractService.signContractByAdmin(contractId, adminId, request);
             
             return ResponseUtil.createSuccessResponse(
-                    "Admin ký hợp đồng thành công!",
-                    "Hợp đồng đã được admin ký và chờ khách hàng ký",
+                    "Quản trị viên ký hợp đồng thành công!",
+                    "Hợp đồng đã được quản trị viên ký và chờ khách hàng ký",
                     signatureResponse,
                     HttpStatus.OK
             );
         } catch (Exception e) {
             return ResponseUtil.createErrorResponse(
                     "ADMIN_SIGN_CONTRACT_FAILED",
-                    "Admin ký hợp đồng thất bại",
+                    "Quản trị viên ký hợp đồng thất bại",
                     "Có lỗi xảy ra: " + e.getMessage(),
                     HttpStatus.BAD_REQUEST
             );
@@ -396,6 +452,12 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}/signature")
+    @Operation(summary = "Thông tin chữ ký", description = "Lấy lịch sử ký điện tử của hợp đồng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin chữ ký điện tử"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng hoặc bản ghi chữ ký"),
+            @ApiResponse(responseCode = "500", description = "Không thể lấy thông tin chữ ký")
+    })
     public ResponseEntity<?> getSignatureInfo(@PathVariable Long contractId) {
         try {
             DigitalSignatureResponseDto signatureInfo = contractService.getSignatureInfo(contractId);
@@ -418,6 +480,12 @@ public class ContractController {
     // ========== CONTRACT EXTENSION ANNEX ==========
 
     @GetMapping("/{contractId}/annexes")
+    @Operation(summary = "Danh sách phụ lục", description = "Liệt kê toàn bộ phụ lục gia hạn gắn với một hợp đồng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách phụ lục gia hạn"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng tương ứng"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn dữ liệu phụ lục")
+    })
     public ResponseEntity<?> getContractAnnexes(@PathVariable Long contractId) {
         try {
             List<ContractExtensionAnnexResponseDto> annexes = contractExtensionAnnexService.getAnnexesForContract(contractId);
@@ -438,6 +506,12 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}/annexes/{annexId}")
+    @Operation(summary = "Chi tiết phụ lục", description = "Xem thông tin chi tiết một phụ lục gia hạn")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin phụ lục gia hạn"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy phụ lục theo mã yêu cầu"),
+            @ApiResponse(responseCode = "400", description = "Không thể đọc dữ liệu phụ lục")
+    })
     public ResponseEntity<?> getContractAnnexDetail(@PathVariable Long contractId,
                                                     @PathVariable Long annexId) {
         try {
@@ -460,6 +534,12 @@ public class ContractController {
 
     @PostMapping("/{contractId}/annexes/{annexId}/sign/admin")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Quản trị viên ký phụ lục", description = "Quản trị viên/Điều phối viên ký phụ lục gia hạn trước khi gửi khách hàng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Quản trị viên đã ký phụ lục thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu chữ ký phụ lục không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy phụ lục cần ký")
+    })
     public ResponseEntity<?> signAnnexAsAdmin(@PathVariable Long contractId,
                                               @PathVariable Long annexId,
                                               @Valid @RequestBody ContractExtensionAnnexSignRequestDto request,
@@ -468,7 +548,7 @@ public class ContractController {
             Long adminId = getAccountIdFromPrincipal(principal);
             ContractExtensionAnnexResponseDto signedAnnex = contractExtensionAnnexService.signAsAdmin(contractId, annexId, adminId, request);
             return ResponseUtil.createSuccessResponse(
-                    "Admin đã ký phụ lục thành công",
+                    "Quản trị viên đã ký phụ lục thành công",
                     "Phụ lục đang chờ khách hàng ký",
                     signedAnnex,
                     HttpStatus.OK
@@ -485,6 +565,12 @@ public class ContractController {
 
     @PostMapping("/{contractId}/annexes/{annexId}/sign/customer")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách hàng ký phụ lục", description = "Khách hàng ký phụ lục gia hạn sau khi nhận mã PIN và chữ ký của quản trị viên")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Khách hàng ký phụ lục thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu ký phụ lục không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy phụ lục để ký")
+    })
     public ResponseEntity<?> signAnnexAsCustomer(@PathVariable Long contractId,
                                                  @PathVariable Long annexId,
                                                  @Valid @RequestBody ContractExtensionAnnexSignRequestDto request,
@@ -510,6 +596,11 @@ public class ContractController {
 
     @PostMapping("/{contractId}/annexes/{annexId}/send-pin/email")
     @PreAuthorize("hasRole('ADMIN') or hasRole('CUSTOMER')")
+    @Operation(summary = "Gửi PIN ký phụ lục", description = "Gửi mã PIN qua email để khách hàng ký phụ lục gia hạn")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đã gửi mã PIN ký phụ lục"),
+            @ApiResponse(responseCode = "400", description = "Email hoặc thông tin phụ lục không hợp lệ")
+    })
     public ResponseEntity<?> sendAnnexPinByEmail(@PathVariable Long contractId,
                                                  @PathVariable Long annexId,
                                                  @RequestBody @Valid EmailPinRequestDto request) {
@@ -531,6 +622,12 @@ public class ContractController {
     }
 
     @PostMapping("/{contractId}/verify")
+    @Operation(summary = "Xác thực chữ ký", description = "Kiểm tra chữ ký điện tử của hợp đồng có hợp lệ hay không")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Chữ ký hợp đồng hợp lệ"),
+            @ApiResponse(responseCode = "400", description = "Chữ ký không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể xác thực chữ ký")
+    })
     public ResponseEntity<?> verifySignature(@PathVariable Long contractId) {
         try {
             boolean isValid = contractService.verifySignature(contractId);
@@ -562,6 +659,12 @@ public class ContractController {
 
     @PostMapping("/{contractId}/cancel")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Hủy hợp đồng", description = "Quản trị viên/Điều phối viên hủy hợp đồng kèm lý do")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Hủy hợp đồng thành công"),
+            @ApiResponse(responseCode = "400", description = "Không thể hủy hợp đồng do trạng thái không phù hợp"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng cần hủy")
+    })
     public ResponseEntity<?> cancelContract(
             @PathVariable Long contractId,
             @RequestParam String reason,
@@ -592,6 +695,12 @@ public class ContractController {
      * Lấy danh sách hợp đồng của customer (theo customerId)
      */
     @GetMapping("/customer/{customerId}")
+    @Operation(summary = "Hợp đồng theo khách hàng", description = "Lấy toàn bộ hợp đồng của một khách hàng cụ thể (dành cho nhân viên)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách hợp đồng của khách hàng"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khách hàng hoặc hợp đồng tương ứng"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn danh sách hợp đồng")
+    })
     public ResponseEntity<?> getCustomerContracts(@PathVariable Long customerId) {
         try {
             List<Contract> contracts = contractService.getContractsByCustomerId(customerId);
@@ -619,6 +728,11 @@ public class ContractController {
      */
     @GetMapping("/my-contracts")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Danh sách hợp đồng của tôi", description = "Khách hàng xem tất cả hợp đồng thuộc tài khoản của mình")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách hợp đồng của khách hàng đang đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Không thể lấy danh sách hợp đồng cá nhân")
+    })
     public ResponseEntity<?> getMyContracts(@AuthenticationPrincipal UserDetails principal) {
         try {
             // Lấy customerId từ authenticated user
@@ -649,6 +763,11 @@ public class ContractController {
      */
     @GetMapping("/pending-signature")
     @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Hợp đồng đang chờ ký", description = "Khách hàng xem danh sách hợp đồng đang chờ mình ký")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách hợp đồng chờ ký"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn danh sách hợp đồng chờ ký")
+    })
     public ResponseEntity<?> getPendingSignatureContracts(@AuthenticationPrincipal UserDetails principal) {
         try {
             Customer customer = getCustomerFromPrincipal(principal);
@@ -691,9 +810,9 @@ public class ContractController {
         try {
             String username = principal.getUsername();
             return customerService.getCustomerByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin customer cho username: " + username));
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin khách hàng cho tên đăng nhập: " + username));
         } catch (Exception e) {
-            throw new RuntimeException("Không thể lấy thông tin customer: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy thông tin khách hàng: " + e.getMessage());
         }
     }
 }

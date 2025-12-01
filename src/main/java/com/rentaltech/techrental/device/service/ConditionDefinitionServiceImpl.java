@@ -28,7 +28,8 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
                 .deviceModel(resolveDeviceModel(request.getDeviceModelId()))
                 .description(request.getDescription())
                 .impactRate(request.getImpactRate())
-                .damage(request.isDamage())
+                .conditionType(request.getConditionType())
+                .conditionSeverity(request.getConditionSeverity())
                 .defaultCompensation(request.getDefaultCompensation())
                 .build();
         return ConditionDefinitionResponseDto.from(conditionDefinitionRepository.save(entity));
@@ -37,12 +38,13 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
     @Override
     public ConditionDefinitionResponseDto update(Long id, ConditionDefinitionRequestDto request) {
         ConditionDefinition entity = conditionDefinitionRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + id));
         entity.setName(request.getName());
         entity.setDeviceModel(resolveDeviceModel(request.getDeviceModelId()));
         entity.setDescription(request.getDescription());
         entity.setImpactRate(request.getImpactRate());
-        entity.setDamage(request.isDamage());
+        entity.setConditionType(request.getConditionType());
+        entity.setConditionSeverity(request.getConditionSeverity());
         entity.setDefaultCompensation(request.getDefaultCompensation());
         return ConditionDefinitionResponseDto.from(conditionDefinitionRepository.save(entity));
     }
@@ -51,7 +53,7 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
     @Transactional(readOnly = true)
     public ConditionDefinitionResponseDto getById(Long id) {
         ConditionDefinition entity = conditionDefinitionRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + id));
         return ConditionDefinitionResponseDto.from(entity);
     }
 
@@ -74,17 +76,17 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
     @Override
     public void delete(Long id) {
         if (!conditionDefinitionRepository.existsById(id)) {
-            throw new NoSuchElementException("Không tìm thấy condition definition: " + id);
+            throw new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + id);
         }
         conditionDefinitionRepository.deleteById(id);
     }
 
     private DeviceModel resolveDeviceModel(Long deviceModelId) {
         if (deviceModelId == null) {
-            throw new IllegalArgumentException("Cần cung cấp deviceModelId");
+            throw new IllegalArgumentException("Cần cung cấp mã mẫu thiết bị");
         }
         return deviceModelRepository.findById(deviceModelId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy device model: " + deviceModelId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy mẫu thiết bị với mã: " + deviceModelId));
     }
 
 }

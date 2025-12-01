@@ -42,6 +42,8 @@ public class RentalOrderResponseDto {
     private List<DeviceResponseDto> allocatedDevices;
     private List<DiscrepancyReportResponseDto> discrepancies;
     private List<QCReportDeviceConditionResponseDto> deviceConditions;
+    @Builder.Default
+    private List<RentalOrderResponseDto> extensions = List.of();
 
     public static RentalOrderResponseDto from(RentalOrder order,
                                               List<OrderDetail> details,
@@ -101,6 +103,7 @@ public class RentalOrderResponseDto {
                 .allocatedDevices(allocatedDeviceDtos)
                 .discrepancies(discrepancyDtos)
                 .deviceConditions(deviceConditionDtos)
+                .extensions(List.of())
                 .build();
     }
 }

@@ -110,24 +110,18 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
 
         Specification<RentalOrder> spec = buildSpecification(orderStatus, effectiveCustomerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo);
-        return rentalOrderRepository.findAll(spec, pageable).map(rentalOrder -> {
-            List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(rentalOrder.getOrderId());
-            List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(rentalOrder.getOrderId());
-            List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(rentalOrder.getOrderId());
-            List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(rentalOrder.getOrderId());
-            return RentalOrderResponseDto.from(rentalOrder, details, allocatedDevices, discrepancies, deviceConditions);
-        });
+        return rentalOrderRepository.findAll(spec, pageable).map(this::buildOrderResponseWithExtensions);
     }
 
     @Override
     public RentalOrderResponseDto create(RentalOrderRequestDto request) {
-        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto không được để trống");
+        if (request == null) throw new IllegalArgumentException("Thông tin đơn thuê không được để trống");
         if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("Cần cung cấp startDate và endDate");
+            throw new IllegalArgumentException("Cần cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
         }
         long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("endDate phải sau startDate");
+            throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
@@ -170,10 +164,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             notifyOperatorsOrderAndTaskCreated(saved);
         }
 
-        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
-        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
-        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
-        return RentalOrderResponseDto.from(saved, persistedDetails, allocatedDevices, discrepancies, deviceConditions);
+        return buildOrderResponseWithExtensions(saved);
     }
 
     @Override
@@ -197,11 +188,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 }
             }
         }
-        List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
-        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
-        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
-        return RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions);
+        return buildOrderResponseWithExtensions(order);
     }
 
     @Override
@@ -214,20 +201,17 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .map(GrantedAuthority::getAuthority).anyMatch("ROLE_CUSTOMER"::equals)) {
             var username = auth.getName();
             var customerOpt = customerRepository.findByAccount_Username(username);
-            Long requesterCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
-            orders = rentalOrderRepository.findByCustomer_CustomerId(requesterCustomerId);
+            if (customerOpt.isEmpty()) {
+                return List.of();
+            }
+            Long requesterCustomerId = customerOpt.get().getCustomerId();
+            orders = rentalOrderRepository.findByCustomer_CustomerIdAndParentOrderIsNull(requesterCustomerId);
         } else {
-            orders = rentalOrderRepository.findAll();
+            orders = rentalOrderRepository.findByParentOrderIsNull();
         }
-        List<RentalOrderResponseDto> result = new ArrayList<>(orders.size());
-        for (RentalOrder order : orders) {
-            List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
-            List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-            List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
-            List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
-            result.add(RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions));
-        }
-        return result;
+        return orders.stream()
+                .map(this::buildOrderResponseWithExtensions)
+                .toList();
     }
 
     @Override
@@ -235,13 +219,13 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         RentalOrder existing = rentalOrderRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
 
-        if (request == null) throw new IllegalArgumentException("RentalOrderRequestDto không được để trống");
+        if (request == null) throw new IllegalArgumentException("Thông tin đơn thuê không được để trống");
         if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("Cần cung cấp startDate và endDate");
+            throw new IllegalArgumentException("Cần cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
         }
         long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("endDate phải sau startDate");
+            throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
@@ -278,10 +262,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
         }
         // Create allocations for updated order details
-        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
-        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
-        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
-        return RentalOrderResponseDto.from(saved, newDetails, allocatedDevices, discrepancies, deviceConditions);
+        return buildOrderResponseWithExtensions(saved);
     }
 
     @Override
@@ -300,7 +281,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         LocalDateTime plannedEnd = plannedStart.plusHours(3);
 
         var category = taskCategoryRepository.findByNameIgnoreCase("Pick up rental order")
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pick up rental order'"));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy danh mục tác vụ 'Pick up rental order'"));
 
         Task pickupTask = Task.builder()
                 .taskCategory(category)
@@ -315,27 +296,24 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         notifyOperatorsTaskCreated(savedTask, order);
 
         List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
-        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
-        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
-        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
-        return RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions);
+        return buildOrderResponseWithExtensions(order);
     }
 
     @Override
     public RentalOrderResponseDto extend(RentalOrderExtendRequestDto request) {
         if (request == null || request.getRentalOrderId() == null || request.getExtendedEndTime() == null) {
-            throw new IllegalArgumentException("Cần cung cấp rentalOrderId và extendedEndTime");
+            throw new IllegalArgumentException("Cần cung cấp mã đơn thuê và thời gian kết thúc gia hạn");
         }
         RentalOrder original = rentalOrderRepository.findById(request.getRentalOrderId())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + request.getRentalOrderId()));
         ensureCustomerOwnership(original, "Chỉ khách hàng sở hữu đơn mới được gia hạn");
         if (original.getEndDate() == null) {
-            throw new IllegalStateException("Đơn thuê không có endDate, không thể gia hạn");
+            throw new IllegalStateException("Đơn thuê chưa có ngày kết thúc nên không thể gia hạn");
         }
         LocalDateTime extensionStart = original.getEndDate();
         LocalDateTime extensionEnd = request.getExtendedEndTime();
         if (!extensionStart.isBefore(extensionEnd)) {
-            throw new IllegalArgumentException("Thời gian gia hạn phải sau ngày kết thúc hiện tại");
+            throw new IllegalArgumentException("Thời gian gia hạn phải diễn ra sau ngày kết thúc hiện tại");
         }
         LocalDateTime windowEnd = extensionEnd.plusDays(1);
         List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(original.getOrderId());
@@ -375,7 +353,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         }
         long extensionDays = ChronoUnit.DAYS.between(extensionStart, extensionEnd);
         if (extensionDays <= 0) {
-            throw new IllegalArgumentException("Thời gian gia hạn không hợp lệ");
+            throw new IllegalArgumentException("Khoảng thời gian gia hạn không hợp lệ");
         }
         BigDecimal totalPerDay = existingDetails.stream()
                 .map(OrderDetail::getPricePerDay)
@@ -415,10 +393,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         reservationService.createPendingReservations(saved, persistedDetails);
         preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
         cloneAllocationsFromOrder(original.getOrderId(), saved, detailMapping);
-        List<Device> newAllocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
-        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
-        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
-        return RentalOrderResponseDto.from(saved, persistedDetails, newAllocatedDevices, discrepancies, deviceConditions);
+        return buildOrderResponseWithExtensions(saved);
     }
 
     @Override
@@ -429,6 +404,27 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         reservationService.cancelReservations(id);
         orderDetailRepository.deleteByRentalOrder_OrderId(id);
         rentalOrderRepository.deleteById(id);
+    }
+
+    private RentalOrderResponseDto buildOrderResponseWithExtensions(RentalOrder order) {
+        if (order == null) {
+            return null;
+        }
+        List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(order.getOrderId());
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(order.getOrderId());
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(order.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(order.getOrderId());
+        RentalOrderResponseDto dto = RentalOrderResponseDto.from(order, details, allocatedDevices, discrepancies, deviceConditions);
+        List<RentalOrder> extensions = rentalOrderRepository.findByParentOrder(order);
+        if (extensions != null && !extensions.isEmpty()) {
+            List<RentalOrderResponseDto> extensionDtos = extensions.stream()
+                    .map(this::buildOrderResponseWithExtensions)
+                    .toList();
+            dto.setExtensions(extensionDtos);
+        } else {
+            dto.setExtensions(List.of());
+        }
+        return dto;
     }
 
     private List<DiscrepancyReport> loadOrderDiscrepancies(Long orderId) {
@@ -604,7 +600,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                         notificationService.notifyAccount(
                                 staff.getAccount().getAccountId(),
                                 NotificationType.ORDER_ACTIVE,
-                                "Đơn hàng mới được tạo task",
+                                "Đơn hàng vừa có nhiệm vụ mới",
                                 payload.message()
                         );
                     }
@@ -639,7 +635,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                         notificationService.notifyAccount(
                                 staff.getAccount().getAccountId(),
                                 NotificationType.ORDER_ACTIVE,
-                                "Task mới cho đơn hàng",
+                                "Nhiệm vụ mới cho đơn hàng",
                                 payload.message()
                         );
                     }
@@ -667,7 +663,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             if (order == null) {
                 return null;
             }
-            String msg = "Đơn hàng #" + order.getOrderId() + " đã tạo task PRE_RENTAL_QC.";
+            String msg = "Đơn hàng #" + order.getOrderId() + " đã tạo nhiệm vụ QC trước thuê (PRE_RENTAL_QC).";
             return new OperatorOrderNotification(
                     order.getOrderId(),
                     order.getCustomer() != null ? order.getCustomer().getCustomerId() : null,
@@ -692,7 +688,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 return null;
             }
             var category = task.getTaskCategory();
-            String msg = "Tạo nhiệm vụ thu hồi đơn thuê #" + order.getOrderId() + " (task #" + task.getTaskId() + ").";
+            String msg = "Vừa tạo nhiệm vụ thu hồi đơn thuê #" + order.getOrderId() + " (mã nhiệm vụ #" + task.getTaskId() + ").";
             return new OperatorTaskNotification(
                     task.getTaskId(),
                     order.getOrderId(),
@@ -708,6 +704,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private Specification<RentalOrder> buildSpecification(String orderStatus, Long customerId, String shippingAddress, BigDecimal minTotalPrice, BigDecimal maxTotalPrice, BigDecimal minPricePerDay, BigDecimal maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
+            predicate.getExpressions().add(cb.isNull(root.get("parentOrder")));
             if (orderStatus != null && !orderStatus.isBlank()) {
                 try {
                     var st = OrderStatus.valueOf(orderStatus.toUpperCase());
@@ -765,19 +762,19 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         BigDecimal totalDeposit = BigDecimal.ZERO;
 
         if (request.getOrderDetails() == null || request.getOrderDetails().isEmpty()) {
-            throw new IllegalArgumentException("Cần cung cấp orderDetails");
+            throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị trong đơn thuê");
         }
 
         for (OrderDetailRequestDto d : request.getOrderDetails()) {
             if (d.getDeviceModelId() == null) {
-                throw new IllegalArgumentException("Cần cung cấp deviceModelId trong OrderDetail");
+                throw new IllegalArgumentException("Thiếu mã model thiết bị (deviceModelId) trong chi tiết đơn thuê");
             }
             DeviceModel model = deviceModelRepository.findById(d.getDeviceModelId())
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + d.getDeviceModelId()));
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy model thiết bị với ID: " + d.getDeviceModelId()));
 
             // Validate availability by BookingCalendar within requested time window
             if (d.getQuantity() == null) {
-                throw new IllegalArgumentException("Cần cung cấp số lượng trong OrderDetail");
+                throw new IllegalArgumentException("Cần cung cấp số lượng thiết bị trong chi tiết đơn thuê");
             }
             long available = bookingCalendarService.getAvailableCountByModel(
                     model.getDeviceModelId(), request.getStartDate(), request.getEndDate()

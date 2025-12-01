@@ -5,6 +5,8 @@ import com.rentaltech.techrental.contract.model.dto.DeviceContractTermRequestDto
 import com.rentaltech.techrental.contract.model.dto.DeviceContractTermResponseDto;
 import com.rentaltech.techrental.contract.service.DeviceContractTermService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,11 @@ public class AdminDeviceContractTermController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Tạo điều khoản cho thiết bị hoặc loại thiết bị")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo điều khoản thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể tạo điều khoản do lỗi hệ thống")
+    })
     public ResponseEntity<?> create(@Valid @RequestBody DeviceContractTermRequestDto request,
                                     Principal principal) {
         Long adminId = resolveAdminId(principal);
@@ -42,6 +49,12 @@ public class AdminDeviceContractTermController {
     @PutMapping("/{termId}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Cập nhật điều khoản theo id")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật điều khoản thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy điều khoản"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> update(@PathVariable Long termId,
                                     @Valid @RequestBody DeviceContractTermRequestDto request,
                                     Principal principal) {
@@ -58,6 +71,10 @@ public class AdminDeviceContractTermController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Danh sách điều khoản", description = "Có thể lọc theo deviceModelId, deviceCategoryId, active")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách điều khoản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> list(@RequestParam(required = false) Long deviceModelId,
                                   @RequestParam(required = false) Long deviceCategoryId,
                                   @RequestParam(required = false) Boolean active) {
@@ -73,6 +90,11 @@ public class AdminDeviceContractTermController {
     @GetMapping("/{termId}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Xem chi tiết điều khoản")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về chi tiết điều khoản"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy điều khoản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> get(@PathVariable Long termId) {
         DeviceContractTermResponseDto term = deviceContractTermService.get(termId);
         return ResponseUtil.createSuccessResponse(
@@ -86,6 +108,11 @@ public class AdminDeviceContractTermController {
     @DeleteMapping("/{termId}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Xoá điều khoản")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Xóa điều khoản thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy điều khoản"),
+            @ApiResponse(responseCode = "500", description = "Không thể xóa do lỗi hệ thống")
+    })
     public ResponseEntity<?> delete(@PathVariable Long termId) {
         deviceContractTermService.delete(termId);
         return ResponseUtil.createSuccessResponse(

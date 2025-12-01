@@ -20,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/technician/qc-reports")
-@Tag(name = "QC Reports", description = "Quality control report APIs")
+@Tag(name = "Báo cáo QC", description = "API dành cho kỹ thuật viên tạo/cập nhật báo cáo kiểm định thiết bị")
 @RequiredArgsConstructor
 public class QCReportController {
 
@@ -28,7 +28,12 @@ public class QCReportController {
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @PostMapping(value = "/pre-rental", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Create PRE-RENTAL QC report", description = "Không nhận discrepancies, dùng cho giai đoạn PRE_RENTAL")
+    @Operation(summary = "Tạo báo cáo QC PRE-RENTAL", description = "Không nhận discrepancy, dùng cho giai đoạn kiểm tra trước thuê")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Tạo báo cáo QC thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu báo cáo không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Không thể tạo báo cáo do lỗi hệ thống")
+    })
     public ResponseEntity<?> createPreRentalReport(@RequestPart("request") @Valid QCReportPreRentalCreateRequestDto request,
                                                    @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
                                                    Authentication authentication) {
@@ -44,7 +49,12 @@ public class QCReportController {
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @PostMapping(value = "/post-rental", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Create POST-RENTAL QC report", description = "Cho phép gửi discrepancies như hiện tại")
+    @Operation(summary = "Tạo báo cáo QC POST-RENTAL", description = "Cho phép gửi discrepancy khi kiểm tra sau thuê")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Tạo báo cáo QC thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu báo cáo không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Không thể tạo báo cáo do lỗi hệ thống")
+    })
     public ResponseEntity<?> createPostRentalReport(@RequestPart("request") @Valid QCReportPostRentalCreateRequestDto request,
                                                     @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
                                                     Authentication authentication) {
@@ -60,7 +70,11 @@ public class QCReportController {
 
     @GetMapping("/{reportId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get QC report", description = "Lấy chi tiết báo cáo QC theo ID")
+    @Operation(summary = "Chi tiết báo cáo QC", description = "Lấy thông tin báo cáo QC theo ID")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về báo cáo QC"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy báo cáo QC")
+    })
     public ResponseEntity<?> getReport(@PathVariable Long reportId) {
         var response = qcReportService.getReport(reportId);
         return ResponseUtil.createSuccessResponse(
@@ -73,7 +87,12 @@ public class QCReportController {
 
     @PutMapping(value = "/pre-rental/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Update PRE-RENTAL QC report", description = "Payload tương tự tạo mới PRE_RENTAL")
+    @Operation(summary = "Cập nhật báo cáo QC PRE-RENTAL", description = "Payload tương tự tạo mới PRE_RENTAL")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật báo cáo QC thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy báo cáo QC")
+    })
     public ResponseEntity<?> updatePreRentalReport(@PathVariable Long reportId,
                                                    @RequestPart("request") @Valid QCReportPreRentalUpdateRequestDto request,
                                                    @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
@@ -90,7 +109,12 @@ public class QCReportController {
 
     @PutMapping(value = "/post-rental/{reportId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
-    @Operation(summary = "Update POST-RENTAL QC report", description = "Payload tương tự tạo mới POST_RENTAL")
+    @Operation(summary = "Cập nhật báo cáo QC POST-RENTAL", description = "Payload tương tự tạo mới POST_RENTAL")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật báo cáo QC thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy báo cáo QC")
+    })
     public ResponseEntity<?> updatePostRentalReport(@PathVariable Long reportId,
                                                     @RequestPart("request") @Valid QCReportPostRentalUpdateRequestDto request,
                                                     @RequestPart(value = "accessorySnapshot", required = false) MultipartFile accessorySnapshot,
@@ -107,7 +131,11 @@ public class QCReportController {
 
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "List QC reports by order", description = "Lấy báo cáo QC theo đơn thuê")
+    @Operation(summary = "Danh sách báo cáo QC theo đơn hàng", description = "Lấy báo cáo QC gắn với một đơn hàng")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về danh sách báo cáo QC"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy đơn hàng hoặc báo cáo")
+    })
     public ResponseEntity<?> getReportsByOrder(@PathVariable Long orderId) {
         var response = qcReportService.getReportsByOrder(orderId);
         return ResponseUtil.createSuccessResponse(

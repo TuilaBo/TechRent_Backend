@@ -15,8 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 public class DeviceConditionUpdateRequestDto {
 
-    private Long capturedByStaffId;
-
     @Builder.Default
     @Valid
     private List<DeviceConditionRequestDto> conditions = new ArrayList<>();

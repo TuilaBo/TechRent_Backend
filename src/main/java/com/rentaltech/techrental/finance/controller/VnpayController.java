@@ -6,6 +6,8 @@ import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.service.PaymentServiceImpl;
 import com.rentaltech.techrental.finance.util.VnpayUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,7 +30,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/vnpay")
 @Slf4j
-@Tag(name = "VNPAY", description = "Các webhook/endpoint tích hợp thanh toán VNPAY")
+@Tag(name = "Thanh toán VNPAY", description = "Các webhook/điểm cuối tích hợp thanh toán VNPAY")
 public class VnpayController {
 
     private final PaymentServiceImpl paymentService;
@@ -36,7 +38,11 @@ public class VnpayController {
     private final InvoiceRepository invoiceRepository;
 
     @GetMapping("/return")
-    @Operation(summary = "VNPAY return URL", description = "VNPAY gọi lại khi người dùng hoàn tất thanh toán trên cổng")
+    @Operation(summary = "URL trả về VNPAY", description = "VNPAY gọi lại khi người dùng hoàn tất thanh toán trên cổng")
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "Chuyển hướng về trang thành công hoặc thất bại"),
+            @ApiResponse(responseCode = "500", description = "Không xử lý được callback VNPAY")
+    })
     public void returnUrl(HttpServletRequest request, HttpServletResponse response) throws IOException {
         log.info("=== VNPAY RETURN URL CALLED ===");
         log.info("Request method: {}", request.getMethod());
@@ -102,13 +108,17 @@ public class VnpayController {
             String frontendFailureUrl = vnpayConfig.getFrontendFailureUrl();
             StringBuilder redirectUrl = new StringBuilder(frontendFailureUrl);
             String separator = frontendFailureUrl.contains("?") ? "&" : "?";
-            redirectUrl.append(separator).append("error=").append(URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Unknown error", StandardCharsets.UTF_8));
+            redirectUrl.append(separator).append("error=").append(URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Lỗi không xác định", StandardCharsets.UTF_8));
             response.sendRedirect(redirectUrl.toString());
         }
     }
 
     @RequestMapping(value = "/ipn", method = {RequestMethod.GET, RequestMethod.POST})
-    @Operation(summary = "VNPAY IPN", description = "Điểm nhận thông báo thanh toán từ máy chủ VNPAY")
+    @Operation(summary = "Thông báo IPN VNPAY", description = "Điểm nhận thông báo thanh toán từ máy chủ VNPAY")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Xử lý IPN thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu IPN không hợp lệ hoặc xử lý thất bại")
+    })
     public ResponseEntity<?> ipnUrl(HttpServletRequest request) {
         log.info("=== VNPAY IPN URL CALLED ===");
         log.info("Request method: {}", request.getMethod());
@@ -141,12 +151,16 @@ public class VnpayController {
         } catch (Exception e) {
             log.error("Error processing VNPAY IPN", e);
             log.error("Exception stack trace: ", e);
-            return ResponseEntity.badRequest().body("Error processing IPN: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Lỗi xử lý IPN: " + e.getMessage());
         }
     }
 
     @GetMapping("/test-hash")
-    @Operation(summary = "Kiểm thử hash", description = "Endpoint hỗ trợ debug chữ ký trả về từ VNPAY")
+    @Operation(summary = "Kiểm thử chữ ký VNPAY", description = "Điểm cuối hỗ trợ kiểm tra chữ ký trả về từ VNPAY")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về kết quả so sánh hash"),
+            @ApiResponse(responseCode = "400", description = "Không thể kiểm thử hash do dữ liệu không hợp lệ")
+    })
     public ResponseEntity<?> testHash(HttpServletRequest request) {
         try {
             Map<String, String> params = VnpayUtil.getRequestParams(request);
@@ -165,7 +179,7 @@ public class VnpayController {
             return ResponseEntity.ok().body(result);
         } catch (Exception e) {
             log.error("Error testing hash", e);
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Lỗi kiểm tra hash: " + e.getMessage());
         }
     }
 }
