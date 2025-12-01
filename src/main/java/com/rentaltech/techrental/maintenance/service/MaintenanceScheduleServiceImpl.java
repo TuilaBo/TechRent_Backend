@@ -303,6 +303,11 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     }
 
     @Override
+    public List<MaintenanceSchedule> getInactiveMaintenanceSchedules() {
+        return scheduleCustomRepository.findInactiveMaintenanceSchedules();
+    }
+
+    @Override
     @Transactional
     public Page<MaintenanceSchedule> listByDateRange(LocalDate startDate, LocalDate endDate, Pageable pageable) {
         if (startDate == null || endDate == null) {
