@@ -69,7 +69,7 @@ public class QCReportController {
     }
 
     @GetMapping("/{reportId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('OPERATOR')")
     @Operation(summary = "Chi tiết báo cáo QC", description = "Lấy thông tin báo cáo QC theo ID")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về báo cáo QC"),
@@ -130,7 +130,7 @@ public class QCReportController {
     }
 
     @GetMapping("/order/{orderId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('OPERATOR')")
     @Operation(summary = "Danh sách báo cáo QC theo đơn hàng", description = "Lấy báo cáo QC gắn với một đơn hàng")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về danh sách báo cáo QC"),
