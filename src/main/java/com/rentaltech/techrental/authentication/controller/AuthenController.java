@@ -90,6 +90,36 @@ public class AuthenController {
         );
     }
 
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Quên mật khẩu", description = "Gửi mã đặt lại mật khẩu về email")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Mã đặt lại mật khẩu đã được gửi"),
+            @ApiResponse(responseCode = "400", description = "Bad request")
+    })
+    public ResponseEntity<?> forgotPassword(@RequestBody @Valid com.rentaltech.techrental.authentication.model.dto.ForgotPasswordRequestDto request) {
+        accountService.forgotPassword(request.getEmail());
+        return ResponseUtil.createSuccessResponse(
+                "Gửi mã đặt lại mật khẩu thành công",
+                "Mã đặt lại mật khẩu đã được gửi đến email của bạn. Vui lòng kiểm tra email.",
+                HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Đặt lại mật khẩu", description = "Đặt lại mật khẩu bằng mã xác thực từ email")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đặt lại mật khẩu thành công"),
+            @ApiResponse(responseCode = "400", description = "Mã không hợp lệ hoặc đã hết hạn")
+    })
+    public ResponseEntity<?> resetPassword(@RequestBody @Valid com.rentaltech.techrental.authentication.model.dto.ResetPasswordRequestDto request) {
+        accountService.resetPassword(request.getEmail(), request.getCode(), request.getNewPassword());
+        return ResponseUtil.createSuccessResponse(
+                "Đặt lại mật khẩu thành công",
+                "Mật khẩu của bạn đã được đặt lại. Bạn có thể đăng nhập ngay bây giờ.",
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/me")
     @Operation(summary = "Get current account", description = "Get profile of the authenticated account")
     @ApiResponses({

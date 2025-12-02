@@ -57,4 +57,10 @@ public class Account {
     @Column(name = "verification_expiry")
     private java.time.LocalDateTime verificationExpiry;
 
+    @Column(name = "reset_password_code", length = 6)
+    private String resetPasswordCode;
+
+    @Column(name = "reset_password_expiry")
+    private java.time.LocalDateTime resetPasswordExpiry;
+
 }

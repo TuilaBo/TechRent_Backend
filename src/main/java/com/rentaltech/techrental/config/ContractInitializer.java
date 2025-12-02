@@ -17,6 +17,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ public class ContractInitializer implements ApplicationRunner {
     private final CustomerRepository customerRepository;
     private final RentalOrderRepository rentalOrderRepository;
     private final AccountRepository accountRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -71,7 +73,7 @@ public class ContractInitializer implements ApplicationRunner {
                             .orElseGet(() -> {
                                 Account newAccount = Account.builder()
                                         .username("sample_customer")
-                                        .password("password123")
+                                        .password(passwordEncoder.encode("password123")) // Encode password với BCrypt
                                         .email("customer@example.com")
                                         .isActive(true)
                                         .role(com.rentaltech.techrental.authentication.model.Role.CUSTOMER)
