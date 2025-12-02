@@ -68,6 +68,18 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
         return uploadFile(file, buildOptions(folder, "invoice-proof"));
     }
 
+    @Override
+    public String uploadPolicyFile(MultipartFile file, Long policyId, String fileName) {
+        String folder = policyId != null
+                ? String.format("techrental/policy/policy_%d", policyId)
+                : "techrental/policy";
+        String safeName = slugify(fileName, "policy-file");
+        Map<String, Object> options = buildOptions(folder, safeName);
+        // Allow PDF and Word documents
+        options.put("resource_type", "raw");
+        return uploadFile(file, options);
+    }
+
     private String uploadFile(MultipartFile file, Map<String, Object> options) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Tệp rỗng");

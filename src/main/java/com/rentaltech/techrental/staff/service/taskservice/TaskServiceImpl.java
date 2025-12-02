@@ -84,7 +84,7 @@ public class TaskServiceImpl implements TaskService {
 
             // Tìm danh sách staff được assign (nếu có)
             Set<Staff> assignedStaff = resolveStaffMembers(request.getAssignedStaffIds());
-            enforceDailyCapacity(assignedStaff, request.getPlannedStart());
+            enforceDailyCapacity(assignedStaff, request.getPlannedStart(), null);
 
             Task task = Task.builder()
                     .taskCategory(category)
@@ -214,7 +214,7 @@ public class TaskServiceImpl implements TaskService {
         if (request.getAssignedStaffIds() != null) {
             Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
             LocalDateTime referenceDateTime = request.getPlannedStart() != null ? request.getPlannedStart() : task.getPlannedStart();
-            enforceDailyCapacity(staffMembers, referenceDateTime);
+            enforceDailyCapacity(staffMembers, referenceDateTime, task.getTaskId());
             task.setAssignedStaff(staffMembers);
             staffMembersForNotification = staffMembers;
         }
@@ -367,7 +367,7 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart) {
+    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart, Long excludeTaskId) {
         if (staffMembers == null || staffMembers.isEmpty()) {
             return;
         }
@@ -381,10 +381,11 @@ public class TaskServiceImpl implements TaskService {
             if (staff == null || staff.getStaffId() == null) {
                 continue;
             }
-            long currentCount = taskRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate);
+            long currentCount = taskRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate, excludeTaskId);
             if (currentCount >= maxPerDay) {
                 throw new IllegalStateException("Nhân viên " + staff.getStaffId()
-                        + " đã đạt giới hạn " + maxPerDay + " công việc trong ngày " + targetDate);
+                        + " đã đạt giới hạn " + maxPerDay + " công việc trong ngày " + targetDate
+                        + " (hiện tại: " + currentCount + " công việc)");
             }
         }
     }
