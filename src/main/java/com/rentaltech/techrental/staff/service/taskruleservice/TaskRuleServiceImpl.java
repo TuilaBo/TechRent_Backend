@@ -22,6 +22,7 @@ public class TaskRuleServiceImpl implements TaskRuleService {
 
     @Override
     public TaskRuleResponseDto create(TaskRuleRequestDto request, String username) {
+        validateEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
         TaskRule rule = mapToEntity(request);
         rule.setCreatedBy(resolveCreator(username));
         TaskRule saved = taskRuleRepository.save(rule);
@@ -30,6 +31,7 @@ public class TaskRuleServiceImpl implements TaskRuleService {
 
     @Override
     public TaskRuleResponseDto update(Long taskRuleId, TaskRuleRequestDto request, String username) {
+        validateEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
         TaskRule existing = taskRuleRepository.findById(taskRuleId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy rule với id " + taskRuleId));
         applyRequest(existing, request);
@@ -61,14 +63,14 @@ public class TaskRuleServiceImpl implements TaskRuleService {
 
     @Override
     public TaskRuleResponseDto getActiveRule() {
-        return taskRuleRepository.findFirstByActiveTrueOrderByEffectiveFromDesc()
+        return taskRuleRepository.findActiveRuleByCurrentDate()
                 .map(TaskRuleResponseDto::from)
                 .orElse(null);
     }
 
     @Override
     public TaskRule getActiveRuleEntity() {
-        return taskRuleRepository.findFirstByActiveTrueOrderByEffectiveFromDesc().orElse(null);
+        return taskRuleRepository.findActiveRuleByCurrentDate().orElse(null);
     }
 
     private TaskRule mapToEntity(TaskRuleRequestDto request) {
@@ -84,6 +86,17 @@ public class TaskRuleServiceImpl implements TaskRuleService {
         target.setActive(request.getActive());
         target.setEffectiveFrom(request.getEffectiveFrom());
         target.setEffectiveTo(request.getEffectiveTo());
+    }
+
+    private void validateEffectiveDates(java.time.LocalDateTime effectiveFrom, java.time.LocalDateTime effectiveTo) {
+        if (effectiveFrom != null && effectiveTo != null) {
+            if (effectiveFrom.isAfter(effectiveTo)) {
+                throw new IllegalArgumentException("effectiveFrom không được sau effectiveTo");
+            }
+        }
+        if (effectiveTo != null && effectiveTo.isBefore(java.time.LocalDateTime.now())) {
+            throw new IllegalArgumentException("effectiveTo không được ở quá khứ");
+        }
     }
 
     private String resolveCreator(String username) {

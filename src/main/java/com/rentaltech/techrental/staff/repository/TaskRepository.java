@@ -74,9 +74,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                     (t.plannedStart is not null and function('DATE', t.plannedStart) = :targetDate)
                     or (t.plannedStart is null and function('DATE', t.createdAt) = :targetDate)
                   )
+              and (:excludeTaskId is null or t.taskId != :excludeTaskId)
             """)
     long countActiveTasksByStaffAndDate(@Param("staffId") Long staffId,
-                                        @Param("targetDate") LocalDate targetDate);
+                                        @Param("targetDate") LocalDate targetDate,
+                                        @Param("excludeTaskId") Long excludeTaskId);
 
     @Query("""
             select t
