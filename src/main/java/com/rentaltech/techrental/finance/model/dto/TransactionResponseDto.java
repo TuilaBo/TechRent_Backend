@@ -23,6 +23,7 @@ public class TransactionResponseDto {
     private Long rentalOrderId;
     private PaymentMethod paymentMethod;
     private InvoiceStatus invoiceStatus;
+    private InvoiceResponseDto invoice;
 
     public static TransactionResponseDto from(Transaction transaction) {
         if (transaction == null) {
@@ -35,6 +36,7 @@ public class TransactionResponseDto {
                 : null;
         PaymentMethod paymentMethod = invoice != null ? invoice.getPaymentMethod() : null;
         InvoiceStatus status = invoice != null ? invoice.getInvoiceStatus() : null;
+        InvoiceResponseDto invoiceDto = invoice != null ? InvoiceResponseDto.from(invoice) : null;
         return TransactionResponseDto.builder()
                 .transactionId(transaction.getTransactionId())
                 .amount(transaction.getAmount())
@@ -45,6 +47,7 @@ public class TransactionResponseDto {
                 .rentalOrderId(rentalOrderId)
                 .paymentMethod(paymentMethod)
                 .invoiceStatus(status)
+                .invoice(invoiceDto)
                 .build();
     }
 }

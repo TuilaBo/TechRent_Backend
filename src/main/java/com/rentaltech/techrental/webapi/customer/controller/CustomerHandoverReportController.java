@@ -37,6 +37,10 @@ public class CustomerHandoverReportController {
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Danh sách biên bản của tôi", description = "Khách hàng xem toàn bộ biên bản bàn giao thuộc các đơn hàng của mình")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản bàn giao"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Không có quyền truy cập")
+    })
     public ResponseEntity<?> getMyHandoverReports(@AuthenticationPrincipal UserDetails principal) {
         Customer customer = getCustomerFromPrincipal(principal);
         List<HandoverReportResponseDto> reports = handoverReportService.getReportsByCustomerOrder(customer.getCustomerId());
@@ -51,6 +55,11 @@ public class CustomerHandoverReportController {
     @GetMapping("/orders/{orderId}")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Biên bản bàn giao theo đơn hàng", description = "Khách hàng xem biên bản gắn với một đơn hàng cụ thể")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản bàn giao"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Đơn hàng không thuộc về khách hàng"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy đơn hàng/biên bản")
+    })
     public ResponseEntity<?> getHandoverReportsByOrder(
             @PathVariable Long orderId,
             @AuthenticationPrincipal UserDetails principal) {
@@ -84,6 +93,12 @@ public class CustomerHandoverReportController {
     @GetMapping("/{handoverReportId}")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Xem chi tiết biên bản", description = "Khách hàng xem nội dung chi tiết của một biên bản bàn giao")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về chi tiết biên bản"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Biên bản không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Biên bản không thuộc khách hàng"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản")
+    })
     public ResponseEntity<?> getHandoverReport(@PathVariable Long handoverReportId, @AuthenticationPrincipal UserDetails principal) {
         Customer customer = getCustomerFromPrincipal(principal);
         HandoverReportResponseDto report = handoverReportService.getReport(handoverReportId);
@@ -124,6 +139,12 @@ public class CustomerHandoverReportController {
     @PostMapping("/{handoverReportId}/pin")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Yêu cầu gửi PIN cho khách", description = "Khách hàng yêu cầu hệ thống gửi mã PIN ký biên bản qua email")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Gửi mã PIN thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Biên bản không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Biên bản không thuộc khách hàng"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản")
+    })
     public ResponseEntity<?> requestPinForCustomer(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody EmailPinRequestDto request,
@@ -153,6 +174,12 @@ public class CustomerHandoverReportController {
     @PatchMapping("/{handoverReportId}/signature")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Khách hàng ký biên bản", description = "Xác nhận ký biên bản bàn giao bằng mã PIN đã gửi")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Ký biên bản thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Thông tin ký không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Biên bản không thuộc khách hàng"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản")
+    })
     public ResponseEntity<?> signByCustomer(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody HandoverReportCustomerSignRequestDto request,

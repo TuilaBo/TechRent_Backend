@@ -23,7 +23,7 @@ import java.math.BigDecimal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rental-orders")
-@Tag(name = "Rental Orders", description = "Rental order management APIs")
+@Tag(name = "Quản lý đơn thuê", description = "Các API tạo, xem, cập nhật, gia hạn và xóa đơn thuê thiết bị")
 public class RentalOrderController {
 
     private final RentalOrderService service;
@@ -31,11 +31,11 @@ public class RentalOrderController {
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Create rental order", description = "Create a new rental order with details")
+    @Operation(summary = "Tạo đơn thuê", description = "Khởi tạo đơn thuê thiết bị với đầy đủ thông tin")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Created"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "201", description = "Tạo đơn thuê thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể tạo đơn thuê do lỗi hệ thống")
     })
     public ResponseEntity<?> create(@Valid @RequestBody RentalOrderRequestDto request) {
         return ResponseUtil.createSuccessResponse(
@@ -48,16 +48,16 @@ public class RentalOrderController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
-    @Operation(summary = "Get rental order by ID", description = "Retrieve rental order by ID with details")
+    @Operation(summary = "Chi tiết đơn thuê", description = "Lấy thông tin đơn thuê theo mã, bao gồm đầy đủ chi tiết")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin đơn thuê"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
     })
-    public ResponseEntity<?> getById(@Parameter(description = "Rental order ID") @PathVariable Long id) {
+    public ResponseEntity<?> getById(@Parameter(description = "Mã đơn thuê") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê tìm thấy",
-                "Đơn thuê với id " + id + " đã được tìm thấy",
+                "Đơn thuê với mã " + id + " đã được tìm thấy",
                 service.findById(id),
                 HttpStatus.OK
         );
@@ -65,10 +65,10 @@ public class RentalOrderController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
-    @Operation(summary = "List rental orders", description = "Retrieve all rental orders with details")
+    @Operation(summary = "Danh sách đơn thuê", description = "Lấy danh sách tất cả đơn thuê cùng thông tin chi tiết")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
     })
     public ResponseEntity<?> getAll() {
         return ResponseUtil.createSuccessResponse(
@@ -81,30 +81,34 @@ public class RentalOrderController {
     
     @PostMapping("/notify-near-due")
 //    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Kích hoạt thông báo đơn sắp đến hạn", description = "Chạy ngay job notifyNearDueOrders để gửi thông báo đơn IN_USE còn dưới 2 ngày")
+    @Operation(summary = "Kích hoạt thông báo đơn sắp đến hạn", description = "Chạy ngay tác vụ notifyNearDueOrders để gửi thông báo đơn IN_USE còn dưới 2 ngày")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đã kích hoạt tác vụ thông báo"),
+            @ApiResponse(responseCode = "500", description = "Không thể kích hoạt tác vụ do lỗi hệ thống")
+    })
     public ResponseEntity<?> triggerNearDueNotification() {
         notificationScheduler.notifyNearDueOrders();
         return ResponseUtil.createSuccessResponse(
-                "Đã chạy job thông báo",
-                "Đã kích hoạt scan đơn IN_USE sắp đến hạn",
+                "Đã chạy tác vụ thông báo",
+                "Đã kích hoạt quét các đơn IN_USE sắp đến hạn",
                 HttpStatus.OK
         );
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('CUSTOMER')")
-    @Operation(summary = "Update rental order", description = "Update rental order by ID; change order details")
+    @Operation(summary = "Cập nhật đơn thuê", description = "Chỉnh sửa thông tin đơn thuê theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Updated"),
-            @ApiResponse(responseCode = "400", description = "Invalid data"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Cập nhật đơn thuê thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
     })
-    public ResponseEntity<?> update(@Parameter(description = "Rental order ID") @PathVariable Long id,
+    public ResponseEntity<?> update(@Parameter(description = "Mã đơn thuê") @PathVariable Long id,
                                     @Valid @RequestBody RentalOrderRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê được cập nhật thành công",
-                "Đơn thuê với id " + id + " đã cập nhật vào hệ thống",
+                "Đơn thuê với mã " + id + " đã cập nhật vào hệ thống",
                 service.update(id, request),
                 HttpStatus.OK
         );
@@ -114,12 +118,12 @@ public class RentalOrderController {
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Khách xác nhận trả đơn", description = "Khách xác nhận sẽ trả hàng khi hết hạn thuê, hệ thống tạo task thu hồi đơn")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Confirmed"),
-            @ApiResponse(responseCode = "400", description = "Invalid status"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Xác nhận trả đơn thành công"),
+            @ApiResponse(responseCode = "400", description = "Trạng thái không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Không thể xử lý do lỗi hệ thống")
     })
-    public ResponseEntity<?> confirmReturn(@Parameter(description = "Rental order ID") @PathVariable Long id) {
+    public ResponseEntity<?> confirmReturn(@Parameter(description = "Mã đơn thuê") @PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Xác nhận trả đơn thành công",
                 "Đã tạo nhiệm vụ thu hồi cho đơn thuê",
@@ -131,6 +135,11 @@ public class RentalOrderController {
     @PostMapping("/extend")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Gia hạn đơn thuê", description = "Tạo đơn gia hạn từ đơn thuê hiện có")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Gia hạn đơn thuê thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu gia hạn không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể gia hạn do lỗi hệ thống")
+    })
     public ResponseEntity<?> extend(@Valid @RequestBody RentalOrderExtendRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Gia hạn đơn thuê thành công",
@@ -142,27 +151,27 @@ public class RentalOrderController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Delete rental order", description = "Delete rental order by ID")
+    @Operation(summary = "Xóa đơn thuê", description = "Xóa đơn thuê theo mã")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Deleted"),
-            @ApiResponse(responseCode = "404", description = "Not found"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "204", description = "Xóa đơn thuê thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn thuê"),
+            @ApiResponse(responseCode = "500", description = "Không thể xóa do lỗi hệ thống")
     })
-    public ResponseEntity<?> delete(@Parameter(description = "Rental order ID") @PathVariable Long id) {
+    public ResponseEntity<?> delete(@Parameter(description = "Mã đơn thuê") @PathVariable Long id) {
         service.delete(id);
         return ResponseUtil.createSuccessResponse(
                 "Đơn thuê được xóa thành công",
-                "Đơn thuê với id " + id + " đã xóa khỏi hệ thống",
+                "Đơn thuê với mã " + id + " đã xóa khỏi hệ thống",
                 HttpStatus.NO_CONTENT
         );
     }
 
     @GetMapping("/search")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
-    @Operation(summary = "Search/sort/filter rental orders", description = "Search rental orders with pagination, sorting and filtering using Specification")
+    @Operation(summary = "Tìm kiếm/lọc đơn thuê", description = "Tra cứu đơn thuê với phân trang, sắp xếp và lọc theo nhiều tiêu chí")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "500", description = "Server error")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách đơn thuê theo điều kiện"),
+            @ApiResponse(responseCode = "500", description = "Không thể tìm kiếm do lỗi hệ thống")
     })
     public ResponseEntity<?> search(
             @RequestParam(required = false) String orderStatus,

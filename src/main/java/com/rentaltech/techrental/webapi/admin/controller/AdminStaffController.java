@@ -6,6 +6,8 @@ import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequ
 import com.rentaltech.techrental.staff.model.dto.StaffResponseDto;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/staff")
-@Tag(name = "Admin Staff", description = "Admin staff management APIs")
+@Tag(name = "Quản lý nhân sự (Admin)", description = "API cho admin tạo và quản lý nhân viên")
 public class AdminStaffController {
 
     @Autowired
@@ -29,7 +31,11 @@ public class AdminStaffController {
     // Tạo staff + account trong 1 call (Admin only)
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create staff with account", description = "Admin nhập email/password/role -> tạo cả Account và Staff")
+    @Operation(summary = "Tạo nhân viên kèm tài khoản", description = "Admin nhập email/password/role để tạo cả account và staff")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo nhân viên thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
+    })
     public ResponseEntity<StaffResponseDto> createStaffWithAccount(@RequestBody @Valid AdminStaffCreateWithAccountRequestDto request) {
         try {
             Staff savedStaff = staffService.createStaffWithAccount(request);
@@ -41,7 +47,10 @@ public class AdminStaffController {
 
     // Lấy tất cả staff (Admin only)
     @GetMapping
-    @Operation(summary = "List staff", description = "Retrieve all staff")
+    @Operation(summary = "Danh sách nhân viên", description = "Lấy tất cả nhân viên trong hệ thống")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên")
+    })
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<StaffResponseDto>> getAllStaff() {
         List<Staff> staffList = staffService.getAllStaff();
@@ -53,7 +62,11 @@ public class AdminStaffController {
 
     // Lấy staff theo ID
     @GetMapping("/{staffId}")
-    @Operation(summary = "Get staff by ID", description = "Retrieve staff by ID")
+    @Operation(summary = "Chi tiết nhân viên", description = "Lấy thông tin nhân viên theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin nhân viên"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
     public ResponseEntity<StaffResponseDto> getStaffById(@PathVariable Long staffId) {
         return staffService.getStaffById(staffId)
                 .map(staff -> ResponseEntity.ok(StaffResponseDto.from(staff)))
@@ -62,7 +75,11 @@ public class AdminStaffController {
 
     // Lấy staff theo Account ID
     @GetMapping("/account/{accountId}")
-    @Operation(summary = "Get staff by account ID", description = "Retrieve staff by account ID")
+    @Operation(summary = "Nhân viên theo account ID", description = "Lấy thông tin nhân viên dựa trên account ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin nhân viên"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
     public ResponseEntity<StaffResponseDto> getStaffByAccountId(@PathVariable Long accountId) {
         return staffService.getStaffByAccountId(accountId)
                 .map(staff -> ResponseEntity.ok(StaffResponseDto.from(staff)))
@@ -71,7 +88,10 @@ public class AdminStaffController {
 
     // Lấy staff theo role
     @GetMapping("/role/{staffRole}")
-    @Operation(summary = "Get staff by role", description = "List staff by role")
+    @Operation(summary = "Nhân viên theo vai trò", description = "Liệt kê nhân viên theo role")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên")
+    })
     public ResponseEntity<List<StaffResponseDto>> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
@@ -82,7 +102,10 @@ public class AdminStaffController {
 
     // Lấy active staff
     @GetMapping("/active")
-    @Operation(summary = "Get active staff", description = "List active staff members")
+    @Operation(summary = "Nhân viên đang hoạt động", description = "Liệt kê nhân viên đang active")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên")
+    })
     public ResponseEntity<List<StaffResponseDto>> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
         List<StaffResponseDto> responseDtos = activeStaff.stream()
@@ -94,7 +117,11 @@ public class AdminStaffController {
     // Cập nhật trạng thái active/inactive (Admin only)
     @PutMapping("/{staffId}/status")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update staff status", description = "Activate or deactivate a staff member")
+    @Operation(summary = "Cập nhật trạng thái nhân viên", description = "Kích hoạt hoặc vô hiệu hóa nhân viên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật trạng thái thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
     public ResponseEntity<StaffResponseDto> updateStaffStatus(@PathVariable Long staffId, 
                                                              @RequestParam Boolean isActive) {
         try {
@@ -108,7 +135,11 @@ public class AdminStaffController {
     // Cập nhật staff role (Admin only)
     @PutMapping("/{staffId}/role")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update staff role", description = "Change a staff member's role")
+    @Operation(summary = "Cập nhật vai trò nhân viên", description = "Thay đổi role một nhân viên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật role thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
     public ResponseEntity<StaffResponseDto> updateStaffRole(@PathVariable Long staffId, 
                                                            @RequestParam StaffRole staffRole) {
         try {
@@ -122,7 +153,11 @@ public class AdminStaffController {
     // Xóa staff (Admin only - soft delete)
     @DeleteMapping("/{staffId}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete staff", description = "Soft delete a staff member by ID")
+    @Operation(summary = "Xóa nhân viên", description = "Soft delete nhân viên theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Xóa nhân viên thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
     public ResponseEntity<Void> deleteStaff(@PathVariable Long staffId) {
         try {
             staffService.deleteStaff(staffId);

@@ -7,6 +7,8 @@ import com.rentaltech.techrental.staff.model.dto.SettlementResponseDto;
 import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.service.settlementservice.SettlementService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +21,19 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/settlements")
 @RequiredArgsConstructor
-@Tag(name = "Settlement", description = "Settlement management APIs")
+@Tag(name = "Quản lý settlement", description = "Các API tạo, cập nhật và phản hồi settlement sau thuê")
 public class SettlementController {
 
     private final SettlementService settlementService;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Create settlement", description = "Create a new settlement in Draft state")
+    @Operation(summary = "Tạo settlement", description = "Tạo một settlement mới ở trạng thái Draft")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo settlement thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể tạo settlement do lỗi hệ thống")
+    })
     public ResponseEntity<?> create(@Valid @RequestBody SettlementCreateRequestDto request) {
         Settlement settlement = settlementService.create(request);
         return ResponseUtil.createSuccessResponse(
@@ -39,7 +46,13 @@ public class SettlementController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Update settlement", description = "Update settlement details")
+    @Operation(summary = "Cập nhật settlement", description = "Chỉnh sửa thông tin settlement")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật settlement thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy settlement"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody SettlementUpdateRequestDto request) {
         Settlement settlement = settlementService.update(id, request);
         return ResponseUtil.createSuccessResponse(
@@ -52,7 +65,12 @@ public class SettlementController {
 
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Get settlement by order ID", description = "Retrieve settlement by order ID")
+    @Operation(summary = "Settlement theo order", description = "Lấy settlement dựa trên order ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về settlement theo order ID"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy settlement"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getByOrderId(@PathVariable Long orderId) {
         Settlement settlement = settlementService.getByOrderId(orderId);
         return ResponseUtil.createSuccessResponse(
@@ -65,7 +83,11 @@ public class SettlementController {
 
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Get all settlements", description = "Retrieve all settlements with pagination")
+    @Operation(summary = "Danh sách settlement", description = "Trả về tất cả settlement kèm phân trang")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách settlement"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getAll(Pageable pageable) {
         var page = settlementService.getAll(pageable);
         var pageDto = page.map(SettlementResponseDto::from);
@@ -79,7 +101,12 @@ public class SettlementController {
 
     @PatchMapping("/{id}/respond")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Khách xác nhận/ từ chối settlement", description = "Khách phản hồi settlement, nếu xác nhận sẽ chuyển state sang Issued")
+    @Operation(summary = "Khách phản hồi settlement", description = "Khách xác nhận hoặc từ chối settlement; xác nhận sẽ chuyển trạng thái sang Issued")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Xử lý phản hồi settlement thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy settlement"),
+            @ApiResponse(responseCode = "500", description = "Không thể phản hồi do lỗi hệ thống")
+    })
     public ResponseEntity<?> respond(@PathVariable Long id,
                                      @RequestParam boolean accepted,
                                      org.springframework.security.core.Authentication authentication) {

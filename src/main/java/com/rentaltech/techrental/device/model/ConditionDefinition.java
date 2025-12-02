@@ -34,8 +34,13 @@ public class ConditionDefinition {
     @Column(name = "impact_rate", precision = 5, scale = 2)
     private BigDecimal impactRate;
 
-    @Column(name = "is_damage")
-    private boolean damage;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "condition_type", length = 20)
+    private ConditionType conditionType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "condition_severity", length = 20)
+    private ConditionSeverity conditionSeverity;
 
     @Column(name = "default_compensation", precision = 19, scale = 2)
     private BigDecimal defaultCompensation;

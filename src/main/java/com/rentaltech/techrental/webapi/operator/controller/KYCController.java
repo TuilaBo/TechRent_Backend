@@ -30,7 +30,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/operator/kyc")
 @RequiredArgsConstructor
-@Tag(name = "KYC Management", description = "APIs để quản lý KYC cho operator")
+@Tag(name = "Quản lý KYC", description = "API để nhân viên vận hành kiểm duyệt hồ sơ khách hàng")
 public class KYCController {
 
     private final KYCService kycService;
@@ -46,7 +46,11 @@ public class KYCController {
      */
     @PostMapping(value = "/ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
-    @Operation(summary = "OCR CCCD image to text (Tesseract)")
+    @Operation(summary = "OCR giấy tờ tùy thân", description = "Trích xuất văn bản từ ảnh CCCD/CMND bằng Tesseract")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OCR ảnh thành công"),
+            @ApiResponse(responseCode = "400", description = "Thiếu file ảnh hoặc tham số không hợp lệ")
+    })
     public ResponseEntity<?> ocrCccd(
             @Parameter(description = "Ảnh CCCD mặt trước", content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
             @RequestPart(value = "front", required = false) MultipartFile front,
@@ -82,7 +86,7 @@ public class KYCController {
      */
     @PatchMapping("/customers/{customerId}")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
-    @Operation(summary = "Update KYC status")
+    @Operation(summary = "Cập nhật trạng thái KYC", description = "Operator cập nhật trạng thái KYC của khách hàng")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
         @ApiResponse(responseCode = "404", description = "Customer không tồn tại")
@@ -107,7 +111,10 @@ public class KYCController {
      */
     @GetMapping("/pending")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
-    @Operation(summary = "Get customers pending KYC verification")
+    @Operation(summary = "Danh sách khách hàng chờ duyệt KYC", description = "Trả về danh sách khách hàng đang chờ xác minh")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách khách hàng chờ duyệt")
+    })
     public ResponseEntity<?> getPendingVerification() {
         List<Map<String, Object>> data = kycService.getPendingVerificationMaps();
         return ResponseUtil.createSuccessResponse(
@@ -124,7 +131,11 @@ public class KYCController {
      */
     @GetMapping("/customers/{customerId}")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
-    @Operation(summary = "Get KYC info for customer")
+    @Operation(summary = "Thông tin KYC của khách hàng", description = "Trả về chi tiết hồ sơ KYC của một khách hàng")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin KYC"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khách hàng/KYC")
+    })
     public ResponseEntity<?> getCustomerKYC(@PathVariable Long customerId) {
         Customer customer = kycService.getKYCInfo(customerId);
         Map<String, Object> kycInfo = kycService.buildKYCMap(customer);
@@ -142,7 +153,10 @@ public class KYCController {
      */
     @GetMapping("/statuses")
     @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
-    @Operation(summary = "Get all KYC statuses")
+    @Operation(summary = "Danh sách trạng thái KYC", description = "Liệt kê các trạng thái KYC phục vụ UI chọn")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách trạng thái KYC")
+    })
     public ResponseEntity<?> getKYCStatuses() {
         List<Map<String, String>> statuses = kycService.getKYCStatuses();
         return ResponseUtil.createSuccessResponse(

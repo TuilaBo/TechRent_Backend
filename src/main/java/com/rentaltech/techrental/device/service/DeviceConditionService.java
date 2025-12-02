@@ -14,7 +14,7 @@ public interface DeviceConditionService {
 
     List<DeviceConditionResponseDto> upsertConditions(Long deviceId,
                                                      List<DeviceConditionRequestDto> requests,
-                                                     Long capturedByStaffId);
+                                                     String capturedByUsername);
 
     void updateCondition(Long deviceId,
                          Long conditionDefinitionId,

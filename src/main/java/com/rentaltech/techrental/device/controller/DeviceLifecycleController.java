@@ -5,6 +5,8 @@ import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -18,47 +20,52 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
-@Tag(name = "Device Lifecycle", description = "Tra cứu lifecycle hiện tại của thiết bị")
+@Tag(name = "Lifecycle thiết bị", description = "Tra cứu lifecycle hiện tại của thiết bị")
 public class DeviceLifecycleController {
 
     private final DeviceRepository deviceRepository;
 
     @GetMapping("/{id}/lifecycle")
-    @Operation(summary = "Xem lifecycle thiết bị", description = "Trả về trạng thái lifecycle hiện tại của thiết bị theo ID")
+    @Operation(summary = "Xem lifecycle thiết bị", description = "Trả về trạng thái vòng đời hiện tại của thiết bị theo mã")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về trạng thái lifecycle"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getLifecycle(@PathVariable("id") Long id) {
         Device device = deviceRepository.findById(id).orElseThrow();
         DeviceLifecycleResponse resp = new DeviceLifecycleResponse();
         resp.setDeviceId(device.getDeviceId());
         resp.setStatus(device.getStatus());
         resp.setLifecycleStage(mapLifecycle(device.getStatus()));
-        return ResponseUtil.createSuccessResponse("Thiết bị lifecycle", "Lifecycle hiện tại", resp, HttpStatus.OK);
+        return ResponseUtil.createSuccessResponse("Trạng thái vòng đời thiết bị", "Thông tin lifecycle cập nhật", resp, HttpStatus.OK);
     }
 
     private String mapLifecycle(DeviceStatus status) {
-        if (status == null) return "UNKNOWN";
+        if (status == null) return "KHONG_XAC_DINH";
         switch (status) {
             case AVAILABLE:
-                return "INVENTORY";
+                return "TRONG_KHO";
             case PRE_RENTAL_QC:
-                return "PREP_QC";
+                return "KIEM_TRA_TRUOC_THUE";
             case RESERVED:
-                return "RESERVED";
+                return "DA_DAT_TRUOC";
             case RENTING:
-                return "IN_USE";
+                return "DANG_THUE";
             case POST_RENTAL_QC:
-                return "RETURN_QC";
+                return "KIEM_TRA_SAU_THUE";
             case UNDER_MAINTENANCE:
-                return "MAINTENANCE";
+                return "BAO_TRI";
             case DAMAGED:
-                return "DAMAGED";
+                return "HONG_HOC";
             case LOST:
-                return "LOST";
+                return "THAT_LAC";
             case RETURNED:
-                return "RETURNED";
+                return "DA_TRA";
             case RETIRED:
-                return "RETIRED";
+                return "NGUNG_HOAT_DONG";
             default:
-                return "UNKNOWN";
+                return "KHONG_XAC_DINH";
         }
     }
 

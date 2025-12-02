@@ -1,6 +1,8 @@
 package com.rentaltech.techrental.device.model.dto;
 
 import com.rentaltech.techrental.device.model.ConditionDefinition;
+import com.rentaltech.techrental.device.model.ConditionType;
+import com.rentaltech.techrental.device.model.ConditionSeverity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +21,8 @@ public class ConditionDefinitionResponseDto {
     private String deviceModelName;
     private String description;
     private BigDecimal impactRate;
-    private boolean damage;
+    private ConditionType conditionType;
+    private ConditionSeverity conditionSeverity;
     private BigDecimal defaultCompensation;
 
     public static ConditionDefinitionResponseDto from(ConditionDefinition entity) {
@@ -34,7 +37,8 @@ public class ConditionDefinitionResponseDto {
                 .deviceModelName(model != null ? model.getDeviceName() : null)
                 .description(entity.getDescription())
                 .impactRate(entity.getImpactRate())
-                .damage(entity.isDamage())
+                .conditionType(entity.getConditionType())
+                .conditionSeverity(entity.getConditionSeverity())
                 .defaultCompensation(entity.getDefaultCompensation())
                 .build();
     }

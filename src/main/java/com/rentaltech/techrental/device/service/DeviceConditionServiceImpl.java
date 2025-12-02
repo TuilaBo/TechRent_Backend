@@ -1,8 +1,6 @@
 package com.rentaltech.techrental.device.service;
 
-import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.DeviceCondition;
+import com.rentaltech.techrental.device.model.*;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
@@ -63,12 +61,18 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
     @Override
     public List<DeviceConditionResponseDto> upsertConditions(Long deviceId,
                                                             List<DeviceConditionRequestDto> requests,
-                                                            Long capturedByStaffId) {
-        if (CollectionUtils.isEmpty(requests) || deviceId == null) {
+                                                            String capturedByUsername) {
+        if (deviceId == null) {
+            return List.of();
+        }
+        if (CollectionUtils.isEmpty(requests)) {
             return getByDevice(deviceId);
         }
+        // Clear previous conditions before inserting the new set
+        deviceConditionRepository.deleteByDevice_DeviceId(deviceId);
+
         Device device = getDevice(deviceId);
-        Staff staff = resolveStaff(capturedByStaffId);
+        Staff staff = resolveStaffByUsername(capturedByUsername);
         Set<Long> definitionIds = requests.stream()
                 .filter(Objects::nonNull)
                 .map(DeviceConditionRequestDto::getConditionDefinitionId)
@@ -78,6 +82,7 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(ConditionDefinition::getConditionDefinitionId, def -> def));
 
+        ConditionType resolvedType = null;
         List<DeviceConditionResponseDto> responses = new ArrayList<>();
         for (DeviceConditionRequestDto request : requests) {
             if (request == null || request.getConditionDefinitionId() == null) {
@@ -85,11 +90,21 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
             }
             ConditionDefinition definition = definitions.get(request.getConditionDefinitionId());
             if (definition == null) {
-                throw new NoSuchElementException("Không tìm thấy condition definition: " + request.getConditionDefinitionId());
+                throw new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + request.getConditionDefinitionId());
+            }
+            ConditionType currentType = definition.getConditionType();
+            if (currentType == null) {
+                throw new IllegalStateException("Định nghĩa tình trạng chưa được cấu hình conditionType");
+            }
+            if (resolvedType == null) {
+                resolvedType = currentType;
+            } else if (!resolvedType.equals(currentType)) {
+                throw new IllegalArgumentException("Các định nghĩa tình trạng phải cùng một loại conditionType");
             }
             DeviceCondition saved = createCondition(device, definition, staff, request.getSeverity(), request.getNote(), request.getImages());
             responses.add(DeviceConditionResponseDto.from(saved));
         }
+        applyDeviceStatus(device, resolvedType);
         return responses;
     }
 
@@ -105,9 +120,13 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
         }
         Device device = getDevice(deviceId);
         ConditionDefinition definition = conditionDefinitionRepository.findById(conditionDefinitionId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + conditionDefinitionId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + conditionDefinitionId));
+        if (definition.getConditionType() == null) {
+            throw new IllegalStateException("Định nghĩa tình trạng chưa được cấu hình conditionType");
+        }
         Staff staff = resolveStaff(capturedByStaffId);
         createCondition(device, definition, staff, severity, note, images);
+        applyDeviceStatus(device, definition.getConditionType());
     }
 
     @Override
@@ -124,10 +143,20 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
                                             String severity,
                                             String note,
                                             List<String> images) {
+        String effectiveSeverity;
+        if (definition.getConditionSeverity() != null) {
+            effectiveSeverity = definition.getConditionSeverity().name();
+        } else if (definition.getConditionType() == ConditionType.GOOD) {
+            effectiveSeverity = ConditionSeverity.INFO.name();
+        } else if (definition.getConditionType() == ConditionType.LOST) {
+            effectiveSeverity = ConditionSeverity.CRITICAL.name();
+        } else {
+            effectiveSeverity = severity;
+        }
         DeviceCondition entity = DeviceCondition.builder()
                 .device(device)
                 .conditionDefinition(definition)
-                .severity(severity)
+                .severity(effectiveSeverity)
                 .note(note)
                 .images(images == null ? new ArrayList<>() : new ArrayList<>(images))
                 .capturedAt(LocalDateTime.now())
@@ -147,5 +176,29 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
         }
         return staffRepository.findById(staffId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy staff: " + staffId));
+    }
+
+    private Staff resolveStaffByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return staffRepository.findByAccount_Username(username)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy nhân viên với username: " + username));
+    }
+
+    private void applyDeviceStatus(Device device, ConditionType conditionType) {
+        if (device == null || conditionType == null) {
+            return;
+        }
+        DeviceStatus newStatus = null;
+        if (conditionType == ConditionType.DAMAGED) {
+            newStatus = DeviceStatus.DAMAGED;
+        } else if (conditionType == ConditionType.LOST) {
+            newStatus = DeviceStatus.LOST;
+        }
+        if (newStatus != null && device.getStatus() != newStatus) {
+            device.setStatus(newStatus);
+            deviceRepository.save(device);
+        }
     }
 }

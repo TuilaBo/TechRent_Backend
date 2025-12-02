@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Schema(description = "Request DTO để tạo hợp đồng mới")
+@Schema(description = "DTO yêu cầu dùng để tạo hợp đồng mới")
 public class ContractCreateRequestDto {
     
     @Schema(description = "Tiêu đề hợp đồng", example = "Hợp đồng thuê laptop Dell")
@@ -34,7 +34,7 @@ public class ContractCreateRequestDto {
     @Positive(message = "ID khách hàng phải là số dương")
     private Long customerId;
     
-    @Schema(description = "ID đơn thuê (optional)", example = "1")
+    @Schema(description = "ID đơn thuê (không bắt buộc)", example = "1")
     private Long orderId;
     
     @Schema(description = "Nội dung hợp đồng", example = "Điều khoản và điều kiện hợp đồng thuê thiết bị")
