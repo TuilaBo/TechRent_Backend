@@ -233,4 +233,42 @@ public class AccountServiceImpl implements AccountService {
         return tokenProvider.generateToken(authentication);
     }
 
+    @Override
+    public void forgotPassword(String email) {
+        Account account = accountRepository.findByEmail(email);
+        if (account == null) {
+            // Không tiết lộ email có tồn tại hay không vì lý do bảo mật
+            return;
+        }
+        if (!Boolean.TRUE.equals(account.getIsActive())) {
+            throw new IllegalStateException("Tài khoản chưa được kích hoạt. Vui lòng xác thực email trước.");
+        }
+        setResetPasswordCodeAndSendEmail(account);
+    }
+
+    @Override
+    public void resetPassword(String email, String code, String newPassword) {
+        Account account = accountRepository.findByEmailAndResetPasswordCode(email, code);
+        if (account == null) {
+            throw new NoSuchElementException("Không tìm thấy tài khoản hoặc mã đặt lại mật khẩu không đúng");
+        }
+        if (account.getResetPasswordExpiry() == null || account.getResetPasswordExpiry().isBefore(java.time.LocalDateTime.now())) {
+            throw new IllegalArgumentException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+        }
+        // Encode password mới bằng BCrypt
+        account.setPassword(passwordEncoder.encode(newPassword));
+        account.setResetPasswordCode(null);
+        account.setResetPasswordExpiry(null);
+        accountRepository.save(account);
+    }
+
+    private void setResetPasswordCodeAndSendEmail(Account account) {
+        String code = String.format("%06d", new java.util.Random().nextInt(1_000_000));
+        account.setResetPasswordCode(code);
+        account.setResetPasswordExpiry(java.time.LocalDateTime.now().plusMinutes(10));
+        accountRepository.save(account);
+        // Send email asynchronously to avoid blocking response
+        verificationEmailService.sendResetPasswordEmail(account.getEmail(), code);
+    }
+
 }

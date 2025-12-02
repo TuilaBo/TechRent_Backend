@@ -20,5 +20,14 @@ public class VerificationEmailService {
         message.setText("Mã xác thực của bạn là: " + code + "\nMã sẽ hết hạn sau 10 phút.");
         mailSender.send(message);
     }
+
+    @Async
+    public void sendResetPasswordEmail(String to, String code) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Mã đặt lại mật khẩu");
+        message.setText("Mã đặt lại mật khẩu của bạn là: " + code + "\nMã sẽ hết hạn sau 10 phút.\n\nNếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.");
+        mailSender.send(message);
+    }
 }
 
