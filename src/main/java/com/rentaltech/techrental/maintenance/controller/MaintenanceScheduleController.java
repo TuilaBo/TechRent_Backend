@@ -123,6 +123,19 @@ public class MaintenanceScheduleController {
         );
     }
 
+    @GetMapping("/inactive")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Danh sách lịch bảo trì không hoạt động", description = "Bao gồm lịch đã hoàn thành, hủy hoặc đã quá hạn")
+    public ResponseEntity<?> getInactiveMaintenanceSchedules() {
+        List<MaintenanceSchedule> data = maintenanceScheduleService.getInactiveMaintenanceSchedules();
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách lịch bảo trì không hoạt động",
+                "Có " + data.size() + " lịch đã kết thúc hoặc bị hủy",
+                data,
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Danh sách lịch bảo trì theo thiết bị", description = "Lấy lịch bảo trì của một thiết bị cụ thể")
