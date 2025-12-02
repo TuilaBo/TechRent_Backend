@@ -1,11 +1,14 @@
 package com.rentaltech.techrental.authentication.controller;
 
+import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.model.dto.AccountMeResponse;
 import com.rentaltech.techrental.authentication.model.dto.CreateUserRequestDto;
 import com.rentaltech.techrental.authentication.model.dto.JWTAuthResponse;
 import com.rentaltech.techrental.authentication.model.dto.LoginDto;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.staff.repository.StaffRepository;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -24,6 +27,8 @@ import org.springframework.web.bind.annotation.*;
 public class AuthenController {
 
     private final AccountService accountService;
+    private final CustomerRepository customerRepository;
+    private final StaffRepository staffRepository;
 
     @PostMapping("/login")
     @Operation(summary = "Login", description = "Authenticate with username or email and password")
@@ -98,7 +103,21 @@ public class AuthenController {
 
         String username = principal.getUsername();
         return accountService.getByUsername(username)
-                .<ResponseEntity<?>>map(a -> ResponseUtil.createSuccessResponse(
+                .<ResponseEntity<?>>map(a -> {
+                    Long customerId = null;
+                    Long staffId = null;
+
+                    if (a.getRole() == Role.CUSTOMER) {
+                        customerId = customerRepository.findByAccount_AccountId(a.getAccountId())
+                                .map(c -> c.getCustomerId())
+                                .orElse(null);
+                    } else {
+                        staffId = staffRepository.findByAccount_AccountId(a.getAccountId())
+                                .map(s -> s.getStaffId())
+                                .orElse(null);
+                    }
+
+                    return ResponseUtil.createSuccessResponse(
                         "Lấy thông tin tài khoản thành công",
                         "Thông tin tài khoản hiện tại",
                         AccountMeResponse.builder()
@@ -108,10 +127,12 @@ public class AuthenController {
                                 .role(a.getRole())
                                 .phoneNumber(a.getPhoneNumber())
                                 .isActive(a.getIsActive())
+                                .customerId(customerId)
+                                .staffId(staffId)
                                 .build(),
                         HttpStatus.OK
-                ))
+                );
+                })
                 .orElseGet(ResponseUtil::accountNotFound);
     }
 }
-

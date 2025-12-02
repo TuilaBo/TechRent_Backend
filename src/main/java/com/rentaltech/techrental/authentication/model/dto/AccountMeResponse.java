@@ -15,6 +15,8 @@ public class AccountMeResponse {
     private Role role;
     private String phoneNumber;
     private Boolean isActive;
+    private Long customerId;
+    private Long staffId;
 }
 
 
