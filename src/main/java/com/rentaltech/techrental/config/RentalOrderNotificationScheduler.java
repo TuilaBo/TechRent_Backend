@@ -50,6 +50,10 @@ public class RentalOrderNotificationScheduler {
         if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
             return;
         }
+        if (rentalOrderRepository.existsByParentOrder(order)) {
+            log.debug("Bỏ qua gửi near-due cho đơn {} vì đã có đơn gia hạn", order.getOrderId());
+            return;
+        }
         if (order.getLastDueNotificationSentAt() != null) {
             log.debug("Bỏ qua gửi near-due cho đơn {} vì đã gửi trước đó vào {}", order.getOrderId(), order.getLastDueNotificationSentAt());
             return;

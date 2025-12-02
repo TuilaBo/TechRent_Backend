@@ -1,5 +1,7 @@
 package com.rentaltech.techrental.device.model.dto;
 
+import com.rentaltech.techrental.device.model.ConditionType;
+import com.rentaltech.techrental.device.model.ConditionSeverity;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,7 +20,8 @@ public class ConditionDefinitionRequestDto {
     @Size(max = 200)
     private String name;
 
-    private Long deviceCategoryId;
+    @NotNull
+    private Long deviceModelId;
 
     @Size(max = 2000)
     private String description;
@@ -28,7 +31,11 @@ public class ConditionDefinitionRequestDto {
     @DecimalMax(value = "100.00")
     private BigDecimal impactRate;
 
-    private boolean damage;
+    @NotNull
+    private ConditionType conditionType;
+
+    @NotNull
+    private ConditionSeverity conditionSeverity;
 
     @DecimalMin("0.0")
     private BigDecimal defaultCompensation;

@@ -21,14 +21,18 @@ import java.util.List;
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Notifications", description = "Truy vấn thông báo của người dùng")
+@Tag(name = "Thông báo", description = "API truy vấn thông báo cho người dùng hệ thống")
 public class NotificationController {
 
     private final NotificationService notificationService;
 
     @GetMapping("/accounts/{accountId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('CUSTOMER')")
-    @Operation(summary = "Lấy thông báo theo account", description = "Trả về danh sách thông báo thuộc tài khoản cụ thể")
+    @Operation(summary = "Lấy thông báo theo tài khoản", description = "Trả về danh sách thông báo thuộc tài khoản cụ thể")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Trả về danh sách thông báo"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getNotificationsByAccountId(@PathVariable Long accountId) {
         List<NotificationResponseDto> notifications = notificationService.getNotificationsForAccount(accountId);
         log.info("Fetched {} notifications for accountId {}", notifications.size(), accountId);

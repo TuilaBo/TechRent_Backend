@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.rentalorder.service;
 
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import org.springframework.data.domain.Page;
@@ -30,4 +31,5 @@ public interface RentalOrderService {
     RentalOrderResponseDto update(Long id, RentalOrderRequestDto request);
     void delete(Long id);
     RentalOrderResponseDto confirmReturn(Long id);
+    RentalOrderResponseDto extend(RentalOrderExtendRequestDto request);
 }

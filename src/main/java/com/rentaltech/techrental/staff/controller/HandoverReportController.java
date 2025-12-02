@@ -4,6 +4,8 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.service.handover.HandoverReportService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 @Slf4j
-@Tag(name = "Handover Reports", description = "Nhân viên tạo và quản lý biên bản bàn giao")
+@Tag(name = "Biên bản bàn giao", description = "API để kỹ thuật viên tạo, cập nhật và ký biên bản bàn giao thiết bị")
 public class HandoverReportController {
 
     private final HandoverReportService handoverReportService;
@@ -33,6 +35,11 @@ public class HandoverReportController {
     @PostMapping(value = "/checkout", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Tạo biên bản bàn giao CHECKOUT", description = "Không nhận discrepancy; nhận danh sách tình trạng thiết bị để lưu snapshot")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo biên bản CHECKOUT thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể tạo biên bản do lỗi hệ thống")
+    })
     public ResponseEntity<?> createCheckoutReport(
             @Valid @RequestBody HandoverReportCreateOutRequestDto request,
             @AuthenticationPrincipal UserDetails principal) {
@@ -51,6 +58,11 @@ public class HandoverReportController {
     @PostMapping(value = "/checkin", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Tạo biên bản bàn giao CHECKIN", description = "Nhận discrepancy và xử lý giống hiện tại")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo biên bản CHECKIN thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể tạo biên bản do lỗi hệ thống")
+    })
     public ResponseEntity<?> createCheckinReport(
             @Valid @RequestBody HandoverReportCreateInRequestDto request,
             @AuthenticationPrincipal UserDetails principal) {
@@ -69,6 +81,12 @@ public class HandoverReportController {
     @PutMapping(value = "/checkout/{handoverReportId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Cập nhật biên bản CHECKOUT", description = "Payload giống tạo mới cho CHECKOUT")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật biên bản CHECKOUT thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> updateCheckoutReport(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody HandoverReportUpdateOutRequestDto request,
@@ -88,6 +106,12 @@ public class HandoverReportController {
     @PutMapping(value = "/checkin/{handoverReportId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Cập nhật biên bản CHECKIN", description = "Payload giống tạo mới cho CHECKIN")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật biên bản CHECKIN thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> updateCheckinReport(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody HandoverReportUpdateInRequestDto request,
@@ -107,6 +131,11 @@ public class HandoverReportController {
     @PostMapping("/orders/{orderId}/pin")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Gửi PIN cho khách theo đơn hàng", description = "Gửi mã PIN xác nhận cho khách qua SMS/Email dựa trên đơn hàng")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Gửi PIN thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn hàng tương ứng"),
+            @ApiResponse(responseCode = "500", description = "Không thể gửi PIN do lỗi hệ thống")
+    })
     public ResponseEntity<?> requestPinForOrder(@PathVariable Long orderId) {
         HandoverPinDeliveryDto responseDto = handoverReportService.sendPinForOrder(orderId);
         return ResponseUtil.createSuccessResponse(
@@ -120,6 +149,12 @@ public class HandoverReportController {
     @PostMapping(value = "/{handoverReportId}/devices/{deviceId}/evidences", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Cập nhật bằng chứng thiết bị", description = "Tải lên danh sách ảnh cho thiết bị trong biên bản bàn giao")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật bằng chứng thành công"),
+            @ApiResponse(responseCode = "400", description = "File tải lên không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản hoặc thiết bị"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
     public ResponseEntity<?> updateDeviceEvidence(
             @PathVariable Long handoverReportId,
             @PathVariable Long deviceId,
@@ -139,6 +174,10 @@ public class HandoverReportController {
     @GetMapping
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Danh sách biên bản bàn giao", description = "Lấy toàn bộ biên bản bàn giao hiện có")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getAllReports() {
         List<HandoverReportResponseDto> reports = handoverReportService.getAllReports();
         return ResponseUtil.createSuccessResponse(
@@ -152,6 +191,11 @@ public class HandoverReportController {
     @GetMapping("/{handoverReportId}")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Chi tiết biên bản bàn giao", description = "Xem chi tiết biên bản theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về chi tiết biên bản"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getReport(@PathVariable Long handoverReportId) {
         HandoverReportResponseDto responseDto = handoverReportService.getReport(handoverReportId);
         return ResponseUtil.createSuccessResponse(
@@ -165,6 +209,10 @@ public class HandoverReportController {
     @GetMapping("/order/{orderId}")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Biên bản theo đơn hàng", description = "Liệt kê các biên bản bàn giao gắn với một đơn hàng")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getReportsByOrder(@PathVariable Long orderId) {
         List<HandoverReportResponseDto> reports = handoverReportService.getReportsByOrder(orderId);
         return ResponseUtil.createSuccessResponse(
@@ -178,6 +226,10 @@ public class HandoverReportController {
     @GetMapping("/technician/{staffId}")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Biên bản theo kỹ thuật viên", description = "Liệt kê biên bản do kỹ thuật viên thực hiện")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getReportsByTechnician(@PathVariable Long staffId) {
         List<HandoverReportResponseDto> reports = handoverReportService.getReportsByTechnician(staffId);
         return ResponseUtil.createSuccessResponse(
@@ -191,6 +243,10 @@ public class HandoverReportController {
     @GetMapping("/task/{taskId}")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Biên bản theo task", description = "Liệt kê biên bản được tạo từ một task cụ thể")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getReportsByTask(@PathVariable Long taskId) {
         List<HandoverReportResponseDto> reports = handoverReportService.getReportsByTask(taskId);
         return ResponseUtil.createSuccessResponse(
@@ -204,6 +260,11 @@ public class HandoverReportController {
     @PostMapping("/{handoverReportId}/pin")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Gửi PIN cho nhân viên", description = "Gửi lại mã PIN ký biên bản cho nhân viên phụ trách")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Gửi PIN thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể gửi PIN do lỗi hệ thống")
+    })
     public ResponseEntity<?> requestPinForStaff(@PathVariable Long handoverReportId) {
         HandoverPinDeliveryDto responseDto = handoverReportService.sendPinToStaffForReport(handoverReportId);
         return ResponseUtil.createSuccessResponse(
@@ -217,6 +278,12 @@ public class HandoverReportController {
     @PatchMapping("/{handoverReportId}/signature")
     @PreAuthorize("hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Nhân viên ký biên bản", description = "Xác nhận biên bản bàn giao bằng mã PIN của nhân viên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ký biên bản thành công"),
+            @ApiResponse(responseCode = "400", description = "Mã PIN hoặc dữ liệu ký không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy biên bản"),
+            @ApiResponse(responseCode = "500", description = "Không thể ký do lỗi hệ thống")
+    })
     public ResponseEntity<?> signByStaff(
             @PathVariable Long handoverReportId,
             @Valid @RequestBody HandoverReportStaffSignRequestDto request) {

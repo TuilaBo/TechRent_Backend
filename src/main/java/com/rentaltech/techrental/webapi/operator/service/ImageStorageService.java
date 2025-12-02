@@ -12,6 +12,8 @@ public interface ImageStorageService {
     String uploadHandoverEvidence(MultipartFile file, Long taskId, String label);
 
     String uploadMaintenanceEvidence(MultipartFile file, Long maintenanceScheduleId, String label);
+
+    String uploadInvoiceProof(MultipartFile file, Long settlementId);
 }
 
 

@@ -37,7 +37,6 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
                 .allocation(resolveAllocation(request.getOrderDetailId(), request.getDeviceId()))
                 .penaltyAmount(resolvePenalty(condition))
                 .staffNote(request.getStaffNote())
-                .customerNote(request.getCustomerNote())
                 .build();
         return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
@@ -54,7 +53,6 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
         entity.setAllocation(resolveAllocation(request.getOrderDetailId(), request.getDeviceId()));
         entity.setPenaltyAmount(resolvePenalty(condition));
         entity.setStaffNote(request.getStaffNote());
-        entity.setCustomerNote(request.getCustomerNote());
         return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
     }
 
@@ -88,16 +86,16 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
             return null;
         }
         return conditionDefinitionRepository.findById(conditionDefinitionId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + conditionDefinitionId));
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy định nghĩa tình trạng với mã: " + conditionDefinitionId));
     }
 
     private Allocation resolveAllocation(Long orderDetailId, Long deviceId) {
         if (orderDetailId == null || deviceId == null) {
-            throw new IllegalArgumentException("Cần cung cấp orderDetailId và deviceId để xác định allocation");
+            throw new IllegalArgumentException("Cần cung cấp mã chi tiết đơn thuê và mã thiết bị để xác định phân bổ");
         }
         return allocationRepository.findByOrderDetail_OrderDetailIdAndDevice_DeviceId(orderDetailId, deviceId)
                 .orElseThrow(() -> new NoSuchElementException(
-                        "Không tìm thấy allocation cho orderDetail " + orderDetailId + " và device " + deviceId));
+                        "Không tìm thấy phân bổ cho chi tiết đơn thuê " + orderDetailId + " và thiết bị " + deviceId));
     }
 
     private BigDecimal resolvePenalty(ConditionDefinition conditionDefinition) {

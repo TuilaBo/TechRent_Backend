@@ -5,6 +5,8 @@ import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,18 +18,23 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/discrepancies")
 @RequiredArgsConstructor
-@Tag(name = "Discrepancy Reports", description = "Quản lý báo cáo sai khác thiết bị")
+@Tag(name = "Báo cáo sai khác thiết bị", description = "Quản lý báo cáo sai khác thiết bị")
 public class DiscrepancyReportController {
 
     private final DiscrepancyReportService discrepancyReportService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Tạo discrepancy report")
+    @Operation(summary = "Tạo báo cáo sai khác", description = "Ghi nhận báo cáo sai khác cho thiết bị")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tạo báo cáo thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> create(@Valid @RequestBody DiscrepancyReportRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Tạo báo cáo sai khác thành công",
-                "Discrepancy report mới đã được tạo",
+                "Báo cáo sai khác mới đã được tạo",
                 discrepancyReportService.create(request),
                 HttpStatus.CREATED
         );
@@ -35,30 +42,45 @@ public class DiscrepancyReportController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Cập nhật discrepancy report")
+    @Operation(summary = "Cập nhật báo cáo sai khác", description = "Điều chỉnh nội dung báo cáo sai khác hiện có")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật báo cáo thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy báo cáo"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> update(@PathVariable Long id,
                                     @Valid @RequestBody DiscrepancyReportRequestDto request) {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật báo cáo sai khác thành công",
-                "Discrepancy report đã được cập nhật",
+                "Báo cáo sai khác đã được cập nhật",
                 discrepancyReportService.update(id, request),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Xem chi tiết discrepancy report")
+    @Operation(summary = "Chi tiết báo cáo sai khác", description = "Xem thông tin báo cáo sai khác theo mã")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin báo cáo"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy báo cáo"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> getById(@PathVariable Long id) {
         return ResponseUtil.createSuccessResponse(
                 "Chi tiết báo cáo sai khác",
-                "Discrepancy report theo ID",
+                "Báo cáo sai khác theo mã",
                 discrepancyReportService.getById(id),
                 HttpStatus.OK
         );
     }
 
     @GetMapping
-    @Operation(summary = "Danh sách discrepancy report", description = "Có thể lọc theo nguồn tạo và refId")
+    @Operation(summary = "Danh sách báo cáo sai khác", description = "Có thể lọc theo nguồn tạo và mã tham chiếu")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách báo cáo sai khác"),
+            @ApiResponse(responseCode = "500", description = "Lỗi hệ thống")
+    })
     public ResponseEntity<?> list(@RequestParam(required = false) DiscrepancyCreatedFrom createdFrom,
                                   @RequestParam(required = false) Long refId) {
         var data = (createdFrom != null && refId != null)
@@ -66,7 +88,7 @@ public class DiscrepancyReportController {
                 : discrepancyReportService.getAll();
         return ResponseUtil.createSuccessResponse(
                 "Danh sách báo cáo sai khác",
-                "Toàn bộ discrepancy report phù hợp",
+                "Toàn bộ báo cáo sai khác phù hợp",
                 data,
                 HttpStatus.OK
         );

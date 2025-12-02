@@ -8,7 +8,6 @@ public enum OrderStatus {
     DELIVERING,
     RESCHEDULED,
     IN_USE,
-//    DISPUTED,
     CANCELLED,
     REJECTED,
     COMPLETED,

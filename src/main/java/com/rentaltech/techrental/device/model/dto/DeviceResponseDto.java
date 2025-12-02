@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -20,8 +22,13 @@ public class DeviceResponseDto {
     private DeviceStatus status;
     private String shelfCode;
     private Long deviceModelId;
+    private List<DeviceConditionResponseDto> currentConditions;
 
     public static DeviceResponseDto from(Device entity) {
+        return from(entity, List.of());
+    }
+
+    public static DeviceResponseDto from(Device entity, List<DeviceConditionResponseDto> conditions) {
         if (entity == null) {
             return null;
         }
@@ -33,6 +40,7 @@ public class DeviceResponseDto {
                 .status(entity.getStatus())
                 .shelfCode(null)
                 .deviceModelId(model != null ? model.getDeviceModelId() : null)
+                .currentConditions(conditions == null ? new ArrayList<>() : new ArrayList<>(conditions))
                 .build();
     }
 }

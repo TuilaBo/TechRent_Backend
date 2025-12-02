@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "contract")
@@ -97,7 +99,11 @@ public class Contract {
     
     @Column(name = "updated_by")
     private Long updatedBy;
-    
+
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = false)
+    @Builder.Default
+    private List<ContractExtensionAnnex> extensionAnnexes = new ArrayList<>();
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();

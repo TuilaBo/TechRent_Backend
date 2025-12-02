@@ -7,6 +7,8 @@ import com.rentaltech.techrental.staff.model.dto.StaffResponseDto;
 import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -21,7 +23,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/staff")
-@Tag(name = "Staff", description = "Staff read APIs")
+@Tag(name = "Nhân sự", description = "API tra cứu nhân viên và thống kê hiệu suất")
 public class StaffController {
 
     @Autowired
@@ -30,7 +32,12 @@ public class StaffController {
     // Lấy staff theo ID
     @GetMapping("/{staffId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Get staff by ID", description = "Retrieve staff by ID")
+    @Operation(summary = "Chi tiết nhân viên", description = "Lấy thông tin nhân viên theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin nhân viên"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên tương ứng"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getStaffById(@PathVariable Long staffId) {
         Staff staff = staffService.getStaffByIdOrThrow(staffId);
         return ResponseUtil.createSuccessResponse(
@@ -43,7 +50,12 @@ public class StaffController {
 
     // Lấy staff theo Account ID
     @GetMapping("/account/{accountId}")
-    @Operation(summary = "Get staff by account ID", description = "Retrieve staff by account ID")
+    @Operation(summary = "Lấy nhân viên theo tài khoản", description = "Lấy thông tin nhân viên dựa trên account ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin nhân viên"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên tương ứng"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     public ResponseEntity<?> getStaffByAccountId(@PathVariable Long accountId) {
         Staff staff = staffService.getStaffByAccountIdOrThrow(accountId);
@@ -58,7 +70,11 @@ public class StaffController {
     // Lấy staff theo role (chỉ active staff)
     @GetMapping("/role/{staffRole}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Get staff by role", description = "List staff by role")
+    @Operation(summary = "Nhân viên theo vai trò", description = "Liệt kê nhân viên đang hoạt động theo vai trò cụ thể")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getStaffByRole(@PathVariable StaffRole staffRole) {
         List<Staff> staffList = staffService.getStaffByRole(staffRole);
         List<StaffResponseDto> responseDtos = staffList.stream()
@@ -75,7 +91,11 @@ public class StaffController {
     // Lấy active staff
     @GetMapping("/active")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Get active staff", description = "List active staff members")
+    @Operation(summary = "Danh sách nhân viên đang hoạt động", description = "Liệt kê tất cả nhân viên đang active")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên đang hoạt động"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<?> getActiveStaff() {
         List<Staff> activeStaff = staffService.getActiveStaff();
         List<StaffResponseDto> responseDtos = activeStaff.stream()
@@ -91,7 +111,11 @@ public class StaffController {
 
     @GetMapping("/search")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Search staff", description = "Search staff by role and availability within a time window")
+    @Operation(summary = "Tìm kiếm nhân viên", description = "Tìm nhân viên theo vai trò và khoảng thời gian rảnh")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách nhân viên phù hợp"),
+            @ApiResponse(responseCode = "500", description = "Không thể tìm kiếm do lỗi hệ thống")
+    })
     public ResponseEntity<?> searchStaff(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
@@ -111,7 +135,11 @@ public class StaffController {
 
     @GetMapping("/performance/completions")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Staff completion leaderboard", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên")
+    @Operation(summary = "Bảng xếp hạng hoàn thành task", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thống kê hoàn thành task"),
+            @ApiResponse(responseCode = "500", description = "Không thể thống kê do lỗi hệ thống")
+    })
     public ResponseEntity<?> getStaffCompletionLeaderboard(
             @RequestParam int year,
             @RequestParam int month,

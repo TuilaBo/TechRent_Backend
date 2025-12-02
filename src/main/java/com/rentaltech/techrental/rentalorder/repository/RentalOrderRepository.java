@@ -14,4 +14,8 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     List<RentalOrder> findByCustomer_CustomerId(Long customerCustomerId);
     List<RentalOrder> findByCustomer_CustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
     List<RentalOrder> findByOrderStatusAndEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
+    boolean existsByParentOrder(RentalOrder parentOrder);
+    List<RentalOrder> findByParentOrder(RentalOrder parentOrder);
+    List<RentalOrder> findByParentOrderIsNull();
+    List<RentalOrder> findByCustomer_CustomerIdAndParentOrderIsNull(Long customerId);
 }

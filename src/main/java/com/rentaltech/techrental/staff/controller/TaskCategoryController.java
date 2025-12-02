@@ -20,7 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/staff/task-categories")
-@Tag(name = "Task Categories", description = "Task category management APIs")
+@Tag(name = "Danh mục tác vụ", description = "API quản lý danh mục công việc cho nhân viên")
 public class TaskCategoryController {
 
     @Autowired
@@ -29,7 +29,11 @@ public class TaskCategoryController {
     // Get all task categories (READ ONLY)
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "List task categories", description = "Retrieve all task categories")
+    @Operation(summary = "Danh sách danh mục tác vụ", description = "Trả về tất cả danh mục tác vụ")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách danh mục"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
     public ResponseEntity<List<TaskCategory>> getAllTaskCategories() {
         List<TaskCategory> categories = taskCategoryService.getAllTaskCategories();
         return ResponseEntity.ok(categories);
@@ -38,7 +42,11 @@ public class TaskCategoryController {
     // Get task category by ID (READ ONLY)
     @GetMapping("/{categoryId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Get task category", description = "Retrieve task category by ID")
+    @Operation(summary = "Chi tiết danh mục tác vụ", description = "Lấy thông tin danh mục theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh mục công việc"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy danh mục")
+    })
     public ResponseEntity<TaskCategory> getTaskCategoryById(@PathVariable Long categoryId) {
         return taskCategoryService.getTaskCategoryById(categoryId)
                 .map(ResponseEntity::ok)
@@ -48,7 +56,11 @@ public class TaskCategoryController {
     // Search task categories by name (READ ONLY)
     @GetMapping("/search")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Search task categories", description = "Search task categories by name")
+    @Operation(summary = "Tìm kiếm danh mục tác vụ", description = "Tìm kiếm danh mục theo tên")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách danh mục phù hợp"),
+            @ApiResponse(responseCode = "500", description = "Không thể tìm kiếm do lỗi hệ thống")
+    })
     public ResponseEntity<List<TaskCategory>> searchTaskCategories(@RequestParam String name) {
         List<TaskCategory> categories = taskCategoryService.searchTaskCategoriesByName(name);
         return ResponseEntity.ok(categories);
@@ -57,7 +69,11 @@ public class TaskCategoryController {
     // Check if task category exists by name (READ ONLY)
     @GetMapping("/exists")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Check task category exists", description = "Check whether a task category name already exists")
+    @Operation(summary = "Kiểm tra danh mục tồn tại", description = "Kiểm tra tên danh mục đã tồn tại hay chưa")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về kết quả kiểm tra danh mục"),
+            @ApiResponse(responseCode = "500", description = "Không thể kiểm tra do lỗi hệ thống")
+    })
     public ResponseEntity<Boolean> checkTaskCategoryExists(@RequestParam String name) {
         boolean exists = taskCategoryService.checkTaskCategoryExists(name);
         return ResponseEntity.ok(exists);
@@ -68,11 +84,11 @@ public class TaskCategoryController {
     // Create task category (ADMIN ONLY)
     @PostMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Create task category", description = "Create a new task category")
+    @Operation(summary = "Tạo danh mục tác vụ", description = "Tạo mới danh mục công việc")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Created"),
-            @ApiResponse(responseCode = "400", description = "Bad request"),
-            @ApiResponse(responseCode = "409", description = "Already exists")
+            @ApiResponse(responseCode = "201", description = "Tạo danh mục thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu tạo danh mục không hợp lệ"),
+            @ApiResponse(responseCode = "409", description = "Danh mục đã tồn tại trong hệ thống")
     })
     public ResponseEntity<?> createTaskCategory(@RequestBody @Valid TaskCategoryCreateRequestDto request) {
         TaskCategory savedCategory = taskCategoryService.createTaskCategory(request);
@@ -87,7 +103,11 @@ public class TaskCategoryController {
     // Update task category (ADMIN ONLY)
     @PutMapping("/admin/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update task category", description = "Update a task category by ID")
+    @Operation(summary = "Cập nhật danh mục tác vụ", description = "Chỉnh sửa danh mục công việc theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật danh mục thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy danh mục")
+    })
     public ResponseEntity<?> updateTaskCategory(@PathVariable Long categoryId,
                                                 @RequestBody @Valid TaskCategoryUpdateRequestDto request) {
         TaskCategory updatedCategory = taskCategoryService.updateTaskCategory(categoryId, request);
@@ -102,7 +122,11 @@ public class TaskCategoryController {
     // Delete task category (ADMIN ONLY)
     @DeleteMapping("/admin/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete task category", description = "Delete a task category by ID")
+    @Operation(summary = "Xóa danh mục tác vụ", description = "Xóa danh mục công việc theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Xóa danh mục thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy danh mục")
+    })
     public ResponseEntity<?> deleteTaskCategory(@PathVariable Long categoryId) {
         taskCategoryService.deleteTaskCategory(categoryId);
         return ResponseUtil.createSuccessResponse(

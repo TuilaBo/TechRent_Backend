@@ -13,6 +13,7 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     
     // Find by account
     Optional<Staff> findByAccount_AccountId(Long accountId);
+    Optional<Staff> findByAccount_Username(String username);
     
     // Find by staff role
     List<Staff> findByStaffRole(StaffRole staffRole);

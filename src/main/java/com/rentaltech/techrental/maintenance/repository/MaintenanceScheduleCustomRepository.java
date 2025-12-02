@@ -56,6 +56,38 @@ public class MaintenanceScheduleCustomRepository {
 
         return entityManager.createQuery(query).getResultList();
     }
+
+    public List<MaintenanceSchedule> findInactiveMaintenanceSchedules() {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<MaintenanceSchedule> query = cb.createQuery(MaintenanceSchedule.class);
+        Root<MaintenanceSchedule> schedule = query.from(MaintenanceSchedule.class);
+
+        LocalDate today = LocalDate.now();
+
+        List<String> inactiveStatuses = List.of(
+                MaintenanceScheduleStatus.COMPLETED.name(),
+                MaintenanceScheduleStatus.FINISHED.name(),
+                MaintenanceScheduleStatus.CANCELLED.name(),
+                MaintenanceScheduleStatus.CANCELED.name(),
+                MaintenanceScheduleStatus.FAILED.name()
+        );
+
+        // status thuộc nhóm inactive
+        Predicate statusInactive = cb.upper(cb.coalesce(schedule.get("status"), cb.literal("")))
+                .in(inactiveStatuses);
+
+        // hoặc đã kết thúc trước ngày hôm nay
+        Predicate endedBeforeToday = cb.and(
+                schedule.get("endDate").isNotNull(),
+                cb.lessThan(schedule.get("endDate"), today)
+        );
+
+        query.select(schedule)
+                .where(cb.or(statusInactive, endedBeforeToday))
+                .orderBy(cb.desc(schedule.get("startDate")));
+
+        return entityManager.createQuery(query).getResultList();
+    }
 }
 
 
