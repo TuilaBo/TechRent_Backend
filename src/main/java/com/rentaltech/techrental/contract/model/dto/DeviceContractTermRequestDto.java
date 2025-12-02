@@ -19,6 +19,7 @@ public class DeviceContractTermRequestDto {
     private String content;
 
     @Schema(description = "ID model thiết bị áp dụng")
+
     private Long deviceModelId;
 
     @Schema(description = "ID nhóm loại thiết bị áp dụng")
