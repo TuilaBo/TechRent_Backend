@@ -4,6 +4,7 @@ import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
 import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
 import com.rentaltech.techrental.device.model.AllocationSnapshotType;
+import com.rentaltech.techrental.device.model.AllocationConditionDetail;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
@@ -12,13 +13,16 @@ import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
+import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.model.dto.OrderDetailRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.OrderDetailResponseDto;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
+import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
@@ -48,13 +52,17 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -72,6 +80,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     private final DeviceModelRepository deviceModelRepository;
     private final PreRentalQcTaskCreator preRentalQcTaskCreator;
     private final BookingCalendarService bookingCalendarService;
+    private final BookingCalendarRepository bookingCalendarRepository;
     private final ReservationService reservationService;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
@@ -145,6 +154,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .totalPrice(computed.totalPerDay().multiply(BigDecimal.valueOf(days)))
                 .pricePerDay(computed.totalPerDay())
                 .customer(customer)
+                .extended(false)
                 .build();
 
         RentalOrder saved = rentalOrderRepository.save(order);
@@ -279,24 +289,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         RentalOrder order = rentalOrderRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không được phép");
-        }
-        boolean isCustomer = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_CUSTOMER"::equals);
-        if (!isCustomer) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ khách hàng được xác nhận trả hàng");
-        }
-        String username = auth.getName();
-        Long requesterCustomerId = customerRepository.findByAccount_Username(username)
-                .map(Customer::getCustomerId)
-                .orElse(-1L);
-        Long ownerCustomerId = order.getCustomer() != null ? order.getCustomer().getCustomerId() : null;
-        if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Đơn hàng không thuộc về bạn");
-        }
+        ensureCustomerOwnership(order, "Chỉ khách hàng được xác nhận trả hàng");
         if (order.getOrderStatus() != OrderStatus.IN_USE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chỉ xác nhận trả hàng cho đơn đang sử dụng");
         }
@@ -329,6 +322,106 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     }
 
     @Override
+    public RentalOrderResponseDto extend(RentalOrderExtendRequestDto request) {
+        if (request == null || request.getRentalOrderId() == null || request.getExtendedEndTime() == null) {
+            throw new IllegalArgumentException("Cần cung cấp rentalOrderId và extendedEndTime");
+        }
+        RentalOrder original = rentalOrderRepository.findById(request.getRentalOrderId())
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + request.getRentalOrderId()));
+        ensureCustomerOwnership(original, "Chỉ khách hàng sở hữu đơn mới được gia hạn");
+        if (original.getEndDate() == null) {
+            throw new IllegalStateException("Đơn thuê không có endDate, không thể gia hạn");
+        }
+        LocalDateTime extensionStart = original.getEndDate();
+        LocalDateTime extensionEnd = request.getExtendedEndTime();
+        if (!extensionStart.isBefore(extensionEnd)) {
+            throw new IllegalArgumentException("Thời gian gia hạn phải sau ngày kết thúc hiện tại");
+        }
+        LocalDateTime windowEnd = extensionEnd.plusDays(1);
+        List<Device> allocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(original.getOrderId());
+        if (allocatedDevices.isEmpty()) {
+            throw new IllegalStateException("Đơn thuê chưa được cấp thiết bị nên không thể gia hạn");
+        }
+        List<Long> deviceIds = allocatedDevices.stream()
+                .map(Device::getDeviceId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (deviceIds.isEmpty()) {
+            throw new IllegalStateException("Không xác định được danh sách thiết bị của đơn thuê");
+        }
+        boolean calendarConflict = bookingCalendarRepository.existsOverlappingForDevices(
+                deviceIds,
+                original.getOrderId(),
+                EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE),
+                extensionStart,
+                windowEnd);
+        if (calendarConflict) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Thiết bị không khả dụng trong khoảng thời gian gia hạn");
+        }
+        List<RentalOrder> blockingOrders = allocationRepository.findOrdersUsingDevicesInRange(
+                deviceIds,
+                original.getOrderId(),
+                OrderStatus.PROCESSING,
+                extensionStart,
+                windowEnd);
+        if (!blockingOrders.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Thiết bị không khả dụng trong khoảng thời gian gia hạn");
+        }
+        List<OrderDetail> existingDetails = orderDetailRepository.findByRentalOrder_OrderId(original.getOrderId());
+        if (existingDetails.isEmpty()) {
+            throw new IllegalStateException("Không tìm thấy chi tiết đơn thuê để gia hạn");
+        }
+        long extensionDays = ChronoUnit.DAYS.between(extensionStart, extensionEnd);
+        if (extensionDays <= 0) {
+            throw new IllegalArgumentException("Thời gian gia hạn không hợp lệ");
+        }
+        BigDecimal totalPerDay = existingDetails.stream()
+                .map(OrderDetail::getPricePerDay)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        RentalOrder extension = RentalOrder.builder()
+                .startDate(extensionStart)
+                .endDate(extensionEnd)
+                .shippingAddress(original.getShippingAddress())
+                .orderStatus(OrderStatus.PROCESSING)
+                .depositAmount(BigDecimal.ZERO)
+                .depositAmountHeld(BigDecimal.ZERO)
+                .depositAmountUsed(BigDecimal.ZERO)
+                .depositAmountRefunded(BigDecimal.ZERO)
+                .totalPrice(totalPerDay.multiply(BigDecimal.valueOf(extensionDays)))
+                .pricePerDay(totalPerDay)
+                .customer(original.getCustomer())
+                .parentOrder(original)
+                .extended(true)
+                .build();
+        RentalOrder saved = rentalOrderRepository.save(extension);
+        Map<Long, OrderDetail> detailMapping = new HashMap<>();
+        List<OrderDetail> clonedDetails = new ArrayList<>();
+        for (OrderDetail detail : existingDetails) {
+            OrderDetail clone = OrderDetail.builder()
+                    .quantity(detail.getQuantity())
+                    .pricePerDay(detail.getPricePerDay())
+                    .depositAmountPerUnit(detail.getDepositAmountPerUnit())
+                    .deviceModel(detail.getDeviceModel())
+                    .rentalOrder(saved)
+                    .build();
+            clonedDetails.add(clone);
+            if (detail.getOrderDetailId() != null) {
+                detailMapping.put(detail.getOrderDetailId(), clone);
+            }
+        }
+        List<OrderDetail> persistedDetails = clonedDetails.isEmpty() ? List.of() : orderDetailRepository.saveAll(clonedDetails);
+        reservationService.createPendingReservations(saved, persistedDetails);
+        preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
+        cloneAllocationsFromOrder(original.getOrderId(), saved, detailMapping);
+        List<Device> newAllocatedDevices = deviceAllocationQueryService.getAllocatedDevicesForOrder(saved.getOrderId());
+        List<DiscrepancyReport> discrepancies = loadOrderDiscrepancies(saved.getOrderId());
+        List<QCReportDeviceConditionResponseDto> deviceConditions = loadDeviceConditions(saved.getOrderId());
+        return RentalOrderResponseDto.from(saved, persistedDetails, newAllocatedDevices, discrepancies, deviceConditions);
+    }
+
+    @Override
     public void delete(Long id) {
         if (!rentalOrderRepository.existsById(id)) {
             throw new NoSuchElementException("Không tìm thấy đơn thuê: " + id);
@@ -358,6 +451,109 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .map(QCReportDeviceConditionResponseDto::fromAllocation)
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private void cloneAllocationsFromOrder(Long originalOrderId,
+                                           RentalOrder newOrder,
+                                           Map<Long, OrderDetail> detailMapping) {
+        if (originalOrderId == null || newOrder == null || detailMapping == null || detailMapping.isEmpty()) {
+            return;
+        }
+        List<Allocation> originalAllocations = allocationRepository.findByOrderDetail_RentalOrder_OrderId(originalOrderId);
+        if (CollectionUtils.isEmpty(originalAllocations)) {
+            return;
+        }
+        List<Allocation> clonedAllocations = new ArrayList<>();
+        for (Allocation originalAllocation : originalAllocations) {
+            OrderDetail originalDetail = originalAllocation.getOrderDetail();
+            if (originalDetail == null || originalDetail.getOrderDetailId() == null) {
+                continue;
+            }
+            OrderDetail newDetail = detailMapping.get(originalDetail.getOrderDetailId());
+            if (newDetail == null) {
+                continue;
+            }
+            Allocation clonedAllocation = Allocation.builder()
+                    .device(originalAllocation.getDevice())
+                    .orderDetail(newDetail)
+                    .qcReport(null)
+                    .status(originalAllocation.getStatus())
+                    .allocatedAt(newOrder.getStartDate())
+                    .returnedAt(null)
+                    .notes(originalAllocation.getNotes())
+                    .build();
+            clonedAllocation.setBaselineSnapshots(cloneSnapshots(originalAllocation.getBaselineSnapshots(), clonedAllocation));
+            clonedAllocation.setFinalSnapshots(cloneSnapshots(originalAllocation.getFinalSnapshots(), clonedAllocation));
+            clonedAllocations.add(clonedAllocation);
+        }
+        if (clonedAllocations.isEmpty()) {
+            return;
+        }
+        allocationRepository.saveAll(clonedAllocations);
+        // Không tạo booking calendar ngay; sẽ tạo sau khi khách thanh toán phụ lục gia hạn
+    }
+
+    private List<AllocationConditionSnapshot> cloneSnapshots(List<AllocationConditionSnapshot> originals,
+                                                             Allocation allocation) {
+        if (CollectionUtils.isEmpty(originals)) {
+            return new ArrayList<>();
+        }
+        List<AllocationConditionSnapshot> clones = new ArrayList<>();
+        for (AllocationConditionSnapshot original : originals) {
+            if (original == null) {
+                continue;
+            }
+            AllocationConditionSnapshot copy = AllocationConditionSnapshot.builder()
+                    .allocation(allocation)
+                    .snapshotType(original.getSnapshotType())
+                    .source(original.getSource())
+                    .conditionDetails(cloneConditionDetails(original.getConditionDetails()))
+                    .images(original.getImages() == null ? new ArrayList<>() : new ArrayList<>(original.getImages()))
+                    .createdAt(original.getCreatedAt())
+                    .staff(original.getStaff())
+                    .build();
+            clones.add(copy);
+        }
+        return clones;
+    }
+
+    private List<AllocationConditionDetail> cloneConditionDetails(List<AllocationConditionDetail> originals) {
+        if (CollectionUtils.isEmpty(originals)) {
+            return new ArrayList<>();
+        }
+        List<AllocationConditionDetail> clones = new ArrayList<>();
+        for (AllocationConditionDetail original : originals) {
+            if (original == null) {
+                continue;
+            }
+            clones.add(AllocationConditionDetail.builder()
+                    .conditionDefinitionId(original.getConditionDefinitionId())
+                    .conditionDefinitionName(original.getConditionDefinitionName())
+                    .severity(original.getSeverity())
+                    .build());
+        }
+        return clones;
+    }
+
+    private void ensureCustomerOwnership(RentalOrder order, String forbiddenMessage) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không được phép");
+        }
+        boolean isCustomer = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_CUSTOMER"::equals);
+        if (!isCustomer) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, forbiddenMessage);
+        }
+        String username = auth.getName();
+        Long requesterCustomerId = customerRepository.findByAccount_Username(username)
+                .map(Customer::getCustomerId)
+                .orElse(-1L);
+        Long ownerCustomerId = order.getCustomer() != null ? order.getCustomer().getCustomerId() : null;
+        if (ownerCustomerId == null || !ownerCustomerId.equals(requesterCustomerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Đơn hàng không thuộc về bạn");
+        }
     }
 
     private void ensureQcBaselineSnapshotsLoaded(Allocation allocation) {

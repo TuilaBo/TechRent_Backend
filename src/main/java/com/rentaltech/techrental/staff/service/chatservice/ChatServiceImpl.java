@@ -27,30 +27,6 @@ public class ChatServiceImpl implements ChatService {
     private final CustomerRepository customerRepository;
     private final StaffRepository staffRepository;
 
-//    @Override
-//    public Conversation getOrCreateConversationByDispute(Long disputeId) {
-//        return conversationRepository.findByDispute_DisputeId(disputeId)
-//                .orElseGet(() -> {
-//                    Dispute dispute = disputeRepository.findById(disputeId)
-//                            .orElseThrow(() -> new NoSuchElementException("Dispute not found: " + disputeId));
-//
-//                    Customer customer = dispute.getOpenedByCustomer();
-//                    if (customer == null) {
-//                        throw new IllegalStateException("Dispute must have a customer to create conversation");
-//                    }
-//
-//                    Staff staff = findAvailableSupportStaff();
-//
-//                    Conversation conversation = Conversation.builder()
-//                            .dispute(dispute)
-//                            .customer(customer)
-//                            .staff(staff)
-//                            .build();
-//
-//                    return conversationRepository.save(conversation);
-//                });
-//    }
-
     @Override
     public Conversation getOrCreateConversationByCustomer(Long customerId) {
         return conversationRepository.findByCustomer_CustomerId(customerId)

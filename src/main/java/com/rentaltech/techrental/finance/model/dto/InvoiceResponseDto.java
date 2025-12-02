@@ -26,7 +26,7 @@ public class InvoiceResponseDto {
     LocalDateTime paymentDate;
     LocalDateTime dueDate;
     LocalDateTime issueDate;
-    String pdfUrl;
+    String proofUrl;
 
     public static InvoiceResponseDto from(Invoice invoice) {
         return InvoiceResponseDto.builder()
@@ -43,7 +43,7 @@ public class InvoiceResponseDto {
                 .paymentDate(invoice.getPaymentDate())
                 .dueDate(invoice.getDueDate())
                 .issueDate(invoice.getIssueDate())
-                .pdfUrl(invoice.getPdfUrl())
+                .proofUrl(invoice.getProofUrl())
                 .build();
     }
 }

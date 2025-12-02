@@ -1,11 +1,11 @@
 package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.DeviceCategory;
+import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.dto.ConditionDefinitionRequestDto;
 import com.rentaltech.techrental.device.model.dto.ConditionDefinitionResponseDto;
 import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
-import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
+import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +19,13 @@ import java.util.NoSuchElementException;
 public class ConditionDefinitionServiceImpl implements ConditionDefinitionService {
 
     private final ConditionDefinitionRepository conditionDefinitionRepository;
-    private final DeviceCategoryRepository deviceCategoryRepository;
+    private final DeviceModelRepository deviceModelRepository;
 
     @Override
     public ConditionDefinitionResponseDto create(ConditionDefinitionRequestDto request) {
         ConditionDefinition entity = ConditionDefinition.builder()
                 .name(request.getName())
-                .deviceCategory(resolveDeviceCategory(request.getDeviceCategoryId()))
+                .deviceModel(resolveDeviceModel(request.getDeviceModelId()))
                 .description(request.getDescription())
                 .impactRate(request.getImpactRate())
                 .damage(request.isDamage())
@@ -39,7 +39,7 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
         ConditionDefinition entity = conditionDefinitionRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy condition definition: " + id));
         entity.setName(request.getName());
-        entity.setDeviceCategory(resolveDeviceCategory(request.getDeviceCategoryId()));
+        entity.setDeviceModel(resolveDeviceModel(request.getDeviceModelId()));
         entity.setDescription(request.getDescription());
         entity.setImpactRate(request.getImpactRate());
         entity.setDamage(request.isDamage());
@@ -65,8 +65,8 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
 
     @Override
     @Transactional(readOnly = true)
-    public List<ConditionDefinitionResponseDto> getByDeviceCategory(Long deviceCategoryId) {
-        return conditionDefinitionRepository.findByDeviceCategory_DeviceCategoryId(deviceCategoryId).stream()
+    public List<ConditionDefinitionResponseDto> getByDeviceModel(Long deviceModelId) {
+        return conditionDefinitionRepository.findByDeviceModel_DeviceModelId(deviceModelId).stream()
                 .map(ConditionDefinitionResponseDto::from)
                 .toList();
     }
@@ -79,12 +79,12 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
         conditionDefinitionRepository.deleteById(id);
     }
 
-    private DeviceCategory resolveDeviceCategory(Long deviceCategoryId) {
-        if (deviceCategoryId == null) {
-            return null;
+    private DeviceModel resolveDeviceModel(Long deviceModelId) {
+        if (deviceModelId == null) {
+            throw new IllegalArgumentException("Cần cung cấp deviceModelId");
         }
-        return deviceCategoryRepository.findById(deviceCategoryId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy device category: " + deviceCategoryId));
+        return deviceModelRepository.findById(deviceModelId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy device model: " + deviceModelId));
     }
 
 }

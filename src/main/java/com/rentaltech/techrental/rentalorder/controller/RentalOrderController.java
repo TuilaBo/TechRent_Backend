@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.rentalorder.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.service.RentalOrderService;
 import com.rentaltech.techrental.config.RentalOrderNotificationScheduler;
@@ -124,6 +125,18 @@ public class RentalOrderController {
                 "Đã tạo nhiệm vụ thu hồi cho đơn thuê",
                 service.confirmReturn(id),
                 HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/extend")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Gia hạn đơn thuê", description = "Tạo đơn gia hạn từ đơn thuê hiện có")
+    public ResponseEntity<?> extend(@Valid @RequestBody RentalOrderExtendRequestDto request) {
+        return ResponseUtil.createSuccessResponse(
+                "Gia hạn đơn thuê thành công",
+                "Đã tạo đơn gia hạn mới",
+                service.extend(request),
+                HttpStatus.CREATED
         );
     }
 

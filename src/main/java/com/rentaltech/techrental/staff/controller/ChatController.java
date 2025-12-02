@@ -38,19 +38,6 @@ public class ChatController {
         );
     }
 
-//    @PostMapping("/conversations/dispute/{disputeId}")
-//    @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-//    @Operation(summary = "Get or create conversation by dispute", description = "Get existing conversation or create new one for a dispute")
-//    public ResponseEntity<?> getOrCreateConversationByDispute(@PathVariable Long disputeId) {
-//        Conversation conversation = chatService.getOrCreateConversationByDispute(disputeId);
-//        return ResponseUtil.createSuccessResponse(
-//                "Lấy conversation thành công",
-//                "Conversation theo dispute ID",
-//                mapConversationToDto(conversation),
-//                HttpStatus.OK
-//        );
-//    }
-
     @PostMapping("/messages")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Send message", description = "Send a chat message")

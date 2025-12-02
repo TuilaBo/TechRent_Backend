@@ -4,6 +4,7 @@ import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
@@ -30,17 +31,20 @@ public class DeviceServiceImpl implements DeviceService {
     private final AllocationRepository allocationRepository;
     private final BookingCalendarRepository bookingCalendarRepository;
     private final ReservationService reservationService;
+    private final DeviceConditionService deviceConditionService;
 
     public DeviceServiceImpl(DeviceRepository repository,
                              DeviceModelRepository deviceModelRepository,
                              AllocationRepository allocationRepository,
                              BookingCalendarRepository bookingCalendarRepository,
-                             ReservationService reservationService) {
+                             ReservationService reservationService,
+                             DeviceConditionService deviceConditionService) {
         this.repository = repository;
         this.deviceModelRepository = deviceModelRepository;
         this.allocationRepository = allocationRepository;
         this.bookingCalendarRepository = bookingCalendarRepository;
         this.reservationService = reservationService;
+        this.deviceConditionService = deviceConditionService;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class DeviceServiceImpl implements DeviceService {
             });
         }
 
-        return DeviceResponseDto.from(saved);
+        return DeviceResponseDto.from(saved, deviceConditionService.getByDevice(saved.getDeviceId()));
     }
 
     @Override
@@ -69,21 +73,19 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponseDto findById(Long id) {
         Device entity = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị: " + id));
-        return DeviceResponseDto.from(entity);
+        return DeviceResponseDto.from(entity, deviceConditionService.getByDevice(entity.getDeviceId()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findAll() {
-        return repository.findAll().stream().map(DeviceResponseDto::from).toList();
+        return mapDevicesWithConditions(repository.findAll());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findByModelId(Long deviceModelId) {
-        return repository.findByDeviceModel_DeviceModelId(deviceModelId).stream()
-                .map(DeviceResponseDto::from)
-                .toList();
+        return mapDevicesWithConditions(repository.findByDeviceModel_DeviceModelId(deviceModelId));
     }
 
     @Override
@@ -104,6 +106,7 @@ public class DeviceServiceImpl implements DeviceService {
         );
         List<Device> freeDevices = devices.stream()
                 .filter(device -> device.getDeviceId() != null && !busyDeviceIds.contains(device.getDeviceId()))
+                .filter(device -> device.getStatus() != DeviceStatus.DAMAGED && device.getStatus() != DeviceStatus.LOST)
                 .sorted(Comparator.comparing(Device::getDeviceId))
                 .toList();
         long reservedCount = reservationService.countActiveReservedQuantity(deviceModelId, start, end);
@@ -111,28 +114,28 @@ public class DeviceServiceImpl implements DeviceService {
         if (limit <= 0) {
             return List.of();
         }
-        return freeDevices.stream()
+        List<Device> limitedDevices = freeDevices.stream()
                 .limit(limit)
-                .map(DeviceResponseDto::from)
                 .toList();
+        return mapDevicesWithConditions(limitedDevices);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DeviceResponseDto> findByOrderDetail(Long orderDetailId) {
-        return allocationRepository.findByOrderDetail_OrderDetailId(orderDetailId).stream()
+        List<Device> devices = allocationRepository.findByOrderDetail_OrderDetailId(orderDetailId).stream()
                 .map(Allocation::getDevice)
                 .filter(Objects::nonNull)
-                .map(DeviceResponseDto::from)
                 .toList();
+        return mapDevicesWithConditions(devices);
     }
 
     @Override
     @Transactional(readOnly = true)
     public DeviceResponseDto findBySerialNumber(String serialNumber) {
-        return repository.findBySerialNumber(serialNumber)
-                .map(DeviceResponseDto::from)
+        Device device = repository.findBySerialNumber(serialNumber)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị với serial: " + serialNumber));
+        return DeviceResponseDto.from(device, deviceConditionService.getByDevice(device.getDeviceId()));
     }
 
     @Override
@@ -145,7 +148,15 @@ public class DeviceServiceImpl implements DeviceService {
                                           String deviceName,
                                           Pageable pageable) {
         Specification<Device> spec = buildSpecification(serialNumber, shelfCode, status, deviceModelId, brand, deviceName);
-        return repository.findAll(spec, pageable).map(DeviceResponseDto::from);
+        Page<Device> page = repository.findAll(spec, pageable);
+        Map<Long, List<DeviceConditionResponseDto>> conditionMap = deviceConditionService.getByDeviceIds(
+                page.getContent().stream()
+                        .map(Device::getDeviceId)
+                        .filter(Objects::nonNull)
+                        .toList());
+        return page.map(device -> DeviceResponseDto.from(
+                device,
+                conditionMap.getOrDefault(device.getDeviceId(), List.of())));
     }
 
     @Override
@@ -177,13 +188,30 @@ public class DeviceServiceImpl implements DeviceService {
             });
         }
 
-        return DeviceResponseDto.from(repository.save(entity));
+        Device saved = repository.save(entity);
+        return DeviceResponseDto.from(saved, deviceConditionService.getByDevice(saved.getDeviceId()));
     }
 
     @Override
     public void delete(Long id) {
         if (!repository.existsById(id)) throw new NoSuchElementException("Không tìm thấy thiết bị: " + id);
         repository.deleteById(id);
+    }
+
+    private List<DeviceResponseDto> mapDevicesWithConditions(List<Device> devices) {
+        if (devices == null || devices.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<DeviceConditionResponseDto>> conditionMap = deviceConditionService.getByDeviceIds(
+                devices.stream()
+                        .map(Device::getDeviceId)
+                        .filter(Objects::nonNull)
+                        .toList());
+        return devices.stream()
+                .map(device -> DeviceResponseDto.from(
+                        device,
+                        conditionMap.getOrDefault(device.getDeviceId(), List.of())))
+                .toList();
     }
 
     private Device mapToEntity(DeviceRequestDto request) {

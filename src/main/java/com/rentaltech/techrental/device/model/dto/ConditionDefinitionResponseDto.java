@@ -15,8 +15,8 @@ import java.math.BigDecimal;
 public class ConditionDefinitionResponseDto {
     private Long conditionDefinitionId;
     private String name;
-    private Long deviceCategoryId;
-    private String deviceCategoryName;
+    private Long deviceModelId;
+    private String deviceModelName;
     private String description;
     private BigDecimal impactRate;
     private boolean damage;
@@ -26,12 +26,12 @@ public class ConditionDefinitionResponseDto {
         if (entity == null) {
             return null;
         }
-        var category = entity.getDeviceCategory();
+        var model = entity.getDeviceModel();
         return ConditionDefinitionResponseDto.builder()
                 .conditionDefinitionId(entity.getConditionDefinitionId())
                 .name(entity.getName())
-                .deviceCategoryId(category != null ? category.getDeviceCategoryId() : null)
-                .deviceCategoryName(category != null ? category.getDeviceCategoryName() : null)
+                .deviceModelId(model != null ? model.getDeviceModelId() : null)
+                .deviceModelName(model != null ? model.getDeviceName() : null)
                 .description(entity.getDescription())
                 .impactRate(entity.getImpactRate())
                 .damage(entity.isDamage())

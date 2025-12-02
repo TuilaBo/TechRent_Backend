@@ -26,6 +26,8 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     List<Contract> findByCreatedBy(Long createdBy);
     
     List<Contract> findByStatusAndCustomerId(ContractStatus status, Long customerId);
+
+    Optional<Contract> findFirstByOrderIdOrderByCreatedAtDesc(Long orderId);
     
     @Query("SELECT c FROM Contract c WHERE c.status = :status AND c.expiresAt < :currentDate")
     List<Contract> findExpiredContracts(@Param("status") ContractStatus status, @Param("currentDate") LocalDateTime currentDate);

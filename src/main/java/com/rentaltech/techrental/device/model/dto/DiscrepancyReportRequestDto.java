@@ -34,6 +34,4 @@ public class DiscrepancyReportRequestDto {
     @Size(max = 2000)
     private String staffNote;
 
-    @Size(max = 2000)
-    private String customerNote;
 }

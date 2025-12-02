@@ -22,10 +22,6 @@ public class Conversation {
     @Column(name = "conversation_id", nullable = false)
     private Long conversationId;
 
-//    @OneToOne
-//    @JoinColumn(name = "dispute_id", referencedColumnName = "dispute_id")
-//    private Dispute dispute;  // Optional: chỉ có khi chat liên quan dispute
-
     @ManyToOne(optional = false)
     @JoinColumn(name = "customer_id", referencedColumnName = "customer_id", nullable = false)
     private Customer customer;

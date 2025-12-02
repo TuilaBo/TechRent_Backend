@@ -2,6 +2,8 @@ package com.rentaltech.techrental.rentalorder.service;
 
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.model.Device;
+import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
@@ -18,6 +20,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -62,19 +65,29 @@ public class BookingCalendarServiceImpl implements BookingCalendarService {
     public long getAvailableCountByModel(Long deviceModelId, LocalDateTime start, LocalDateTime end) {
         if (deviceModelId == null || start == null || end == null) return 0L;
         if (!start.isBefore(end)) return 0L;
-        long total = deviceRepository.countByDeviceModel_DeviceModelId(deviceModelId);
-        long booked = bookingCalendarRepository.countOverlappingByModel(
+        List<Device> devices = deviceRepository.findByDeviceModel_DeviceModelId(deviceModelId);
+        if (devices.isEmpty()) {
+            return 0L;
+        }
+        Set<Long> busyDeviceIds = bookingCalendarRepository.findBusyDeviceIdsByModelAndRange(
                 deviceModelId, start, end, EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE)
         );
+        long freeDevices = devices.stream()
+                .filter(device -> device.getDeviceId() != null && !busyDeviceIds.contains(device.getDeviceId()))
+                .count();
+        long damagedOrLostFree = devices.stream()
+                .filter(device -> device.getDeviceId() != null && !busyDeviceIds.contains(device.getDeviceId()))
+                .filter(device -> device.getStatus() == DeviceStatus.DAMAGED || device.getStatus() == DeviceStatus.LOST)
+                .count();
         long reserved = reservationService.countActiveReservedQuantity(deviceModelId, start, end);
 
-        long available = total - booked - reserved;
+        long available = freeDevices - reserved - damagedOrLostFree;
 
         Role role = resolveCurrentUserRole();
         if (role == Role.TECHNICIAN) {
             long underReview = reservationService.countReservedQuantityByStatus(
                     deviceModelId, start, end, EnumSet.of(ReservationStatus.UNDER_REVIEW));
-            available = total - booked - underReview;
+            available = freeDevices - underReview - damagedOrLostFree;
         }
 
         return Math.max(available, 0);

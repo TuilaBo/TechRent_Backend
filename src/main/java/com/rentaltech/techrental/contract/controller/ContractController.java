@@ -7,6 +7,7 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.dto.*;
+import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
 import com.rentaltech.techrental.contract.service.ContractService;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
@@ -48,6 +49,9 @@ public class ContractController {
 
     @Autowired
     private DeviceAllocationQueryService deviceAllocationQueryService;
+
+    @Autowired
+    private ContractExtensionAnnexService contractExtensionAnnexService;
 
     // ========== HELPER METHODS ==========
     
@@ -407,6 +411,121 @@ public class ContractController {
                     "Lấy thông tin chữ ký thất bại",
                     "Có lỗi xảy ra: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    // ========== CONTRACT EXTENSION ANNEX ==========
+
+    @GetMapping("/{contractId}/annexes")
+    public ResponseEntity<?> getContractAnnexes(@PathVariable Long contractId) {
+        try {
+            List<ContractExtensionAnnexResponseDto> annexes = contractExtensionAnnexService.getAnnexesForContract(contractId);
+            return ResponseUtil.createSuccessResponse(
+                    "Lấy danh sách phụ lục gia hạn thành công",
+                    "Các phụ lục gia hạn của hợp đồng",
+                    annexes,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "GET_CONTRACT_ANNEXES_FAILED",
+                    "Không thể lấy danh sách phụ lục",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @GetMapping("/{contractId}/annexes/{annexId}")
+    public ResponseEntity<?> getContractAnnexDetail(@PathVariable Long contractId,
+                                                    @PathVariable Long annexId) {
+        try {
+            ContractExtensionAnnexResponseDto annex = contractExtensionAnnexService.getAnnexDetail(contractId, annexId);
+            return ResponseUtil.createSuccessResponse(
+                    "Lấy phụ lục gia hạn thành công",
+                    "Thông tin chi tiết phụ lục",
+                    annex,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "GET_CONTRACT_ANNEX_FAILED",
+                    "Không thể lấy thông tin phụ lục",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/{contractId}/annexes/{annexId}/sign/admin")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    public ResponseEntity<?> signAnnexAsAdmin(@PathVariable Long contractId,
+                                              @PathVariable Long annexId,
+                                              @Valid @RequestBody ContractExtensionAnnexSignRequestDto request,
+                                              @AuthenticationPrincipal UserDetails principal) {
+        try {
+            Long adminId = getAccountIdFromPrincipal(principal);
+            ContractExtensionAnnexResponseDto signedAnnex = contractExtensionAnnexService.signAsAdmin(contractId, annexId, adminId, request);
+            return ResponseUtil.createSuccessResponse(
+                    "Admin đã ký phụ lục thành công",
+                    "Phụ lục đang chờ khách hàng ký",
+                    signedAnnex,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "ADMIN_SIGN_ANNEX_FAILED",
+                    "Ký phụ lục thất bại",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/{contractId}/annexes/{annexId}/sign/customer")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> signAnnexAsCustomer(@PathVariable Long contractId,
+                                                 @PathVariable Long annexId,
+                                                 @Valid @RequestBody ContractExtensionAnnexSignRequestDto request,
+                                                 @AuthenticationPrincipal UserDetails principal) {
+        try {
+            Long customerAccountId = getAccountIdFromPrincipal(principal);
+            ContractExtensionAnnexResponseDto signedAnnex = contractExtensionAnnexService.signAsCustomer(contractId, annexId, customerAccountId, request);
+            return ResponseUtil.createSuccessResponse(
+                    "Khách hàng đã ký phụ lục thành công",
+                    "Đã tạo hóa đơn thanh toán cho phụ lục",
+                    signedAnnex,
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "CUSTOMER_SIGN_ANNEX_FAILED",
+                    "Ký phụ lục thất bại",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    @PostMapping("/{contractId}/annexes/{annexId}/send-pin/email")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CUSTOMER')")
+    public ResponseEntity<?> sendAnnexPinByEmail(@PathVariable Long contractId,
+                                                 @PathVariable Long annexId,
+                                                 @RequestBody @Valid EmailPinRequestDto request) {
+        try {
+            contractExtensionAnnexService.sendSignaturePinByEmail(contractId, annexId, request.getEmail());
+            return ResponseUtil.createSuccessResponse(
+                    "Đã gửi mã PIN phụ lục",
+                    "Mã PIN ký phụ lục đã được gửi tới email người nhận",
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "SEND_ANNEX_PIN_FAILED",
+                    "Không thể gửi mã PIN cho phụ lục",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
             );
         }
     }
