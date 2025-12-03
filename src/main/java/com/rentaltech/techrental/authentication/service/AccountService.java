@@ -41,4 +41,14 @@ public interface AccountService {
      * Authenticate user with username or email and return JWT token
      */
     String authenticateAndGenerateToken(com.rentaltech.techrental.authentication.model.dto.LoginDto loginDto);
+
+    /**
+     * Send reset password code to email
+     */
+    void forgotPassword(String email);
+
+    /**
+     * Reset password using code from email
+     */
+    void resetPassword(String email, String code, String newPassword);
 }
