@@ -136,6 +136,24 @@ public class MaintenanceScheduleController {
         );
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @Operation(summary = "Chi tiết lịch bảo trì", description = "Xem thông tin chi tiết của một lịch bảo trì cụ thể")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về chi tiết lịch bảo trì"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy lịch bảo trì"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
+    public ResponseEntity<?> getScheduleDetail(@PathVariable("id") Long id) {
+        MaintenanceSchedule data = maintenanceScheduleService.getSchedule(id);
+        return ResponseUtil.createSuccessResponse(
+                "Chi tiết lịch bảo trì",
+                "Thông tin chi tiết cho lịch bảo trì ID=" + id,
+                data,
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
     @Operation(summary = "Danh sách lịch bảo trì theo thiết bị", description = "Lấy lịch bảo trì của một thiết bị cụ thể")
