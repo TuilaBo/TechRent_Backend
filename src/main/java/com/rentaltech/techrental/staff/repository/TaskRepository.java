@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -62,23 +62,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime,
             @Param("role") com.rentaltech.techrental.staff.model.StaffRole role);
-
-    @Query("""
-            select count(distinct t)
-            from Task t
-            join t.assignedStaff s
-            where s.staffId = :staffId
-              and t.status in (com.rentaltech.techrental.staff.model.TaskStatus.PENDING,
-                               com.rentaltech.techrental.staff.model.TaskStatus.IN_PROGRESS)
-              and (
-                    (t.plannedStart is not null and function('DATE', t.plannedStart) = :targetDate)
-                    or (t.plannedStart is null and function('DATE', t.createdAt) = :targetDate)
-                  )
-              and (:excludeTaskId is null or t.taskId != :excludeTaskId)
-            """)
-    long countActiveTasksByStaffAndDate(@Param("staffId") Long staffId,
-                                        @Param("targetDate") LocalDate targetDate,
-                                        @Param("excludeTaskId") Long excludeTaskId);
 
     @Query("""
             select t

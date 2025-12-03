@@ -381,7 +381,7 @@ public class TaskServiceImpl implements TaskService {
             if (staff == null || staff.getStaffId() == null) {
                 continue;
             }
-            long currentCount = taskRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate, excludeTaskId);
+            long currentCount = taskCustomRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate, excludeTaskId);
             if (currentCount >= maxPerDay) {
                 throw new IllegalStateException("Nhân viên " + staff.getStaffId()
                         + " đã đạt giới hạn " + maxPerDay + " công việc trong ngày " + targetDate
