@@ -62,7 +62,8 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             plan = planRepository.findById(maintenancePlanId).orElseThrow();
         }
 
-        MaintenanceScheduleStatus scheduleStatus = status != null ? status : MaintenanceScheduleStatus.SCHEDULED;
+        // Mặc định STARTED nếu không truyền status
+        MaintenanceScheduleStatus scheduleStatus = status != null ? status : MaintenanceScheduleStatus.STARTED;
         MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                 .device(device)
                 .maintenancePlan(plan)
@@ -73,9 +74,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 .build();
         MaintenanceSchedule saved = scheduleRepository.save(schedule);
 
-        // Update device status if maintenance is starting now or in progress
+        // Update device status nếu bảo trì bắt đầu từ hôm nay trở về trước
         if (startDate != null && (startDate.isBefore(LocalDate.now()) || startDate.isEqual(LocalDate.now()))) {
-            if (scheduleStatus == MaintenanceScheduleStatus.IN_PROGRESS || scheduleStatus == MaintenanceScheduleStatus.STARTED) {
+            if (scheduleStatus == MaintenanceScheduleStatus.STARTED) {
                 device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                 deviceRepository.save(device);
             }
@@ -128,11 +129,8 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         DeviceCategory category = deviceCategoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục thiết bị: " + request.getCategoryId()));
 
-        List<Device> devices = deviceRepository.findAll().stream()
-                .filter(device -> device.getDeviceModel() != null
-                        && device.getDeviceModel().getDeviceCategory() != null
-                        && device.getDeviceModel().getDeviceCategory().getDeviceCategoryId().equals(category.getDeviceCategoryId()))
-                .collect(Collectors.toList());
+        // Lấy đúng danh sách device theo category bằng JPA, không quét toàn bộ
+        List<Device> devices = deviceRepository.findByDeviceModel_DeviceCategory_DeviceCategoryId(category.getDeviceCategoryId());
 
         if (devices.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy thiết bị thuộc danh mục: " + category.getDeviceCategoryName());
@@ -145,7 +143,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
         List<MaintenanceSchedule> schedules = new ArrayList<>();
         LocalDate today = LocalDate.now();
-        MaintenanceScheduleStatus scheduleStatus = request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.SCHEDULED;
+        MaintenanceScheduleStatus scheduleStatus = request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
         
         for (Device device : devices) {
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
@@ -162,7 +160,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             // Update device status if maintenance starts today or earlier
             if (request.getStartDate() != null && 
                 (request.getStartDate().isBefore(today) || request.getStartDate().isEqual(today))) {
-                if (scheduleStatus == MaintenanceScheduleStatus.IN_PROGRESS || scheduleStatus == MaintenanceScheduleStatus.STARTED) {
+                if (scheduleStatus == MaintenanceScheduleStatus.STARTED) {
                     device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                     deviceRepository.save(device);
                 }
@@ -213,12 +211,14 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
         List<MaintenanceSchedule> schedules = new ArrayList<>();
         for (Device device : devices) {
+            MaintenanceScheduleStatus scheduleStatus =
+                    request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                     .device(device)
                     .maintenancePlan(null)
                     .startDate(request.getStartDate())
                     .endDate(endDate)
-                    .status((request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.SCHEDULED).name())
+                    .status(scheduleStatus.name())
                     .createdAt(LocalDateTime.now())
                     .build();
             schedules.add(scheduleRepository.save(schedule));
@@ -328,10 +328,10 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         Device device = schedule.getDevice();
         MaintenanceScheduleStatus currentStatus = parseStatus(schedule.getStatus());
         
-        // Nếu schedule đang IN_PROGRESS/STARTED và device đang UNDER_MAINTENANCE,
+        // Nếu schedule đang STARTED và device đang UNDER_MAINTENANCE,
         // kiểm tra xem có schedule active khác không, nếu không thì set device về AVAILABLE
         if (device != null && currentStatus != null 
-                && (currentStatus == MaintenanceScheduleStatus.IN_PROGRESS || currentStatus == MaintenanceScheduleStatus.STARTED)) {
+                && currentStatus == MaintenanceScheduleStatus.STARTED) {
             if (device.getStatus() == DeviceStatus.UNDER_MAINTENANCE) {
                 // Kiểm tra xem có schedule active khác cho device này không
                 List<MaintenanceSchedule> activeSchedules = scheduleRepository.findByDevice_DeviceId(device.getDeviceId())
@@ -339,7 +339,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                         .filter(s -> s.getMaintenanceScheduleId() != maintenanceScheduleId)
                         .filter(s -> {
                             MaintenanceScheduleStatus sStatus = parseStatus(s.getStatus());
-                            return sStatus != null && (sStatus == MaintenanceScheduleStatus.IN_PROGRESS || sStatus == MaintenanceScheduleStatus.STARTED);
+                            return sStatus != null && sStatus == MaintenanceScheduleStatus.STARTED;
                         })
                         .collect(Collectors.toList());
                 
@@ -381,17 +381,18 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         MaintenanceSchedule saved = scheduleRepository.save(schedule);
 
         if (device != null && effectiveStatus != null) {
-            if (effectiveStatus == MaintenanceScheduleStatus.IN_PROGRESS || effectiveStatus == MaintenanceScheduleStatus.STARTED) {
+            if (effectiveStatus == MaintenanceScheduleStatus.STARTED) {
+                // Đang bảo trì -> thiết bị chuyển sang UNDER_MAINTENANCE
                 device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                 deviceRepository.save(device);
-            } else if (effectiveStatus == MaintenanceScheduleStatus.COMPLETED || effectiveStatus == MaintenanceScheduleStatus.FINISHED) {
+            } else if (effectiveStatus == MaintenanceScheduleStatus.COMPLETED) {
+                // Bảo trì hoàn thành -> thiết bị sẵn sàng cho thuê lại
                 device.setStatus(DeviceStatus.AVAILABLE);
                 deviceRepository.save(device);
-            } else if (effectiveStatus == MaintenanceScheduleStatus.CANCELLED || effectiveStatus == MaintenanceScheduleStatus.CANCELED) {
-                if (device.getStatus() == DeviceStatus.UNDER_MAINTENANCE) {
-                    device.setStatus(DeviceStatus.AVAILABLE);
-                    deviceRepository.save(device);
-                }
+            } else if (effectiveStatus == MaintenanceScheduleStatus.FAILED) {
+                // Bảo trì thất bại -> thiết bị hỏng, không còn dùng cho thuê
+                device.setStatus(DeviceStatus.DAMAGED);
+                deviceRepository.save(device);
             }
         }
 
