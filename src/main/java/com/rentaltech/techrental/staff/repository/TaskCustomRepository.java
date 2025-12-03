@@ -10,6 +10,7 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -34,6 +35,49 @@ public class TaskCustomRepository {
         query.select(task).where(overdueCondition);
 
         return entityManager.createQuery(query).getResultList();
+    }
+
+    public long countActiveTasksByStaffAndDate(Long staffId, LocalDate targetDate, Long excludeTaskId) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<Task> task = query.from(Task.class);
+
+        var staffJoin = task.join("assignedStaff");
+
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
+        Predicate staffMatch = cb.equal(staffJoin.get("staffId"), staffId);
+
+        Predicate statusPending = cb.equal(task.get("status"), TaskStatus.PENDING);
+        Predicate statusInProgress = cb.equal(task.get("status"), TaskStatus.IN_PROGRESS);
+        Predicate statusCompleted = cb.equal(task.get("status"), TaskStatus.COMPLETED);
+        Predicate activeStatus = cb.or(statusPending, statusInProgress, statusCompleted);
+
+        Predicate plannedInDay = cb.and(
+                cb.isNotNull(task.get("plannedStart")),
+                cb.greaterThanOrEqualTo(task.get("plannedStart"), startOfDay),
+                cb.lessThan(task.get("plannedStart"), endOfDay)
+        );
+
+        Predicate createdInDay = cb.and(
+                cb.isNull(task.get("plannedStart")),
+                cb.greaterThanOrEqualTo(task.get("createdAt"), startOfDay),
+                cb.lessThan(task.get("createdAt"), endOfDay)
+        );
+
+        Predicate dateMatch = cb.or(plannedInDay, createdInDay);
+
+        Predicate basePredicate = cb.and(staffMatch, activeStatus, dateMatch);
+
+        if (excludeTaskId != null) {
+            Predicate notSameTask = cb.notEqual(task.get("taskId"), excludeTaskId);
+            basePredicate = cb.and(basePredicate, notSameTask);
+        }
+
+        query.select(cb.countDistinct(task)).where(basePredicate);
+
+        return entityManager.createQuery(query).getSingleResult();
     }
 
     public List<Task> findTasksByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
