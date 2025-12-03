@@ -57,6 +57,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     public MaintenanceSchedule createSchedule(Long deviceId, Long maintenancePlanId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status) {
         Device device = deviceRepository.findById(deviceId).orElseThrow();
 
+        // Không cho phép một thiết bị có 2 lịch bảo trì trùng khoảng thời gian
+        assertNoScheduleConflict(device.getDeviceId(), startDate, endDate, null);
+
         MaintenancePlan plan = null;
         if (maintenancePlanId != null) {
             plan = planRepository.findById(maintenancePlanId).orElseThrow();
@@ -146,6 +149,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         MaintenanceScheduleStatus scheduleStatus = request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
         
         for (Device device : devices) {
+            // validate conflict cho từng thiết bị trong category
+            assertNoScheduleConflict(device.getDeviceId(), request.getStartDate(), endDate, null);
+
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                     .device(device)
                     .maintenancePlan(null)
@@ -213,6 +219,10 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         for (Device device : devices) {
             MaintenanceScheduleStatus scheduleStatus =
                     request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
+
+            // validate conflict cho từng thiết bị theo usage
+            assertNoScheduleConflict(device.getDeviceId(), request.getStartDate(), endDate, null);
+
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                     .device(device)
                     .maintenancePlan(null)
@@ -397,6 +407,43 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         }
 
         return saved;
+    }
+
+    /**
+     * Không cho phép một thiết bị có nhiều hơn 1 lịch bảo trì trùng khoảng thời gian.
+     *
+     * @param deviceId  thiết bị cần kiểm tra
+     * @param startDate ngày bắt đầu lịch mới
+     * @param endDate   ngày kết thúc lịch mới (có thể null -> dùng startDate)
+     * @param excludeId bỏ qua scheduleId này (dùng khi update nếu sau này cần)
+     */
+    private void assertNoScheduleConflict(Long deviceId,
+                                          LocalDate startDate,
+                                          LocalDate endDate,
+                                          Long excludeId) {
+        if (deviceId == null || startDate == null) {
+            return;
+        }
+        LocalDate newStart = startDate;
+        LocalDate newEnd = (endDate != null ? endDate : startDate);
+
+        List<MaintenanceSchedule> existing = scheduleRepository.findByDevice_DeviceId(deviceId);
+        boolean hasConflict = existing.stream()
+                .filter(s -> excludeId == null || !excludeId.equals(s.getMaintenanceScheduleId()))
+                .anyMatch(s -> {
+                    LocalDate sStart = s.getStartDate();
+                    if (sStart == null) {
+                        return false;
+                    }
+                    LocalDate sEnd = (s.getEndDate() != null ? s.getEndDate() : sStart);
+                    // overlap nếu !(existingEnd < newStart || existingStart > newEnd)
+                    return !sEnd.isBefore(newStart) && !sStart.isAfter(newEnd);
+                });
+
+        if (hasConflict) {
+            throw new IllegalArgumentException(
+                    "Thiết bị ID=" + deviceId + " đã có lịch bảo trì trong khoảng " + newStart + " đến " + newEnd);
+        }
     }
 
     private PriorityMaintenanceDeviceDto buildPriorityDeviceDto(Device device,
