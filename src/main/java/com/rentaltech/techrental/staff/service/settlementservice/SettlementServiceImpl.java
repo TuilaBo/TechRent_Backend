@@ -189,7 +189,7 @@ public class SettlementServiceImpl implements SettlementService {
         SettlementSupportNotification payload = new SettlementSupportNotification(
                 latestTask.getTaskId(),
                 orderId,
-                "Khách đã xác nhận hoàn cọc cho đơn #" + orderId + ". Vui lòng hỗ trợ hoàn tất thu hồi."
+                "Khách chấp nhận hoàn cọc cho đơn #" + orderId + ". Vui lòng hỗ trợ hoàn tất thu hồi."
         );
         latestTask.getAssignedStaff().stream()
                 .filter(Objects::nonNull)

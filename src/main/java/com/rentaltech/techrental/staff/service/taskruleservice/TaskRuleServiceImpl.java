@@ -2,9 +2,12 @@ package com.rentaltech.techrental.staff.service.taskruleservice;
 
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
+import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto;
+import com.rentaltech.techrental.staff.repository.TaskRuleCustomRepository;
 import com.rentaltech.techrental.staff.repository.TaskRuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ import java.util.Optional;
 public class TaskRuleServiceImpl implements TaskRuleService {
 
     private final TaskRuleRepository taskRuleRepository;
+    private final TaskRuleCustomRepository taskRuleCustomRepository;
     private final AccountService accountService;
 
     @Override
@@ -63,14 +67,21 @@ public class TaskRuleServiceImpl implements TaskRuleService {
 
     @Override
     public TaskRuleResponseDto getActiveRule() {
-        return taskRuleRepository.findActiveRuleByCurrentDate()
-                .map(TaskRuleResponseDto::from)
-                .orElse(null);
+        return TaskRuleResponseDto.from(getActiveRuleEntity());
     }
 
     @Override
     public TaskRule getActiveRuleEntity() {
-        return taskRuleRepository.findActiveRuleByCurrentDate().orElse(null);
+        return taskRuleCustomRepository
+                .findActiveRuleByContext(java.time.LocalDateTime.now(), null, null)
+                .orElse(null);
+    }
+
+    @Override
+    public TaskRule getActiveRuleEntity(StaffRole role, Long taskCategoryId) {
+        return taskRuleCustomRepository
+                .findActiveRuleByContext(java.time.LocalDateTime.now(), role, taskCategoryId)
+                .orElse(null);
     }
 
     private TaskRule mapToEntity(TaskRuleRequestDto request) {
@@ -86,6 +97,14 @@ public class TaskRuleServiceImpl implements TaskRuleService {
         target.setActive(request.getActive());
         target.setEffectiveFrom(request.getEffectiveFrom());
         target.setEffectiveTo(request.getEffectiveTo());
+        target.setStaffRole(request.getStaffRole());
+        if (request.getTaskCategoryId() != null) {
+            TaskCategory category = new TaskCategory();
+            category.setTaskCategoryId(request.getTaskCategoryId());
+            target.setTaskCategory(category);
+        } else {
+            target.setTaskCategory(null);
+        }
     }
 
     private void validateEffectiveDates(java.time.LocalDateTime effectiveFrom, java.time.LocalDateTime effectiveTo) {

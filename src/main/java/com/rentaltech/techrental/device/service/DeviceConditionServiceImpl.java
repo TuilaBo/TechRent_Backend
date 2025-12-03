@@ -191,7 +191,9 @@ public class DeviceConditionServiceImpl implements DeviceConditionService {
             return;
         }
         DeviceStatus newStatus = null;
-        if (conditionType == ConditionType.DAMAGED) {
+        if (conditionType == ConditionType.GOOD) {
+            newStatus = DeviceStatus.AVAILABLE;
+        } else if (conditionType == ConditionType.DAMAGED) {
             newStatus = DeviceStatus.DAMAGED;
         } else if (conditionType == ConditionType.LOST) {
             newStatus = DeviceStatus.LOST;

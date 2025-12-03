@@ -84,7 +84,7 @@ public class TaskServiceImpl implements TaskService {
 
             // Tìm danh sách staff được assign (nếu có)
             Set<Staff> assignedStaff = resolveStaffMembers(request.getAssignedStaffIds());
-            enforceDailyCapacity(assignedStaff, request.getPlannedStart(), null);
+            enforceDailyCapacity(assignedStaff, request.getPlannedStart(), null, category);
 
             Task task = Task.builder()
                     .taskCategory(category)
@@ -214,7 +214,7 @@ public class TaskServiceImpl implements TaskService {
         if (request.getAssignedStaffIds() != null) {
             Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
             LocalDateTime referenceDateTime = request.getPlannedStart() != null ? request.getPlannedStart() : task.getPlannedStart();
-            enforceDailyCapacity(staffMembers, referenceDateTime, task.getTaskId());
+            enforceDailyCapacity(staffMembers, referenceDateTime, task.getTaskId(), task.getTaskCategory());
             task.setAssignedStaff(staffMembers);
             staffMembersForNotification = staffMembers;
         }
@@ -367,24 +367,30 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart, Long excludeTaskId) {
+    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart, Long excludeTaskId, TaskCategory taskCategory) {
         if (staffMembers == null || staffMembers.isEmpty()) {
             return;
         }
-        TaskRule activeRule = taskRuleService.getActiveRuleEntity();
-        if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
-            return;
-        }
-        LocalDate targetDate = plannedStart != null ? plannedStart.toLocalDate() : LocalDate.now();
-        int maxPerDay = activeRule.getMaxTasksPerDay();
         for (Staff staff : staffMembers) {
             if (staff == null || staff.getStaffId() == null) {
                 continue;
             }
+            StaffRole staffRole = staff.getStaffRole();
+            Long categoryId = taskCategory != null ? taskCategory.getTaskCategoryId() : null;
+
+            TaskRule activeRule = taskRuleService.getActiveRuleEntity(staffRole, categoryId);
+            if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
+                continue;
+            }
+
+            LocalDate targetDate = plannedStart != null ? plannedStart.toLocalDate() : LocalDate.now();
+            int maxPerDay = activeRule.getMaxTasksPerDay();
+
             long currentCount = taskCustomRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate, excludeTaskId);
             if (currentCount >= maxPerDay) {
                 throw new IllegalStateException("Nhân viên " + staff.getStaffId()
-                        + " đã đạt giới hạn " + maxPerDay + " công việc trong ngày " + targetDate
+                        + " (role=" + staffRole + ", category=" + categoryId + ") đã đạt giới hạn " + maxPerDay
+                        + " công việc trong ngày " + targetDate
                         + " (hiện tại: " + currentCount + " công việc)");
             }
         }

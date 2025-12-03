@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.TaskRule;
+import com.rentaltech.techrental.staff.model.StaffRole;
 import lombok.Builder;
 import lombok.Value;
 
@@ -18,6 +19,8 @@ public class TaskRuleResponseDto {
     LocalDateTime effectiveTo;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+    StaffRole staffRole;
+    Long taskCategoryId;
 
     public static TaskRuleResponseDto from(TaskRule rule) {
         if (rule == null) {
@@ -33,6 +36,8 @@ public class TaskRuleResponseDto {
                 .effectiveTo(rule.getEffectiveTo())
                 .createdAt(rule.getCreatedAt())
                 .updatedAt(rule.getUpdatedAt())
+                .staffRole(rule.getStaffRole())
+                .taskCategoryId(rule.getTaskCategory() != null ? rule.getTaskCategory().getTaskCategoryId() : null)
                 .build();
     }
 }
