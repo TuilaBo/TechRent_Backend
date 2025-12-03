@@ -390,8 +390,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             }
         }
         List<OrderDetail> persistedDetails = clonedDetails.isEmpty() ? List.of() : orderDetailRepository.saveAll(clonedDetails);
-        reservationService.createPendingReservations(saved, persistedDetails);
-        preRentalQcTaskCreator.createIfNeeded(saved.getOrderId());
         cloneAllocationsFromOrder(original.getOrderId(), saved, detailMapping);
         return buildOrderResponseWithExtensions(saved);
     }
