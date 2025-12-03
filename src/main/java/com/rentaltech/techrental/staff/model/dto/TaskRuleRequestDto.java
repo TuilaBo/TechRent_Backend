@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.staff.model.StaffRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -24,5 +25,15 @@ public class TaskRuleRequestDto {
     private LocalDateTime effectiveFrom;
 
     private LocalDateTime effectiveTo;
+
+    /**
+     * Rule áp dụng cho role cụ thể; null = áp dụng cho mọi role.
+     */
+    private StaffRole staffRole;
+
+    /**
+     * Rule áp dụng cho TaskCategory cụ thể; null = áp dụng cho mọi category.
+     */
+    private Long taskCategoryId;
 }
 

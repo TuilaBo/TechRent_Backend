@@ -38,6 +38,21 @@ public class TaskRule {
     @Column(name = "effective_to")
     private LocalDateTime effectiveTo;
 
+    /**
+     * Rule áp dụng cho role cụ thể (TECHNICIAN, CUSTOMER_SUPPORT_STAFF, OPERATOR),
+     * null = áp dụng cho mọi role.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "staff_role")
+    private StaffRole staffRole;
+
+    /**
+     * Rule áp dụng cho TaskCategory cụ thể, null = áp dụng cho mọi category.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_category_id")
+    private TaskCategory taskCategory;
+
     @Column(name = "created_by", length = 255)
     private String createdBy;
 
@@ -60,4 +75,3 @@ public class TaskRule {
         updatedAt = LocalDateTime.now();
     }
 }
-
