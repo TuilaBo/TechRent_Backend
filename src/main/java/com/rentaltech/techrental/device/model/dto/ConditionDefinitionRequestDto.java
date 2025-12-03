@@ -26,11 +26,6 @@ public class ConditionDefinitionRequestDto {
     @Size(max = 2000)
     private String description;
 
-    @Digits(integer = 3, fraction = 2)
-    @DecimalMin(value = "-100.00")
-    @DecimalMax(value = "100.00")
-    private BigDecimal impactRate;
-
     @NotNull
     private ConditionType conditionType;
 
