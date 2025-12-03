@@ -16,4 +16,7 @@ public interface DeviceRepository extends JpaRepository<Device, Long>, JpaSpecif
 
     // Find all devices by model for allocation selection
     List<Device> findByDeviceModel_DeviceModelId(Long deviceModelId);
+
+    // Find all devices by device category (via deviceModel.deviceCategory)
+    List<Device> findByDeviceModel_DeviceCategory_DeviceCategoryId(Long deviceCategoryId);
 }

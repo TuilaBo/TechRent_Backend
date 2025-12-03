@@ -28,14 +28,14 @@ public class MaintenanceScheduleCustomRepository {
         LocalDate today = LocalDate.now();
         List<Predicate> predicates = new ArrayList<>();
 
-        // Status is IN_PROGRESS or STARTED (case-insensitive, handle null)
-        Predicate statusInProgress = cb.or(
-                cb.equal(cb.upper(cb.coalesce(schedule.get("status"), cb.literal(""))), MaintenanceScheduleStatus.IN_PROGRESS.name()),
-                cb.equal(cb.upper(cb.coalesce(schedule.get("status"), cb.literal(""))), MaintenanceScheduleStatus.STARTED.name())
+        // Status is STARTED (case-insensitive, handle null)
+        Predicate statusStarted = cb.equal(
+                cb.upper(cb.coalesce(schedule.get("status"), cb.literal(""))),
+                MaintenanceScheduleStatus.STARTED.name()
         );
 
-        // OR: Currently within maintenance period (startDate <= today <= endDate) 
-        // AND status is not completed/cancelled
+        // OR: Currently within maintenance period (startDate <= today <= endDate)
+        // AND status is not completed/failed
         Predicate withinPeriod = cb.and(
                 cb.lessThanOrEqualTo(schedule.get("startDate"), today),
                 cb.greaterThanOrEqualTo(schedule.get("endDate"), today),
@@ -43,13 +43,11 @@ public class MaintenanceScheduleCustomRepository {
                         schedule.get("status").isNull(),
                         cb.not(cb.upper(schedule.get("status")).in(
                                 MaintenanceScheduleStatus.COMPLETED.name(),
-                                MaintenanceScheduleStatus.FINISHED.name(),
-                                MaintenanceScheduleStatus.CANCELLED.name(),
-                                MaintenanceScheduleStatus.CANCELED.name()))
+                                MaintenanceScheduleStatus.FAILED.name()))
                 )
         );
 
-        predicates.add(cb.or(statusInProgress, withinPeriod));
+        predicates.add(cb.or(statusStarted, withinPeriod));
 
         query.select(schedule).where(cb.and(predicates.toArray(new Predicate[0])));
         query.orderBy(cb.asc(schedule.get("startDate")));
@@ -66,9 +64,6 @@ public class MaintenanceScheduleCustomRepository {
 
         List<String> inactiveStatuses = List.of(
                 MaintenanceScheduleStatus.COMPLETED.name(),
-                MaintenanceScheduleStatus.FINISHED.name(),
-                MaintenanceScheduleStatus.CANCELLED.name(),
-                MaintenanceScheduleStatus.CANCELED.name(),
                 MaintenanceScheduleStatus.FAILED.name()
         );
 

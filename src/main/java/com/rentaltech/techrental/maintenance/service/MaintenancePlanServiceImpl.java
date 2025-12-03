@@ -65,12 +65,14 @@ public class MaintenancePlanServiceImpl implements MaintenancePlanService {
                 planDeviceRepository.save(link);
 
                 if (startDate != null && endDate != null) {
+                    MaintenanceScheduleStatus effectiveStatus =
+                            (scheduleStatus != null ? scheduleStatus : MaintenanceScheduleStatus.STARTED);
                     MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                             .maintenancePlan(plan)
                             .device(device)
                             .startDate(startDate)
                             .endDate(endDate)
-                            .status((scheduleStatus != null ? scheduleStatus : MaintenanceScheduleStatus.PLANNED).name())
+                            .status(effectiveStatus.name())
                             .createdAt(LocalDateTime.now())
                             .build();
                     scheduleRepository.save(schedule);

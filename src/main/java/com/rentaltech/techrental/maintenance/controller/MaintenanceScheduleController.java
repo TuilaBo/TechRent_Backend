@@ -203,10 +203,10 @@ public class MaintenanceScheduleController {
             @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
     })
     public ResponseEntity<?> updateStatusWithFiles(@PathVariable("id") Long id,
-                                                   @RequestPart("status") MaintenanceScheduleStatus status,
-                                                   @RequestPart(value = "evidenceUrls", required = false) List<String> evidenceUrls,
+                                                   @RequestPart("status") String statusValue,
                                                    @RequestPart(value = "files", required = false) List<MultipartFile> files) {
-        MaintenanceSchedule data = maintenanceScheduleService.updateStatusWithUploads(id, status, evidenceUrls, files);
+        MaintenanceScheduleStatus status = MaintenanceScheduleStatus.valueOf(statusValue.trim().toUpperCase(java.util.Locale.ROOT));
+        MaintenanceSchedule data = maintenanceScheduleService.updateStatusWithUploads(id, status, null, files);
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật trạng thái lịch bảo trì",
                 "Trạng thái và bằng chứng đã được cập nhật",
