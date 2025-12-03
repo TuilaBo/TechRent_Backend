@@ -20,7 +20,6 @@ public class ConditionDefinitionResponseDto {
     private Long deviceModelId;
     private String deviceModelName;
     private String description;
-    private BigDecimal impactRate;
     private ConditionType conditionType;
     private ConditionSeverity conditionSeverity;
     private BigDecimal defaultCompensation;
@@ -36,7 +35,6 @@ public class ConditionDefinitionResponseDto {
                 .deviceModelId(model != null ? model.getDeviceModelId() : null)
                 .deviceModelName(model != null ? model.getDeviceName() : null)
                 .description(entity.getDescription())
-                .impactRate(entity.getImpactRate())
                 .conditionType(entity.getConditionType())
                 .conditionSeverity(entity.getConditionSeverity())
                 .defaultCompensation(entity.getDefaultCompensation())

@@ -27,7 +27,6 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
                 .name(request.getName())
                 .deviceModel(resolveDeviceModel(request.getDeviceModelId()))
                 .description(request.getDescription())
-                .impactRate(request.getImpactRate())
                 .conditionType(request.getConditionType())
                 .conditionSeverity(request.getConditionSeverity())
                 .defaultCompensation(request.getDefaultCompensation())
@@ -42,7 +41,6 @@ public class ConditionDefinitionServiceImpl implements ConditionDefinitionServic
         entity.setName(request.getName());
         entity.setDeviceModel(resolveDeviceModel(request.getDeviceModelId()));
         entity.setDescription(request.getDescription());
-        entity.setImpactRate(request.getImpactRate());
         entity.setConditionType(request.getConditionType());
         entity.setConditionSeverity(request.getConditionSeverity());
         entity.setDefaultCompensation(request.getDefaultCompensation());

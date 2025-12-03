@@ -525,18 +525,24 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalStateException("Biên bản thanh lý (settlement) chưa gắn với đơn thuê");
         }
 
-        BigDecimal subTotal = defaultZero(settlement.getFinalReturnAmount());
+        BigDecimal damageFee = defaultZero(settlement.getDamageFee());
+        BigDecimal lateFee = defaultZero(settlement.getLateFee());
+        BigDecimal subTotal = damageFee.add(lateFee);
         BigDecimal depositApplied = defaultZero(settlement.getTotalDeposit());
         String proofUrl = imageStorageService.uploadInvoiceProof(proofFile, settlementId);
+        BigDecimal totalAmount = defaultZero(settlement.getFinalReturnAmount());
+        InvoiceType invoiceType = totalAmount.compareTo(BigDecimal.ZERO) >= 0
+                ? InvoiceType.DEPOSIT_REFUND
+                : InvoiceType.COMPENSATION_PAYMENT;
 
         Invoice invoice = Invoice.builder()
                 .rentalOrder(order)
-                .invoiceType(InvoiceType.DEPOSIT_REFUND)
+                .invoiceType(invoiceType)
                 .paymentMethod(PaymentMethod.BANK_ACCOUNT)
                 .subTotal(subTotal)
                 .taxAmount(BigDecimal.ZERO)
                 .discountAmount(BigDecimal.ZERO)
-                .totalAmount(subTotal)
+                .totalAmount(totalAmount)
                 .depositApplied(depositApplied)
                 .invoiceStatus(InvoiceStatus.SUCCEEDED)
                 .paymentDate(LocalDateTime.now())
@@ -545,9 +551,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
-        // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED
+        // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED (bao gồm các đơn extend)
         order.setOrderStatus(OrderStatus.COMPLETED);
         rentalOrderRepository.save(order);
+        List<RentalOrder> extensionOrders = rentalOrderRepository.findByParentOrder(order);
+        if (!extensionOrders.isEmpty()) {
+            extensionOrders.forEach(ext -> ext.setOrderStatus(OrderStatus.COMPLETED));
+            rentalOrderRepository.saveAll(extensionOrders);
+        }
 
         settlement.setState(SettlementState.Closed);
         if (settlement.getIssuedAt() == null) {

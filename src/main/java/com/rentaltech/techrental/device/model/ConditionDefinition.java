@@ -31,9 +31,6 @@ public class ConditionDefinition {
     @Column(name = "description", columnDefinition = "text")
     private String description;
 
-    @Column(name = "impact_rate", precision = 5, scale = 2)
-    private BigDecimal impactRate;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "condition_type", length = 20)
     private ConditionType conditionType;
