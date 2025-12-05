@@ -32,10 +32,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,22 +57,24 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
     @Override
     @Transactional
-    public MaintenanceSchedule createSchedule(Long deviceId, Long maintenancePlanId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status) {
-        Device device = deviceRepository.findById(deviceId).orElseThrow();
+    public MaintenanceSchedule createSchedule(Long deviceId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status) {
+        // Validate device tồn tại
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị với ID: " + deviceId));
+
+        // Validate endDate >= startDate
+        if (endDate != null && startDate != null && endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("Ngày kết thúc không được trước ngày bắt đầu");
+        }
 
         // Không cho phép một thiết bị có 2 lịch bảo trì trùng khoảng thời gian
         assertNoScheduleConflict(device.getDeviceId(), startDate, endDate, null);
-
-        MaintenancePlan plan = null;
-        if (maintenancePlanId != null) {
-            plan = planRepository.findById(maintenancePlanId).orElseThrow();
-        }
 
         // Mặc định STARTED nếu không truyền status
         MaintenanceScheduleStatus scheduleStatus = status != null ? status : MaintenanceScheduleStatus.STARTED;
         MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                 .device(device)
-                .maintenancePlan(plan)
+                .maintenancePlan(null)
                 .startDate(startDate)
                 .endDate(endDate)
                 .status(scheduleStatus.name())
@@ -144,11 +149,21 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             endDate = request.getStartDate().plusDays(request.getDurationDays() - 1);
         }
 
+        // Validate endDate >= startDate
+        if (endDate != null && request.getStartDate() != null && endDate.isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("Ngày kết thúc không được trước ngày bắt đầu");
+        }
+
         List<MaintenanceSchedule> schedules = new ArrayList<>();
         LocalDate today = LocalDate.now();
         MaintenanceScheduleStatus scheduleStatus = request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
         
         for (Device device : devices) {
+            // Validate device tồn tại (đã có trong list, nhưng double check)
+            if (device == null || device.getDeviceId() == null) {
+                continue;
+            }
+
             // validate conflict cho từng thiết bị trong category
             assertNoScheduleConflict(device.getDeviceId(), request.getStartDate(), endDate, null);
 
@@ -182,6 +197,17 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         if (request.getUsageDays() == null || request.getUsageDays() <= 0) {
             throw new IllegalArgumentException("usageDays phải lớn hơn 0");
         }
+
+        LocalDate endDate = request.getEndDate();
+        if (request.getDurationDays() != null && request.getDurationDays() > 0) {
+            endDate = request.getStartDate().plusDays(request.getDurationDays() - 1);
+        }
+
+        // Validate endDate >= startDate
+        if (endDate != null && request.getStartDate() != null && endDate.isBefore(request.getStartDate())) {
+            throw new IllegalArgumentException("Ngày kết thúc không được trước ngày bắt đầu");
+        }
+
         EnumSet<BookingStatus> countedStatuses = EnumSet.of(BookingStatus.COMPLETED);
         Map<Long, Long> usageDaysByDevice = bookingCalendarRepository.findAll().stream()
                 .filter(booking -> booking.getDevice() != null
@@ -209,14 +235,19 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         }
 
         List<Device> devices = deviceRepository.findAllById(deviceIds);
-
-        LocalDate endDate = request.getEndDate();
-        if (request.getDurationDays() != null && request.getDurationDays() > 0) {
-            endDate = request.getStartDate().plusDays(request.getDurationDays() - 1);
+        
+        // Validate devices tồn tại
+        if (devices.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy thiết bị với các ID đã lọc");
         }
 
         List<MaintenanceSchedule> schedules = new ArrayList<>();
         for (Device device : devices) {
+            // Validate device tồn tại
+            if (device == null || device.getDeviceId() == null) {
+                continue;
+            }
+
             MaintenanceScheduleStatus scheduleStatus =
                     request.getStatus() != null ? request.getStatus() : MaintenanceScheduleStatus.STARTED;
 
@@ -240,10 +271,12 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     @Override
     @Transactional
     public List<PriorityMaintenanceDeviceDto> getPriorityMaintenanceDevices() {
-        List<Device> allDevices = deviceRepository.findAll();
         List<PriorityMaintenanceDeviceDto> priorityDevices = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime lookAhead = now.plusDays(RENTAL_CONFLICT_LOOKAHEAD_DAYS);
+        LocalDate today = LocalDate.now();
+        
+        // Query upcoming bookings để lấy device IDs
         List<BookingCalendar> upcomingBookings = bookingCalendarRepository.findUpcomingBookings(
                 now,
                 lookAhead,
@@ -253,21 +286,50 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 .filter(booking -> booking.getDevice() != null && booking.getDevice().getDeviceId() != null)
                 .collect(Collectors.groupingBy(booking -> booking.getDevice().getDeviceId()));
 
-        List<MaintenancePlan> usagePlans = planRepository.findAll().stream()
-                .filter(plan -> plan.getRuleType() != null
-                        && plan.getRuleType().name().equals("ByUsage")
-                        && plan.getActive() != null && plan.getActive())
-                .collect(Collectors.toList());
+        // Query upcoming schedules để lấy device IDs
+        List<MaintenanceSchedule> upcomingSchedules = scheduleRepository.findByStartDateGreaterThanEqual(today);
+        Map<Long, List<MaintenanceSchedule>> schedulesByDevice = upcomingSchedules.stream()
+                .filter(schedule -> schedule.getDevice() != null && schedule.getDevice().getDeviceId() != null)
+                .collect(Collectors.groupingBy(schedule -> schedule.getDevice().getDeviceId()));
 
-        for (Device device : allDevices) {
-            List<MaintenanceSchedule> upcomingSchedules = scheduleRepository.findByDevice_DeviceId(device.getDeviceId()).stream()
-                    .filter(schedule -> {
-                        LocalDate startDate = schedule.getStartDate();
-                        return startDate != null && !startDate.isBefore(LocalDate.now());
-                    })
+        // Query usage plans với filter (chỉ active ByUsage plans)
+        List<MaintenancePlan> usagePlans = planRepository.findByRuleTypeAndActive(
+                com.rentaltech.techrental.maintenance.model.MaintenanceRuleType.ByUsage, 
+                Boolean.TRUE
+        );
+        
+        // Lấy min ruleValue từ plans để query devices
+        Integer minUsageThreshold = usagePlans.stream()
+                .filter(plan -> plan.getRuleValue() != null)
+                .map(MaintenancePlan::getRuleValue)
+                .min(Integer::compareTo)
+                .orElse(null);
+
+        // Collect device IDs từ các nguồn
+        Set<Long> relevantDeviceIds = new HashSet<>();
+        relevantDeviceIds.addAll(bookingsByDevice.keySet());
+        relevantDeviceIds.addAll(schedulesByDevice.keySet());
+        
+        // Query devices có usageCount >= threshold (nếu có plans)
+        if (minUsageThreshold != null) {
+            List<Device> devicesByUsage = deviceRepository.findByUsageCountGreaterThanEqual(minUsageThreshold);
+            relevantDeviceIds.addAll(devicesByUsage.stream()
+                    .map(Device::getDeviceId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet()));
+        }
+
+        // Load chỉ những devices cần thiết
+        List<Device> devices = relevantDeviceIds.isEmpty() 
+                ? List.of() 
+                : deviceRepository.findAllById(relevantDeviceIds);
+
+        for (Device device : devices) {
+            List<MaintenanceSchedule> deviceSchedules = schedulesByDevice.getOrDefault(device.getDeviceId(), List.of()).stream()
                     .sorted(Comparator.comparing(MaintenanceSchedule::getStartDate, Comparator.nullsLast(LocalDate::compareTo)))
                     .collect(Collectors.toList());
-            MaintenanceSchedule nextSchedule = upcomingSchedules.isEmpty() ? null : upcomingSchedules.get(0);
+            MaintenanceSchedule nextSchedule = deviceSchedules.isEmpty() ? null : deviceSchedules.get(0);
+            
             Optional<BookingCalendar> nextBooking = Optional.ofNullable(bookingsByDevice.get(device.getDeviceId()))
                     .flatMap(bookings -> bookings.stream()
                             .sorted(Comparator.comparing(BookingCalendar::getStartTime))
@@ -286,6 +348,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 continue;
             }
 
+            // Check usage threshold
             for (MaintenancePlan plan : usagePlans) {
                 if (plan.getRuleValue() != null
                         && device.getUsageCount() != null

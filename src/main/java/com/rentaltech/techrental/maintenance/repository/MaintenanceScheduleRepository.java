@@ -13,6 +13,8 @@ public interface MaintenanceScheduleRepository extends JpaRepository<Maintenance
     List<MaintenanceSchedule> findByDevice_DeviceId(Long deviceId);
 
     Page<MaintenanceSchedule> findByStartDateBetween(LocalDate startDate, LocalDate endDate, Pageable pageable);
+    
+    List<MaintenanceSchedule> findByStartDateGreaterThanEqual(LocalDate startDate);
 }
 
 

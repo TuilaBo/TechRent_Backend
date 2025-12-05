@@ -45,7 +45,6 @@ public class MaintenanceScheduleController {
     public ResponseEntity<?> create(@RequestBody @Valid CreateScheduleRequestDto request) {
         MaintenanceSchedule data = maintenanceScheduleService.createSchedule(
                 request.getDeviceId(),
-                null,
                 request.getStartDate(),
                 request.getEndDate(),
                 request.getStatus()
