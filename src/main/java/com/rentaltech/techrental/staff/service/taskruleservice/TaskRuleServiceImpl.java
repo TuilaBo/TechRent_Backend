@@ -7,6 +7,7 @@ import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto;
+import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRuleCustomRepository;
 import com.rentaltech.techrental.staff.repository.TaskRuleRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class TaskRuleServiceImpl implements TaskRuleService {
     private final TaskRuleRepository taskRuleRepository;
     private final TaskRuleCustomRepository taskRuleCustomRepository;
     private final AccountService accountService;
+    private final TaskCategoryRepository taskCategoryRepository;
 
     @Override
     public TaskRuleResponseDto create(TaskRuleRequestDto request, String username) {
@@ -39,7 +41,6 @@ public class TaskRuleServiceImpl implements TaskRuleService {
         TaskRule existing = taskRuleRepository.findById(taskRuleId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy rule với id " + taskRuleId));
         applyRequest(existing, request);
-        existing.setCreatedBy(resolveCreator(username));
         TaskRule saved = taskRuleRepository.save(existing);
         return TaskRuleResponseDto.from(saved);
     }
@@ -84,6 +85,13 @@ public class TaskRuleServiceImpl implements TaskRuleService {
                 .orElse(null);
     }
 
+    @Override
+    public TaskRule getActiveRuleEntityByCategory(Long taskCategoryId) {
+        return taskRuleCustomRepository
+                .findActiveRuleByContext(java.time.LocalDateTime.now(), null, taskCategoryId)
+                .orElse(null);
+    }
+
     private TaskRule mapToEntity(TaskRuleRequestDto request) {
         TaskRule rule = new TaskRule();
         applyRequest(rule, request);
@@ -97,10 +105,10 @@ public class TaskRuleServiceImpl implements TaskRuleService {
         target.setActive(request.getActive());
         target.setEffectiveFrom(request.getEffectiveFrom());
         target.setEffectiveTo(request.getEffectiveTo());
-        target.setStaffRole(request.getStaffRole());
+        target.setStaffRole(null); // Không còn config staffRole nữa, luôn set null
         if (request.getTaskCategoryId() != null) {
-            TaskCategory category = new TaskCategory();
-            category.setTaskCategoryId(request.getTaskCategoryId());
+            TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory với id " + request.getTaskCategoryId()));
             target.setTaskCategory(category);
         } else {
             target.setTaskCategory(null);

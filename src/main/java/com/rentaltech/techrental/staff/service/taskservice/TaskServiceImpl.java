@@ -210,19 +210,21 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
 
+        TaskCategory effectiveCategory = task.getTaskCategory();
+        if (request.getTaskCategoryId() != null) {
+            TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
+            effectiveCategory = category;
+            task.setTaskCategory(category);
+        }
+
         Set<Staff> staffMembersForNotification = null;
         if (request.getAssignedStaffIds() != null) {
             Set<Staff> staffMembers = resolveStaffMembers(request.getAssignedStaffIds());
             LocalDateTime referenceDateTime = request.getPlannedStart() != null ? request.getPlannedStart() : task.getPlannedStart();
-            enforceDailyCapacity(staffMembers, referenceDateTime, task.getTaskId(), task.getTaskCategory());
+            enforceDailyCapacity(staffMembers, referenceDateTime, task.getTaskId(), effectiveCategory);
             task.setAssignedStaff(staffMembers);
             staffMembersForNotification = staffMembers;
-        }
-
-        if (request.getTaskCategoryId() != null) {
-            TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
-            task.setTaskCategory(category);
         }
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getPlannedStart() != null) task.setPlannedStart(request.getPlannedStart());
@@ -338,6 +340,25 @@ public class TaskServiceImpl implements TaskService {
         return taskRuleService.getActiveRule();
     }
 
+    @Override
+    public List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, Long categoryId, String username) {
+        AccessContext access = resolveAccessContext(username);
+        Long effectiveStaffId = resolveEffectiveAssignedStaff(staffId, access);
+        if (effectiveStaffId == null) {
+            throw new IllegalArgumentException("Cần cung cấp staffId");
+        }
+        LocalDate date = targetDate != null ? targetDate : LocalDate.now();
+        List<Object[]> records = taskCustomRepository.countActiveTasksByStaffCategoryAndDateGrouped(effectiveStaffId, date, categoryId);
+        return records.stream()
+                .map(record -> {
+                    Long catId = (Long) record[2];
+                    com.rentaltech.techrental.staff.model.TaskRule rule = taskRuleService.getActiveRuleEntityByCategory(catId);
+                    Integer maxTasksPerDay = (rule != null && rule.getMaxTasksPerDay() != null) ? rule.getMaxTasksPerDay() : null;
+                    return com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto.from(record, maxTasksPerDay);
+                })
+                .toList();
+    }
+
     private AccessContext resolveAccessContext(String username) {
         Account account = accountService.getByUsername(username)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản"));
@@ -371,25 +392,29 @@ public class TaskServiceImpl implements TaskService {
         if (staffMembers == null || staffMembers.isEmpty()) {
             return;
         }
+        if (taskCategory == null || taskCategory.getTaskCategoryId() == null) {
+            return;
+        }
+        
+        Long categoryId = taskCategory.getTaskCategoryId();
+        TaskRule activeRule = taskRuleService.getActiveRuleEntityByCategory(categoryId);
+        if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
+            return;
+        }
+
+        LocalDate targetDate = plannedStart != null ? plannedStart.toLocalDate() : LocalDate.now();
+        int maxPerDay = activeRule.getMaxTasksPerDay();
+
         for (Staff staff : staffMembers) {
             if (staff == null || staff.getStaffId() == null) {
                 continue;
             }
-            StaffRole staffRole = staff.getStaffRole();
-            Long categoryId = taskCategory != null ? taskCategory.getTaskCategoryId() : null;
 
-            TaskRule activeRule = taskRuleService.getActiveRuleEntity(staffRole, categoryId);
-            if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
-                continue;
-            }
-
-            LocalDate targetDate = plannedStart != null ? plannedStart.toLocalDate() : LocalDate.now();
-            int maxPerDay = activeRule.getMaxTasksPerDay();
-
-            long currentCount = taskCustomRepository.countActiveTasksByStaffAndDate(staff.getStaffId(), targetDate, excludeTaskId);
+            long currentCount = taskCustomRepository.countActiveTasksByStaffCategoryAndDate(
+                    staff.getStaffId(), categoryId, targetDate, excludeTaskId);
             if (currentCount >= maxPerDay) {
                 throw new IllegalStateException("Nhân viên " + staff.getStaffId()
-                        + " (role=" + staffRole + ", category=" + categoryId + ") đã đạt giới hạn " + maxPerDay
+                        + " (category=" + categoryId + ") đã đạt giới hạn " + maxPerDay
                         + " công việc trong ngày " + targetDate
                         + " (hiện tại: " + currentCount + " công việc)");
             }
