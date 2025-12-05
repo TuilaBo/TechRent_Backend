@@ -65,10 +65,15 @@ public class MaintenancePlanServiceImpl implements MaintenancePlanService {
                 planDeviceRepository.save(link);
 
                 if (startDate != null && endDate != null) {
+                    // Validate endDate >= startDate
+                    if (endDate.isBefore(startDate)) {
+                        throw new IllegalArgumentException("Ngày kết thúc không được trước ngày bắt đầu");
+                    }
+                    
                     MaintenanceScheduleStatus effectiveStatus =
                             (scheduleStatus != null ? scheduleStatus : MaintenanceScheduleStatus.STARTED);
                     MaintenanceSchedule schedule = MaintenanceSchedule.builder()
-                            .maintenancePlan(plan)
+                            .maintenancePlan(null)
                             .device(device)
                             .startDate(startDate)
                             .endDate(endDate)

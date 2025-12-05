@@ -14,7 +14,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface MaintenanceScheduleService {
-    MaintenanceSchedule createSchedule(Long deviceId, Long maintenancePlanId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status);
+    MaintenanceSchedule createSchedule(Long deviceId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status);
     List<MaintenanceSchedule> listByDevice(Long deviceId);
     MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls);
 
