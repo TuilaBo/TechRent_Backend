@@ -40,8 +40,8 @@ public class BankInformationServiceImpl implements BankInformationService {
             throw new IllegalArgumentException("Cần cung cấp số thẻ");
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Customer customer = customerRepository.findByAccount_Username(auth.getName())
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
+        Customer customer = customerRepository.findByAccount_Username(auth != null ? auth.getName() : null)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng"));
         if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customer.getCustomerId())) {
             throw new IllegalArgumentException("Thẻ với số này đã được sử dụng");
         }

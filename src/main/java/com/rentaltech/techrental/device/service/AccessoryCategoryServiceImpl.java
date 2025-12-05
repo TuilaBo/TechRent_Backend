@@ -69,7 +69,6 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
         entity.setAccessoryCategoryName(request.getAccessoryCategoryName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());
-        repository.save(entity);
     }
 
 }
