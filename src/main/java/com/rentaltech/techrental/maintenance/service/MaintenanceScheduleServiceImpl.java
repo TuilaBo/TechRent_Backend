@@ -364,6 +364,14 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         scheduleRepository.deleteById(maintenanceScheduleId);
     }
 
+    @Override
+    @Transactional
+    public MaintenanceSchedule getSchedule(Long maintenanceScheduleId) {
+        return scheduleRepository.findById(maintenanceScheduleId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy lịch bảo trì với ID: " + maintenanceScheduleId));
+    }
+
     private MaintenanceSchedule applyStatusAndEvidence(MaintenanceSchedule schedule,
                                                        MaintenanceScheduleStatus status,
                                                        List<String> evidenceUrls,
@@ -463,6 +471,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
         if (schedule != null) {
             builder.nextMaintenanceDate(schedule.getStartDate())
+                    .nextMaintenanceEndDate(schedule.getEndDate())
                     .maintenanceScheduleId(schedule.getMaintenanceScheduleId());
         }
 

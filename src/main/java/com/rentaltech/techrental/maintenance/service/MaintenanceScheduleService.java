@@ -30,6 +30,11 @@ public interface MaintenanceScheduleService {
     List<MaintenanceSchedule> getInactiveMaintenanceSchedules();
     Page<MaintenanceSchedule> listByDateRange(LocalDate startDate, LocalDate endDate, Pageable pageable);
     void deleteSchedule(Long maintenanceScheduleId);
+
+    /**
+     * Lấy chi tiết một lịch bảo trì cụ thể theo ID.
+     */
+    MaintenanceSchedule getSchedule(Long maintenanceScheduleId);
 }
 
 

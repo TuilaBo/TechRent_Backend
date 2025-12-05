@@ -21,6 +21,7 @@ public class PriorityMaintenanceDeviceDto {
     private Integer requiredUsageCount;
 
     private LocalDate nextMaintenanceDate;
+    private LocalDate nextMaintenanceEndDate;
     private String priorityReason; // "USAGE_THRESHOLD", "SCHEDULED_MAINTENANCE", "RENTAL_CONFLICT"
     private Long maintenanceScheduleId;
 

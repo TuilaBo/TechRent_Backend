@@ -30,4 +30,6 @@ public interface TaskService {
                                                                                                      Long categoryId);
 
     com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto getActiveTaskRule();
+
+    List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, Long categoryId, String username);
 }

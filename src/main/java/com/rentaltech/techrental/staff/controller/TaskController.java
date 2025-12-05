@@ -271,4 +271,26 @@ public class TaskController {
         );
     }
 
+    @GetMapping("/staff/{staffId}/category-stats")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Thống kê công việc của nhân viên theo category", description = "Lấy số lượng công việc của nhân viên theo từng category trong ngày. Có thể filter theo categoryId cụ thể.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thống kê công việc theo category"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
+    })
+    public ResponseEntity<?> getStaffTaskCountByCategory(@PathVariable Long staffId,
+                                                          @RequestParam(required = false) @io.swagger.v3.oas.annotations.media.Schema(example = "2025-12-01") String date,
+                                                          @RequestParam(required = false) Long categoryId,
+                                                          Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
+        List<StaffTaskCountByCategoryDto> stats = taskService.getStaffTaskCountByCategory(staffId, targetDate, categoryId, username);
+        return ResponseUtil.createSuccessResponse(
+                "Thống kê công việc theo category",
+                "Số lượng công việc của nhân viên theo từng category trong ngày",
+                stats,
+                HttpStatus.OK
+        );
+    }
+
 }

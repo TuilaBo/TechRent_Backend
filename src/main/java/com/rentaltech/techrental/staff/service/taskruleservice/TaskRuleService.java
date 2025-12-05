@@ -23,5 +23,7 @@ public interface TaskRuleService {
     TaskRule getActiveRuleEntity();
 
     TaskRule getActiveRuleEntity(StaffRole role, Long taskCategoryId);
+
+    TaskRule getActiveRuleEntityByCategory(Long taskCategoryId);
 }
 
