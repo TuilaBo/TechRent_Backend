@@ -78,7 +78,7 @@ public class TaskServiceImpl implements TaskService {
         try {
             // Validate business rules
             validateTaskCreationRequest(request);
-            
+
             TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
                     .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
 
@@ -101,14 +101,14 @@ public class TaskServiceImpl implements TaskService {
             notifyAssignedStaffChannels(saved, assignedStaff);
 
             return saved;
-            
+
         } catch (IllegalArgumentException e) {
             throw new TaskCreationException("Không vượt qua kiểm tra hợp lệ: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new TaskCreationException("Không thể tạo công việc: " + e.getMessage(), e);
         }
     }
-    
+
     private void validateTaskCreationRequest(TaskCreateRequestDto request) {
         if (request.getTaskCategoryId() == null) {
             throw new IllegalArgumentException("Cần cung cấp TaskCategoryId");
@@ -304,8 +304,8 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public List<com.rentaltech.techrental.staff.model.dto.StaffAssignmentDto> getStaffAssignmentsForDate(Long staffId,
-                                                                                                        LocalDate targetDate,
-                                                                                                        String username) {
+                                                                                                         LocalDate targetDate,
+                                                                                                         String username) {
         AccessContext access = resolveAccessContext(username);
         Long effectiveStaffId = resolveEffectiveAssignedStaff(staffId, access);
         if (effectiveStaffId == null) {
