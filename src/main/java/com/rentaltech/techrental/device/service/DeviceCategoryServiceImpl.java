@@ -78,7 +78,6 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
         entity.setDeviceCategoryName(request.getDeviceCategoryName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());
-        repository.save(entity);
     }
 
 
