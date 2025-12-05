@@ -16,12 +16,13 @@ import java.util.List;
 public interface MaintenanceScheduleService {
     MaintenanceSchedule createSchedule(Long deviceId, LocalDate startDate, LocalDate endDate, MaintenanceScheduleStatus status);
     List<MaintenanceSchedule> listByDevice(Long deviceId);
-    MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls);
+    MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls, String username);
 
     MaintenanceSchedule updateStatusWithUploads(Long maintenanceScheduleId,
                                                 MaintenanceScheduleStatus status,
                                                 List<String> evidenceUrls,
-                                                List<MultipartFile> files);
+                                                List<MultipartFile> files,
+                                                String username);
     
     List<MaintenanceSchedule> createSchedulesByCategory(MaintenanceScheduleByCategoryRequestDto request);
     List<MaintenanceSchedule> createSchedulesByUsage(MaintenanceScheduleByUsageRequestDto request);

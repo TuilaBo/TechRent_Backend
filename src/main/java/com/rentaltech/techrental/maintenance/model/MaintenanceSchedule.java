@@ -45,6 +45,12 @@ public class MaintenanceSchedule {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_by", length = 100)
+    private String updatedBy;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @ElementCollection
     @CollectionTable(name = "maintenance_schedule_evidence", joinColumns = @JoinColumn(name = "maintenance_schedule_id"))
     @Column(name = "evidence_url", length = 2048)

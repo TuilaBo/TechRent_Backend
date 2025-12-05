@@ -20,6 +20,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -205,8 +207,11 @@ public class MaintenanceScheduleController {
             @ApiResponse(responseCode = "404", description = "Không tìm thấy lịch bảo trì"),
             @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
     })
-    public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, @RequestBody @Valid UpdateStatusRequestDto request) {
-        MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus(), request.getEvidenceUrls());
+    public ResponseEntity<?> updateStatus(@PathVariable("id") Long id, 
+                                          @RequestBody @Valid UpdateStatusRequestDto request,
+                                          @AuthenticationPrincipal UserDetails principal) {
+        String username = principal != null ? principal.getUsername() : null;
+        MaintenanceSchedule data = maintenanceScheduleService.updateStatus(id, request.getStatus(), request.getEvidenceUrls(), username);
         return ResponseUtil.createSuccessResponse("Cập nhật trạng thái lịch bảo trì", "Trạng thái đã được cập nhật", data, HttpStatus.OK);
     }
 
@@ -221,9 +226,11 @@ public class MaintenanceScheduleController {
     })
     public ResponseEntity<?> updateStatusWithFiles(@PathVariable("id") Long id,
                                                    @RequestPart("status") String statusValue,
-                                                   @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+                                                   @RequestPart(value = "files", required = false) List<MultipartFile> files,
+                                                   @AuthenticationPrincipal UserDetails principal) {
         MaintenanceScheduleStatus status = MaintenanceScheduleStatus.valueOf(statusValue.trim().toUpperCase(java.util.Locale.ROOT));
-        MaintenanceSchedule data = maintenanceScheduleService.updateStatusWithUploads(id, status, null, files);
+        String username = principal != null ? principal.getUsername() : null;
+        MaintenanceSchedule data = maintenanceScheduleService.updateStatusWithUploads(id, status, null, files, username);
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật trạng thái lịch bảo trì",
                 "Trạng thái và bằng chứng đã được cập nhật",

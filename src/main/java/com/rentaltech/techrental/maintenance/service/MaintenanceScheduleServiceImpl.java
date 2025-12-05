@@ -100,9 +100,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
     @Override
     @Transactional
-    public MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls) {
+    public MaintenanceSchedule updateStatus(Long maintenanceScheduleId, MaintenanceScheduleStatus status, List<String> evidenceUrls, String username) {
         MaintenanceSchedule schedule = scheduleRepository.findById(maintenanceScheduleId).orElseThrow();
-        return applyStatusAndEvidence(schedule, status, evidenceUrls, false);
+        return applyStatusAndEvidence(schedule, status, evidenceUrls, false, username);
     }
 
     @Override
@@ -110,7 +110,8 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     public MaintenanceSchedule updateStatusWithUploads(Long maintenanceScheduleId,
                                                        MaintenanceScheduleStatus status,
                                                        List<String> evidenceUrls,
-                                                       List<MultipartFile> files) {
+                                                       List<MultipartFile> files,
+                                                       String username) {
         MaintenanceSchedule schedule = scheduleRepository.findById(maintenanceScheduleId).orElseThrow();
         List<String> combined = new ArrayList<>();
         if (evidenceUrls != null) {
@@ -128,7 +129,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             }
         }
         List<String> finalEvidence = combined.isEmpty() ? evidenceUrls : combined;
-        return applyStatusAndEvidence(schedule, status, finalEvidence, true);
+        return applyStatusAndEvidence(schedule, status, finalEvidence, true, username);
     }
 
     @Override
@@ -438,7 +439,8 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
     private MaintenanceSchedule applyStatusAndEvidence(MaintenanceSchedule schedule,
                                                        MaintenanceScheduleStatus status,
                                                        List<String> evidenceUrls,
-                                                       boolean appendEvidence) {
+                                                       boolean appendEvidence,
+                                                       String username) {
         Device device = schedule.getDevice();
         MaintenanceScheduleStatus effectiveStatus = status != null ? status : parseStatus(schedule.getStatus());
         if (status != null) {
@@ -459,6 +461,9 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             }
             target.addAll(sanitized);
         }
+        // Lưu thông tin người cập nhật
+        schedule.setUpdatedBy(username);
+        schedule.setUpdatedAt(LocalDateTime.now());
         MaintenanceSchedule saved = scheduleRepository.save(schedule);
 
         if (device != null && effectiveStatus != null) {
