@@ -271,14 +271,14 @@ public class TaskController {
         );
     }
 
-    @GetMapping("/staff/{staffId}/category-stats")
+    @GetMapping("/category-stats")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Thống kê công việc của nhân viên theo category", description = "Lấy số lượng công việc của nhân viên theo từng category trong ngày. Có thể filter theo categoryId cụ thể.")
+    @Operation(summary = "Thống kê công việc của nhân viên theo category", description = "Lấy số lượng công việc của nhân viên theo từng category trong ngày. Nếu không truyền staffId, tự động lấy từ tài khoản đang đăng nhập. Có thể filter theo categoryId cụ thể.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về thống kê công việc theo category"),
             @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")
     })
-    public ResponseEntity<?> getStaffTaskCountByCategory(@PathVariable Long staffId,
+    public ResponseEntity<?> getStaffTaskCountByCategory(@RequestParam(required = false) Long staffId,
                                                           @RequestParam(required = false) @io.swagger.v3.oas.annotations.media.Schema(example = "2025-12-01") String date,
                                                           @RequestParam(required = false) Long categoryId,
                                                           Authentication authentication) {
