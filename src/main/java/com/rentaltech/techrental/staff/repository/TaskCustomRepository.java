@@ -190,12 +190,11 @@ public class TaskCustomRepository {
             basePredicate = cb.and(basePredicate, categoryMatch);
         }
 
+        var accountJoin = staffJoin.join("account");
+        
         query.multiselect(
                 staffJoin.get("staffId"),
-                cb.concat(cb.concat(
-                        cb.coalesce(staffJoin.get("account").get("firstName"), ""), 
-                        " "), 
-                        cb.coalesce(staffJoin.get("account").get("lastName"), "")),
+                cb.coalesce(accountJoin.get("username"), ""),
                 categoryJoin.get("taskCategoryId"),
                 categoryJoin.get("name"),
                 cb.countDistinct(task)
@@ -203,8 +202,7 @@ public class TaskCustomRepository {
         .where(basePredicate)
         .groupBy(
                 staffJoin.get("staffId"),
-                staffJoin.get("account").get("firstName"),
-                staffJoin.get("account").get("lastName"),
+                accountJoin.get("username"),
                 categoryJoin.get("taskCategoryId"),
                 categoryJoin.get("name")
         )
