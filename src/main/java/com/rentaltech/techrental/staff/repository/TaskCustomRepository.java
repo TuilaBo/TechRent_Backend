@@ -2,16 +2,26 @@ package com.rentaltech.techrental.staff.repository;
 
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Order;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
@@ -201,5 +211,132 @@ public class TaskCustomRepository {
         .orderBy(cb.asc(categoryJoin.get("name")));
 
         return entityManager.createQuery(query).getResultList();
+    }
+
+    public Page<StaffTaskCompletionStatsDto> findStaffCompletionsByPeriod(
+            LocalDateTime startTime, 
+            LocalDateTime endTime, 
+            StaffRole staffRole, 
+            Pageable pageable) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        
+        // Query để lấy data
+        CriteriaQuery<StaffTaskCompletionStatsDto> dataQuery = cb.createQuery(StaffTaskCompletionStatsDto.class);
+        Root<Task> task = dataQuery.from(Task.class);
+        Join<?, ?> staffJoin = task.join("assignedStaff");
+        Join<?, ?> accountJoin = staffJoin.join("account");
+        
+        // Build predicates
+        List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.equal(task.get("status"), TaskStatus.COMPLETED));
+        predicates.add(cb.between(task.get("completedAt"), startTime, endTime));
+        
+        if (staffRole != null) {
+            predicates.add(cb.equal(staffJoin.get("staffRole"), staffRole));
+        }
+        
+        Predicate whereClause = cb.and(predicates.toArray(new Predicate[0]));
+        
+        // Select với constructor
+        dataQuery.select(cb.construct(
+                StaffTaskCompletionStatsDto.class,
+                staffJoin.get("staffId"),
+                accountJoin.get("accountId"),
+                accountJoin.get("username"),
+                accountJoin.get("email"),
+                accountJoin.get("phoneNumber"),
+                staffJoin.get("staffRole"),
+                cb.count(task)
+        ));
+        
+        dataQuery.where(whereClause);
+        dataQuery.groupBy(
+                staffJoin.get("staffId"),
+                accountJoin.get("accountId"),
+                accountJoin.get("username"),
+                accountJoin.get("email"),
+                accountJoin.get("phoneNumber"),
+                staffJoin.get("staffRole")
+        );
+        
+        // Apply sorting - Note: Can't sort by aggregate in GROUP BY query directly
+        // We'll apply default sort by completedTaskCount desc, other sorts need to be handled differently
+        if (pageable.getSort().isSorted()) {
+            List<Order> orders = new ArrayList<>();
+            pageable.getSort().forEach(sortOrder -> {
+                String property = sortOrder.getProperty();
+                if ("completedTaskCount".equals(property)) {
+                    // Sort by count - use aggregate function
+                    Expression<Long> countExpr = cb.count(task);
+                    Order order = sortOrder.isAscending() 
+                            ? cb.asc(countExpr) 
+                            : cb.desc(countExpr);
+                    orders.add(order);
+                } else {
+                    // Sort by other fields from group by
+                    Expression<?> expr = getExpressionForProperty(staffJoin, accountJoin, property);
+                    if (expr != null) {
+                        Order order = sortOrder.isAscending() 
+                                ? cb.asc(expr) 
+                                : cb.desc(expr);
+                        orders.add(order);
+                    }
+                }
+            });
+            if (!orders.isEmpty()) {
+                dataQuery.orderBy(orders);
+            } else {
+                // Default sort by completedTaskCount desc
+                dataQuery.orderBy(cb.desc(cb.count(task)));
+            }
+        } else {
+            // Default sort by completedTaskCount desc
+            dataQuery.orderBy(cb.desc(cb.count(task)));
+        }
+        
+        TypedQuery<StaffTaskCompletionStatsDto> typedQuery = entityManager.createQuery(dataQuery);
+        
+        // Apply pagination
+        typedQuery.setFirstResult((int) pageable.getOffset());
+        typedQuery.setMaxResults(pageable.getPageSize());
+        
+        List<StaffTaskCompletionStatsDto> content = typedQuery.getResultList();
+        
+        // Count query
+        long total = countStaffCompletionsByPeriod(startTime, endTime, staffRole);
+        
+        return new PageImpl<>(content, pageable, total);
+    }
+    
+    public long countStaffCompletionsByPeriod(
+            LocalDateTime startTime, 
+            LocalDateTime endTime, 
+            StaffRole staffRole) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+        Root<Task> task = countQuery.from(Task.class);
+        Join<?, ?> staffJoin = task.join("assignedStaff");
+        
+        List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.equal(task.get("status"), TaskStatus.COMPLETED));
+        predicates.add(cb.between(task.get("completedAt"), startTime, endTime));
+        
+        if (staffRole != null) {
+            predicates.add(cb.equal(staffJoin.get("staffRole"), staffRole));
+        }
+        
+        countQuery.select(cb.countDistinct(staffJoin.get("staffId")));
+        countQuery.where(cb.and(predicates.toArray(new Predicate[0])));
+        
+        return entityManager.createQuery(countQuery).getSingleResult();
+    }
+    
+    private Expression<?> getExpressionForProperty(Join<?, ?> staffJoin, Join<?, ?> accountJoin, String property) {
+        return switch (property) {
+            case "staffId" -> staffJoin.get("staffId");
+            case "accountId", "username", "email", "phoneNumber" -> accountJoin.get(property);
+            case "staffRole" -> staffJoin.get("staffRole");
+            default -> null;
+        };
     }
 }

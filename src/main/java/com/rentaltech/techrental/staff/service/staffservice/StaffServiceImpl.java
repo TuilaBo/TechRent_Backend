@@ -10,6 +10,7 @@ import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.repository.TaskCustomRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,9 @@ public class StaffServiceImpl implements StaffService {
 
     @Autowired
     private TaskRepository taskRepository;
+    
+    @Autowired
+    private TaskCustomRepository taskCustomRepository;
 
     @Override
     public List<Staff> getAllStaff() {
@@ -105,9 +109,11 @@ public class StaffServiceImpl implements StaffService {
         LocalDateTime startTime = startDate.atStartOfDay();
         LocalDateTime endTime = startDate.plusMonths(1).atStartOfDay().minusNanos(1);
         
-        org.springframework.data.domain.Page<StaffTaskCompletionStatsDto> statsPage = taskRepository.findStaffCompletionsByPeriod(startTime, endTime, staffRole, pageable);
+        // Query với Criteria API (hỗ trợ phân trang đúng cách)
+        org.springframework.data.domain.Page<StaffTaskCompletionStatsDto> statsPage = 
+                taskCustomRepository.findStaffCompletionsByPeriod(startTime, endTime, staffRole, pageable);
         
-        // Lấy chi tiết task completion theo category cho từng staff
+        // Lấy chi tiết task completion theo category cho từng staff trong page
         List<StaffTaskCompletionStatsDto> stats = statsPage.getContent();
         for (StaffTaskCompletionStatsDto stat : stats) {
             List<Object[]> categoryRecords = taskRepository.countCompletedTasksByStaffAndCategory(
@@ -122,7 +128,7 @@ public class StaffServiceImpl implements StaffService {
             stat.setTaskCompletionsByCategory(categoryCompletions);
         }
         
-        return new org.springframework.data.domain.PageImpl<>(stats, pageable, statsPage.getTotalElements());
+        return statsPage;
     }
 
     @Override
