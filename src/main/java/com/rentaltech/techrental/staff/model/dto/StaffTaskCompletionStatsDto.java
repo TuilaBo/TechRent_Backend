@@ -22,6 +22,20 @@ public class StaffTaskCompletionStatsDto {
     private Long completedTaskCount;
     private List<TaskCategoryCompletionDto> taskCompletionsByCategory;
     
+    // Constructor cho JPQL query (không có taskCompletionsByCategory)
+    public StaffTaskCompletionStatsDto(Long staffId, Long accountId, String username, 
+                                      String email, String phoneNumber, StaffRole staffRole, 
+                                      Long completedTaskCount) {
+        this.staffId = staffId;
+        this.accountId = accountId;
+        this.username = username;
+        this.email = email;
+        this.phoneNumber = phoneNumber;
+        this.staffRole = staffRole;
+        this.completedTaskCount = completedTaskCount;
+        this.taskCompletionsByCategory = null; // Sẽ được populate sau
+    }
+    
     @Data
     @Builder
     @NoArgsConstructor
