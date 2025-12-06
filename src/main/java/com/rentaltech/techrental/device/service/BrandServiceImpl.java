@@ -78,7 +78,6 @@ public class BrandServiceImpl implements BrandService {
         entity.setBrandName(request.getBrandName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());
-        repository.save(entity);
     }
 
 

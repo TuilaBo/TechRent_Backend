@@ -125,6 +125,15 @@ public class DeviceContractTermServiceImpl implements DeviceContractTermService 
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
+        if (categoryIds.isEmpty() && !deviceModelIds.isEmpty()) {
+            deviceModelRepository.findAllById(deviceModelIds).stream()
+                    .map(DeviceModel::getDeviceCategory)
+                    .filter(Objects::nonNull)
+                    .map(DeviceCategory::getDeviceCategoryId)
+                    .filter(Objects::nonNull)
+                    .forEach(categoryIds::add);
+        }
+
         List<DeviceContractTerm> result = new ArrayList<>();
         if (!deviceModelIds.isEmpty()) {
             result.addAll(termRepository.findByDeviceModel_DeviceModelIdInAndActiveIsTrue(deviceModelIds));

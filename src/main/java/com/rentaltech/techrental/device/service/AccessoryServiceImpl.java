@@ -112,8 +112,6 @@ public class AccessoryServiceImpl implements AccessoryService {
         entity.setActive(request.isActive());
         entity.setAccessoryCategory(category);
         entity.setDeviceModel(model);
-
-        repository.save(entity);
     }
 
 }

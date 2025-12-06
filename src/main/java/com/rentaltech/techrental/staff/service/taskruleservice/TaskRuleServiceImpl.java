@@ -41,6 +41,7 @@ public class TaskRuleServiceImpl implements TaskRuleService {
         TaskRule existing = taskRuleRepository.findById(taskRuleId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy rule với id " + taskRuleId));
         applyRequest(existing, request);
+        existing.setCreatedBy(resolveCreator(username));
         TaskRule saved = taskRuleRepository.save(existing);
         return TaskRuleResponseDto.from(saved);
     }
