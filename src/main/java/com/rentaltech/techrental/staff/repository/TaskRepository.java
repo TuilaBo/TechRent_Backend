@@ -40,28 +40,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                                           @Param("startTime") LocalDateTime startTime,
                                           @Param("endTime") LocalDateTime endTime);
 
-    @Query("""
-            select new com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto(
-                    s.staffId,
-                    s.account.accountId,
-                    s.account.username,
-                    s.account.email,
-                    s.account.phoneNumber,
-                    s.staffRole,
-                    count(t)
-            )
-            from Task t
-            join t.assignedStaff s
-            where t.status = com.rentaltech.techrental.staff.model.TaskStatus.COMPLETED
-              and t.completedAt between :startTime and :endTime
-              and (:role is null or s.staffRole = :role)
-            group by s.staffId, s.account.accountId, s.account.username, s.account.email, s.account.phoneNumber, s.staffRole
-            """)
-    org.springframework.data.domain.Page<com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto> findStaffCompletionsByPeriod(
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime") LocalDateTime endTime,
-            @Param("role") com.rentaltech.techrental.staff.model.StaffRole role,
-            org.springframework.data.domain.Pageable pageable);
 
     @Query("""
             select t
