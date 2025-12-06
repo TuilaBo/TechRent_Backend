@@ -135,7 +135,7 @@ public class StaffController {
 
     @GetMapping("/performance/completions")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Bảng xếp hạng hoàn thành task", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên")
+    @Operation(summary = "Bảng xếp hạng hoàn thành task", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên, hỗ trợ phân trang")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về thống kê hoàn thành task"),
             @ApiResponse(responseCode = "500", description = "Không thể thống kê do lỗi hệ thống")
@@ -143,14 +143,35 @@ public class StaffController {
     public ResponseEntity<?> getStaffCompletionLeaderboard(
             @RequestParam int year,
             @RequestParam int month,
-            @RequestParam(required = false) StaffRole staffRole) {
-        List<StaffTaskCompletionStatsDto> stats = staffService.getStaffCompletionStats(year, month, staffRole);
+            @RequestParam(required = false) StaffRole staffRole,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", defaultValue = "completedTaskCount,desc") String sort) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                Math.max(page, 0),
+                Math.max(size, 1),
+                parseSort(sort)
+        );
+        org.springframework.data.domain.Page<StaffTaskCompletionStatsDto> stats = staffService.getStaffCompletionStats(year, month, staffRole, pageable);
         return ResponseUtil.createSuccessResponse(
                 "Thống kê task hoàn thành thành công",
                 "Danh sách nhân viên theo số lượng task hoàn thành",
                 stats,
                 HttpStatus.OK
         );
+    }
+
+    private org.springframework.data.domain.Sort parseSort(String sort) {
+        if (sort == null || sort.isEmpty()) {
+            return org.springframework.data.domain.Sort.by("completedTaskCount").descending();
+        }
+        String[] parts = sort.split(",");
+        String property = parts[0].trim();
+        String direction = parts.length > 1 ? parts[1].trim().toUpperCase() : "DESC";
+        org.springframework.data.domain.Sort.Direction sortDirection = 
+                "ASC".equals(direction) ? org.springframework.data.domain.Sort.Direction.ASC 
+                                        : org.springframework.data.domain.Sort.Direction.DESC;
+        return org.springframework.data.domain.Sort.by(sortDirection, property);
     }
 
 }

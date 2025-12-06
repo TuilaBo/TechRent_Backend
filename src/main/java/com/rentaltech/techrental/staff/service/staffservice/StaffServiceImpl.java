@@ -97,14 +97,32 @@ public class StaffServiceImpl implements StaffService {
     }
 
     @Override
-    public List<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole) {
+    public org.springframework.data.domain.Page<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole, org.springframework.data.domain.Pageable pageable) {
         if (month < 1 || month > 12) {
             throw new IllegalArgumentException("Tháng phải nằm trong khoảng 1-12");
         }
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDateTime startTime = startDate.atStartOfDay();
         LocalDateTime endTime = startDate.plusMonths(1).atStartOfDay().minusNanos(1);
-        return taskRepository.findStaffCompletionsByPeriod(startTime, endTime, staffRole);
+        
+        org.springframework.data.domain.Page<StaffTaskCompletionStatsDto> statsPage = taskRepository.findStaffCompletionsByPeriod(startTime, endTime, staffRole, pageable);
+        
+        // Lấy chi tiết task completion theo category cho từng staff
+        List<StaffTaskCompletionStatsDto> stats = statsPage.getContent();
+        for (StaffTaskCompletionStatsDto stat : stats) {
+            List<Object[]> categoryRecords = taskRepository.countCompletedTasksByStaffAndCategory(
+                    stat.getStaffId(), startTime, endTime);
+            List<StaffTaskCompletionStatsDto.TaskCategoryCompletionDto> categoryCompletions = categoryRecords.stream()
+                    .map(record -> StaffTaskCompletionStatsDto.TaskCategoryCompletionDto.builder()
+                            .taskCategoryId((Long) record[0])
+                            .taskCategoryName((String) record[1])
+                            .completedCount((Long) record[2])
+                            .build())
+                    .toList();
+            stat.setTaskCompletionsByCategory(categoryCompletions);
+        }
+        
+        return new org.springframework.data.domain.PageImpl<>(stats, pageable, statsPage.getTotalElements());
     }
 
     @Override

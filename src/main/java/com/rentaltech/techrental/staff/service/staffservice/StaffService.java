@@ -5,6 +5,8 @@ import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -22,7 +24,7 @@ public interface StaffService {
     List<Staff> getActiveStaff();
     List<Staff> searchStaff(LocalDateTime startTime, LocalDateTime endTime, Boolean available, StaffRole staffRole);
 
-    List<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole);
+    Page<StaffTaskCompletionStatsDto> getStaffCompletionStats(int year, int month, StaffRole staffRole, Pageable pageable);
 
     Staff createStaff(@Valid StaffCreateRequestDto request);
     Staff createStaffWithAccount(@jakarta.validation.Valid com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto request);

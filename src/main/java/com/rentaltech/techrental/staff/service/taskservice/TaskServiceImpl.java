@@ -345,7 +345,7 @@ public class TaskServiceImpl implements TaskService {
         AccessContext access = resolveAccessContext(username);
         Long effectiveStaffId = resolveEffectiveAssignedStaff(staffId, access);
         if (effectiveStaffId == null) {
-            throw new IllegalArgumentException("Cần cung cấp staffId");
+            throw new IllegalArgumentException("Không thể xác định staffId. Vui lòng đăng nhập hoặc cung cấp staffId");
         }
         LocalDate date = targetDate != null ? targetDate : LocalDate.now();
         List<Object[]> records = taskCustomRepository.countActiveTasksByStaffCategoryAndDateGrouped(effectiveStaffId, date, categoryId);
@@ -433,12 +433,15 @@ public class TaskServiceImpl implements TaskService {
 
     private Long resolveEffectiveAssignedStaff(Long requestedAssignedStaffId, AccessContext access) {
         if (!access.isRestricted()) {
+            // ADMIN/OPERATOR: nếu không truyền staffId thì không thể xác định
             return requestedAssignedStaffId;
         }
+        // TECHNICIAN/CUSTOMER_SUPPORT_STAFF: tự động lấy staffId của chính mình
         Long ownStaffId = access.staffId();
         if (requestedAssignedStaffId != null && !ownStaffId.equals(requestedAssignedStaffId)) {
             throw new AccessDeniedException("Không có quyền truy cập tác vụ của nhân viên khác");
         }
+        // Nếu không truyền staffId, tự động dùng staffId của chính mình
         return ownStaffId;
     }
 

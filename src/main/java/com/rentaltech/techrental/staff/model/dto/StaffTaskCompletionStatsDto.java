@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,5 +20,16 @@ public class StaffTaskCompletionStatsDto {
     private String phoneNumber;
     private StaffRole staffRole;
     private Long completedTaskCount;
+    private List<TaskCategoryCompletionDto> taskCompletionsByCategory;
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TaskCategoryCompletionDto {
+        private Long taskCategoryId;
+        private String taskCategoryName;
+        private Long completedCount;
+    }
 }
 
