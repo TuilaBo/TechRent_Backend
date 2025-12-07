@@ -68,6 +68,12 @@ public class TaskRuleServiceImpl implements TaskRuleService {
     }
 
     @Override
+    public List<TaskRuleResponseDto> getActiveRules() {
+        List<TaskRule> rules = taskRuleCustomRepository.findAllActiveRules(java.time.LocalDateTime.now());
+        return rules.stream().map(TaskRuleResponseDto::from).toList();
+    }
+
+    @Override
     public TaskRuleResponseDto getActiveRule() {
         return TaskRuleResponseDto.from(getActiveRuleEntity());
     }

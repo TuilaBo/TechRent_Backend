@@ -18,6 +18,8 @@ public interface TaskRuleService {
 
     List<TaskRuleResponseDto> list(Boolean active);
 
+    List<TaskRuleResponseDto> getActiveRules();
+    
     TaskRuleResponseDto getActiveRule();
 
     TaskRule getActiveRuleEntity();

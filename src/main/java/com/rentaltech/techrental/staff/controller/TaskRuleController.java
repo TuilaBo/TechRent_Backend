@@ -90,14 +90,14 @@ public class TaskRuleController {
 
     @GetMapping("/active")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Rule đang áp dụng")
+    @Operation(summary = "Danh sách rule đang áp dụng")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Trả về rule đang được áp dụng"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy rule hiện hành")
+            @ApiResponse(responseCode = "200", description = "Trả về danh sách rule đang được áp dụng"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
     })
-    public ResponseEntity<?> getActiveRule() {
-        TaskRuleResponseDto response = taskRuleService.getActiveRule();
-        return ResponseUtil.createSuccessResponse("Rule hiện hành", "", response, HttpStatus.OK);
+    public ResponseEntity<?> getActiveRules() {
+        List<TaskRuleResponseDto> responses = taskRuleService.getActiveRules();
+        return ResponseUtil.createSuccessResponse("Danh sách rule hiện hành", "", responses, HttpStatus.OK);
     }
 }
 

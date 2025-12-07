@@ -9,14 +9,15 @@ import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequ
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.repository.TaskCustomRepository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,6 +41,8 @@ class StaffServiceImplTest {
     private AccountService accountService;
     @Mock
     private TaskRepository taskRepository;
+    @Mock
+    private TaskCustomRepository taskCustomRepository;
 
     @InjectMocks
     private StaffServiceImpl staffService;
@@ -81,17 +84,14 @@ class StaffServiceImplTest {
                 .hasMessageContaining("endTime");
     }
 
-//    @Test
-//    void getStaffCompletionStatsValidatesMonthRange() {
-//        assertThatThrownBy(() -> staffService.getStaffCompletionStats(2024, 13, StaffRole.ADMIN, PageRequest.of(0, 10)))
-//                .isInstanceOf(IllegalArgumentException.class)
-//                .hasMessageContaining("Tháng");
-//        verify(taskRepository, never()).findStaffCompletionsByPeriod(
-//                any(LocalDateTime.class),
-//                any(LocalDateTime.class),
-//                any(StaffRole.class),
-//                any(Pageable.class));
-//    }
+    @Test
+    void getStaffCompletionStatsValidatesMonthRange() {
+        Pageable pageable = PageRequest.of(0, 20);
+        assertThatThrownBy(() -> staffService.getStaffCompletionStats(2024, 13, StaffRole.ADMIN, pageable))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Tháng");
+        verify(taskCustomRepository, never()).findStaffCompletionsByPeriod(any(), any(), any(), any());
+    }
 
     @Test
     void createStaffFailsWhenProfileAlreadyExists() {
