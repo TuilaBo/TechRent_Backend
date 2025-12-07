@@ -93,6 +93,35 @@ public class TaskRuleCustomRepository {
         return results.stream().findFirst();
     }
 
+    public List<TaskRule> findAllActiveRules(LocalDateTime now) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<TaskRule> query = cb.createQuery(TaskRule.class);
+        Root<TaskRule> root = query.from(TaskRule.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+
+        // active = true
+        predicates.add(cb.isTrue(root.get("active")));
+
+        // effectiveFrom <= now OR null
+        predicates.add(cb.or(
+                root.get("effectiveFrom").isNull(),
+                cb.lessThanOrEqualTo(root.get("effectiveFrom"), now)
+        ));
+
+        // effectiveTo >= now OR null
+        predicates.add(cb.or(
+                root.get("effectiveTo").isNull(),
+                cb.greaterThanOrEqualTo(root.get("effectiveTo"), now)
+        ));
+
+        query.select(root)
+                .where(predicates.toArray(new Predicate[0]))
+                .orderBy(cb.desc(root.get("effectiveFrom")));
+
+        return entityManager.createQuery(query).getResultList();
+    }
+
     private Predicate roleEqual(CriteriaBuilder cb, Root<TaskRule> root, StaffRole role) {
         if (role == null) {
             // always false, we only use this helper inside CASE when role != null

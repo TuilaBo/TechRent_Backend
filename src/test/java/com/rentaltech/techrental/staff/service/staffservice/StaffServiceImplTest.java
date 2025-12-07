@@ -9,6 +9,9 @@ import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequ
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.repository.TaskCustomRepository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +41,8 @@ class StaffServiceImplTest {
     private AccountService accountService;
     @Mock
     private TaskRepository taskRepository;
+    @Mock
+    private TaskCustomRepository taskCustomRepository;
 
     @InjectMocks
     private StaffServiceImpl staffService;
@@ -81,10 +86,11 @@ class StaffServiceImplTest {
 
     @Test
     void getStaffCompletionStatsValidatesMonthRange() {
-        assertThatThrownBy(() -> staffService.getStaffCompletionStats(2024, 13, StaffRole.ADMIN))
+        Pageable pageable = PageRequest.of(0, 20);
+        assertThatThrownBy(() -> staffService.getStaffCompletionStats(2024, 13, StaffRole.ADMIN, pageable))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Tháng");
-        verify(taskRepository, never()).findStaffCompletionsByPeriod(any(), any(), any());
+        verify(taskCustomRepository, never()).findStaffCompletionsByPeriod(any(), any(), any(), any());
     }
 
     @Test

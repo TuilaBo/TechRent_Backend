@@ -135,7 +135,10 @@ public class StaffController {
 
     @GetMapping("/performance/completions")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Bảng xếp hạng hoàn thành task", description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên, hỗ trợ phân trang")
+    @Operation(summary = "Bảng xếp hạng hoàn thành task", 
+               description = "Thống kê số lượng task hoàn thành theo tháng cho từng nhân viên, hỗ trợ phân trang và sắp xếp. " +
+                             "Có thể sort theo: completedTaskCount, username, email, phoneNumber, staffRole, staffId, accountId. " +
+                             "Format: sort=field,direction (ví dụ: sort=completedTaskCount,desc hoặc sort=username,asc)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về thống kê hoàn thành task"),
             @ApiResponse(responseCode = "500", description = "Không thể thống kê do lỗi hệ thống")
@@ -146,7 +149,7 @@ public class StaffController {
             @RequestParam(required = false) StaffRole staffRole,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size,
-            @RequestParam(value = "sort", defaultValue = "completedTaskCount,desc") String sort) {
+            @RequestParam(value = "sort", required = false) String sort) {
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
                 Math.max(page, 0),
                 Math.max(size, 1),
