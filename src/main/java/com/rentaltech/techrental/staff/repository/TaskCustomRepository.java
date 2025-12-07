@@ -337,4 +337,103 @@ public class TaskCustomRepository {
             default -> null;
         };
     }
+
+    public Page<Task> findTasksWithFilters(
+            Long categoryId,
+            Long orderId,
+            Long assignedStaffId,
+            TaskStatus status,
+            Pageable pageable) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        
+        // Data query
+        CriteriaQuery<Task> dataQuery = cb.createQuery(Task.class);
+        Root<Task> task = dataQuery.from(Task.class);
+        
+        List<Predicate> predicates = new ArrayList<>();
+        
+        if (categoryId != null) {
+            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        }
+        
+        if (orderId != null) {
+            predicates.add(cb.equal(task.get("orderId"), orderId));
+        }
+        
+        if (assignedStaffId != null) {
+            Join<?, ?> staffJoin = task.join("assignedStaff");
+            predicates.add(cb.equal(staffJoin.get("staffId"), assignedStaffId));
+        }
+        
+        if (status != null) {
+            predicates.add(cb.equal(task.get("status"), status));
+        }
+        
+        if (!predicates.isEmpty()) {
+            dataQuery.where(cb.and(predicates.toArray(new Predicate[0])));
+        }
+        
+        // Sort theo plannedEnd ASC trước (sẽ được sort lại trong Java theo khoảng cách tuyệt đối)
+        // Tạm thời sort theo plannedEnd để có thứ tự ban đầu
+        Expression<LocalDateTime> plannedEndExpr = task.get("plannedEnd");
+        LocalDateTime farFuture = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+        Expression<LocalDateTime> sortExpr = cb.coalesce(plannedEndExpr, farFuture);
+        Order orderByPlannedEnd = cb.asc(sortExpr);
+        // Secondary sort: createdAt DESC
+        dataQuery.orderBy(orderByPlannedEnd, cb.desc(task.get("createdAt")));
+        
+        TypedQuery<Task> typedQuery = entityManager.createQuery(dataQuery);
+        
+        // Apply pagination (chỉ khi không phải unpaged)
+        List<Task> content;
+        long total = countTasksWithFilters(categoryId, orderId, assignedStaffId, status);
+        
+        if (pageable.isUnpaged()) {
+            // Không apply pagination, lấy tất cả
+            content = typedQuery.getResultList();
+        } else {
+            // Apply pagination
+            typedQuery.setFirstResult((int) pageable.getOffset());
+            typedQuery.setMaxResults(pageable.getPageSize());
+            content = typedQuery.getResultList();
+        }
+        
+        return new PageImpl<>(content, pageable, total);
+    }
+    
+    private long countTasksWithFilters(
+            Long categoryId,
+            Long orderId,
+            Long assignedStaffId,
+            TaskStatus status) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+        Root<Task> task = countQuery.from(Task.class);
+        
+        List<Predicate> predicates = new ArrayList<>();
+        
+        if (categoryId != null) {
+            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        }
+        
+        if (orderId != null) {
+            predicates.add(cb.equal(task.get("orderId"), orderId));
+        }
+        
+        if (assignedStaffId != null) {
+            Join<?, ?> staffJoin = task.join("assignedStaff");
+            predicates.add(cb.equal(staffJoin.get("staffId"), assignedStaffId));
+        }
+        
+        if (status != null) {
+            predicates.add(cb.equal(task.get("status"), status));
+        }
+        
+        countQuery.select(cb.countDistinct(task));
+        if (!predicates.isEmpty()) {
+            countQuery.where(cb.and(predicates.toArray(new Predicate[0])));
+        }
+        
+        return entityManager.createQuery(countQuery).getSingleResult();
+    }
 }

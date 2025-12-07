@@ -25,8 +25,8 @@ public class Task {
     @JoinColumn(name = "task_category_id", nullable = false)
     private TaskCategory taskCategory;
 
-    @Column(name = "order_id", nullable = false)
-    private Long orderId; // Foreign key to Order table
+    @Column(name = "order_id")
+    private Long orderId; // Foreign key to Order table (nullable - có thể tạo task không gắn với order)
 
     @JsonIgnore
     @ManyToMany(fetch = FetchType.LAZY)
