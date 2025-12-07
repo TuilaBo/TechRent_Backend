@@ -30,7 +30,7 @@ public class TaskController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
-    @Operation(summary = "Tạo tác vụ", description = "Tạo tác vụ mới cho nhân viên")
+    @Operation(summary = "Tạo tác vụ", description = "Tạo tác vụ mới cho nhân viên. orderId là optional - nếu không cung cấp sẽ tạo task độc lập (không gắn với đơn hàng)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Tạo tác vụ thành công"),
             @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
@@ -41,15 +41,16 @@ public class TaskController {
         Task savedTask = taskService.createTask(request, username);
         return ResponseUtil.createSuccessResponse(
                 "Tạo tác vụ thành công",
-                "Tác vụ đã được tạo",
+                savedTask.getOrderId() != null ? "Tác vụ đã được tạo và gắn với đơn hàng" : "Tác vụ độc lập đã được tạo",
                 TaskResponseDto.from(savedTask),
                 HttpStatus.CREATED
         );
     }
 
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Danh sách tác vụ", description = "Lấy tác vụ với các bộ lọc tùy chọn")
+    @Operation(summary = "Danh sách tác vụ", description = "Lấy tác vụ với các bộ lọc tùy chọn, phân trang và sắp xếp theo thời gian kết thúc gần nhất")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về danh sách tác vụ thành công"),
             @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
@@ -58,17 +59,18 @@ public class TaskController {
                                       @RequestParam(required = false) Long orderId,
                                       @RequestParam(required = false) Long assignedStaffId,
                                       @RequestParam(required = false) String status,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "20") int size,
                                       Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
-        List<Task> tasks = taskService.getTasks(categoryId, orderId, assignedStaffId, status, username);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<Task> taskPage = taskService.getTasksWithPagination(categoryId, orderId, assignedStaffId, status, username, pageable);
 
-        List<TaskResponseDto> responseDtos = tasks.stream()
-                .map(TaskResponseDto::from)
-                .collect(Collectors.toList());
-        return ResponseUtil.createSuccessResponse(
+        org.springframework.data.domain.Page<TaskResponseDto> responsePage = taskPage.map(TaskResponseDto::from);
+        return ResponseUtil.createSuccessPaginationResponse(
                 "Lấy danh sách tác vụ thành công",
-                "Danh sách tác vụ",
-                responseDtos,
+                "Danh sách tác vụ được sắp xếp theo thời gian kết thúc gần nhất",
+                responsePage,
                 HttpStatus.OK
         );
     }

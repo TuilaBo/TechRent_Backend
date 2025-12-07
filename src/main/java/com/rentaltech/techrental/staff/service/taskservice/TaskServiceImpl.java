@@ -3,6 +3,8 @@ package com.rentaltech.techrental.staff.service.taskservice;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.service.AccountService;
+import com.rentaltech.techrental.security.CustomUserDetails;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.rentaltech.techrental.common.exception.TaskCreationException;
 import com.rentaltech.techrental.common.exception.TaskNotFoundException;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
@@ -23,8 +25,13 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -88,7 +95,7 @@ public class TaskServiceImpl implements TaskService {
 
             Task task = Task.builder()
                     .taskCategory(category)
-                    .orderId(request.getOrderId())
+                    .orderId(request.getOrderId()) // Có thể null nếu là standalone task
                     .assignedStaff(assignedStaff)
                     .description(request.getDescription())
                     .plannedStart(request.getPlannedStart())
@@ -96,8 +103,13 @@ public class TaskServiceImpl implements TaskService {
                     .build();
 
             Task saved = taskRepository.save(task);
-            promoteOrderStatusIfNeeded(saved);
-            notifyCustomerOrderProcessing(saved);
+            
+            // Chỉ promote order status và notify customer nếu task gắn với order
+            if (saved.getOrderId() != null) {
+                promoteOrderStatusIfNeeded(saved);
+                notifyCustomerOrderProcessing(saved);
+            }
+            
             notifyAssignedStaffChannels(saved, assignedStaff);
 
             return saved;
@@ -113,9 +125,7 @@ public class TaskServiceImpl implements TaskService {
         if (request.getTaskCategoryId() == null) {
             throw new IllegalArgumentException("Cần cung cấp TaskCategoryId");
         }
-        if (request.getOrderId() == null) {
-            throw new IllegalArgumentException("Cần cung cấp OrderId");
-        }
+        // orderId là optional - có thể tạo task không gắn với order
         if (request.getPlannedStart() != null && request.getPlannedEnd() != null) {
             if (request.getPlannedStart().isAfter(request.getPlannedEnd())) {
                 throw new IllegalArgumentException("Thời gian bắt đầu không được sau thời gian kết thúc dự kiến");
@@ -201,6 +211,123 @@ public class TaskServiceImpl implements TaskService {
                     .collect(Collectors.toList());
         }
         return filterTasksForAccess(tasks, access);
+    }
+
+    @Override
+    public Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String username, Pageable pageable) {
+        try {
+            AccessContext access = resolveAccessContext(username);
+            Long effectiveAssignedStaffId = resolveEffectiveAssignedStaff(assignedStaffId, access);
+
+        if (categoryId != null && !taskCategoryRepository.existsById(categoryId)) {
+            throw new NoSuchElementException("Không tìm thấy TaskCategory");
+        }
+
+        if (orderId != null && !rentalOrderRepository.existsById(orderId)) {
+            throw new NoSuchElementException("Không tìm thấy đơn hàng");
+        }
+
+        if (effectiveAssignedStaffId != null && !staffRepository.existsById(effectiveAssignedStaffId)) {
+            throw new NoSuchElementException("Không tìm thấy nhân viên");
+        }
+
+        TaskStatus taskStatus = null;
+        if (status != null) {
+            taskStatus = parseTaskStatus(status);
+        }
+
+        // Lấy tất cả tasks (không pagination) để sort theo khoảng cách tuyệt đối
+        // Sau đó mới paginate
+        List<Task> allTasks = taskCustomRepository.findTasksWithFilters(
+                categoryId,
+                orderId,
+                effectiveAssignedStaffId,
+                taskStatus,
+                org.springframework.data.domain.Pageable.unpaged()
+        ).getContent();
+
+        // Filter by access (chỉ lấy tasks mà user có quyền xem)
+        List<Task> filteredTasks = filterTasksForAccess(allTasks != null ? allTasks : new ArrayList<>(), access);
+        
+        // Null safety và tạo mutable list để có thể sort
+        if (filteredTasks == null) {
+            filteredTasks = new ArrayList<>();
+        } else {
+            // Tạo một ArrayList mới từ filteredTasks để có thể sort (tránh UnmodifiableList)
+            filteredTasks = new ArrayList<>(filteredTasks);
+        }
+        
+        // Sort theo khoảng cách tuyệt đối từ plannedEnd đến thời điểm hiện tại (gần nhất lên trước)
+        // Ví dụ: Hôm nay 8/12 10h30, task có plannedEnd = 8/12 10h30 (0 phút) → lên đầu
+        //        Task có plannedEnd = 8/12 11h00 (30 phút) → tiếp theo
+        //        Task có plannedEnd = 8/12 09h00 (1h30) → xa hơn
+        //        Task có plannedEnd = 7/12 10h30 (1 ngày) → xa nhất
+        LocalDateTime now = LocalDateTime.now();
+        filteredTasks.sort((t1, t2) -> {
+            try {
+                // Null safety cho task
+                if (t1 == null && t2 == null) return 0;
+                if (t1 == null) return 1;
+                if (t2 == null) return -1;
+                
+                LocalDateTime end1 = t1.getPlannedEnd();
+                LocalDateTime end2 = t2.getPlannedEnd();
+                
+                // Nếu cả 2 đều null, sort theo createdAt DESC (null-safe)
+                if (end1 == null && end2 == null) {
+                    LocalDateTime created1 = t1.getCreatedAt();
+                    LocalDateTime created2 = t2.getCreatedAt();
+                    if (created1 == null && created2 == null) return 0;
+                    if (created1 == null) return 1;
+                    if (created2 == null) return -1;
+                    return created2.compareTo(created1); // DESC
+                }
+                // Nếu t1 null, đưa xuống cuối
+                if (end1 == null) return 1;
+                // Nếu t2 null, đưa xuống cuối
+                if (end2 == null) return -1;
+                
+                // Tính khoảng cách tuyệt đối (số giây)
+                long distance1 = Math.abs(java.time.Duration.between(now, end1).getSeconds());
+                long distance2 = Math.abs(java.time.Duration.between(now, end2).getSeconds());
+                
+                // Sort theo khoảng cách ASC (gần nhất lên trước)
+                int compare = Long.compare(distance1, distance2);
+                if (compare != 0) {
+                    return compare;
+                }
+                // Nếu cùng khoảng cách, sort theo createdAt DESC (mới tạo lên trước)
+                LocalDateTime created1 = t1.getCreatedAt();
+                LocalDateTime created2 = t2.getCreatedAt();
+                if (created1 == null && created2 == null) return 0;
+                if (created1 == null) return 1;
+                if (created2 == null) return -1;
+                return created2.compareTo(created1); // DESC
+            } catch (Exception e) {
+                // Fallback: sort theo taskId nếu có lỗi
+                Long id1 = t1.getTaskId();
+                Long id2 = t2.getTaskId();
+                if (id1 == null && id2 == null) return 0;
+                if (id1 == null) return 1;
+                if (id2 == null) return -1;
+                return id1.compareTo(id2);
+            }
+        });
+        
+        // Apply pagination sau khi sort
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), filteredTasks.size());
+        List<Task> paginatedContent = start < filteredTasks.size() 
+                ? filteredTasks.subList(start, end) 
+                : new ArrayList<>();
+        
+        // Tạo Page mới với paginated content
+        return new PageImpl<>(paginatedContent, pageable, filteredTasks.size());
+        } catch (Exception e) {
+            log.error("Error in getTasksWithPagination: username={}, categoryId={}, orderId={}, assignedStaffId={}, status={}", 
+                    username, categoryId, orderId, assignedStaffId, status, e);
+            throw new RuntimeException("Lỗi khi lấy danh sách tác vụ: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
+        }
     }
 
     @Override
@@ -360,17 +487,51 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private AccessContext resolveAccessContext(String username) {
-        Account account = accountService.getByUsername(username)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản"));
+        // Tối ưu: Lấy Account từ SecurityContext thay vì query lại database
+        Account account = null;
+        try {
+            org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
+                CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+                account = userDetails.getAccount();
+            }
+        } catch (Exception e) {
+            // Fallback: query từ database nếu không lấy được từ SecurityContext
+            log.debug("Could not get account from SecurityContext, querying database", e);
+        }
+        
+        // Fallback: query từ database nếu không lấy được từ SecurityContext
+        if (account == null) {
+            if (username == null || username.isEmpty()) {
+                throw new IllegalArgumentException("Username không được để trống");
+            }
+            account = accountService.getByUsername(username)
+                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản với username: " + username));
+        }
+        
+        if (account == null) {
+            throw new NoSuchElementException("Không thể lấy thông tin tài khoản");
+        }
+        
         Role role = account.getRole();
+        if (role == null) {
+            throw new IllegalStateException("Tài khoản không có role");
+        }
+        
         if (role == Role.ADMIN || role == Role.OPERATOR) {
             return AccessContext.full(role);
         }
         if (role == Role.TECHNICIAN || role == Role.CUSTOMER_SUPPORT_STAFF) {
+            if (account.getAccountId() == null) {
+                throw new IllegalStateException("Tài khoản không có accountId");
+            }
             Staff staff = staffService.getStaffByAccountIdOrThrow(account.getAccountId());
+            if (staff == null || staff.getStaffId() == null) {
+                throw new NoSuchElementException("Không tìm thấy nhân viên cho accountId: " + account.getAccountId());
+            }
             return AccessContext.restricted(role, staff.getStaffId());
         }
-        throw new AccessDeniedException("Không có quyền truy cập");
+        throw new AccessDeniedException("Không có quyền truy cập với role: " + role);
     }
 
     private void ensureCanModify(AccessContext access) {
@@ -511,6 +672,9 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void notifyCustomerOrderProcessing(Task task) {
+        if (task.getOrderId() == null) {
+            return; // Task không gắn với order, không cần notify customer
+        }
         rentalOrderRepository.findById(task.getOrderId())
                 .map(RentalOrder::getCustomer)
                 .filter(customer -> customer != null && customer.getCustomerId() != null)
