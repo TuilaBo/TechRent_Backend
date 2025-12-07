@@ -19,9 +19,13 @@ import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
+import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
+import org.springframework.web.multipart.MultipartFile;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintRequestDto;
@@ -36,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -55,10 +60,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     private final AllocationRepository allocationRepository;
     private final TaskCategoryRepository taskCategoryRepository;
     private final TaskService taskService;
+    private final TaskRepository taskRepository;
+    private final com.rentaltech.techrental.staff.repository.TaskCustomRepository taskCustomRepository;
     private final StaffService staffService;
     private final AccountService accountService;
     private final BookingCalendarService bookingCalendarService;
     private final BookingCalendarRepository bookingCalendarRepository;
+    private final ImageStorageService imageStorageService;
+    private final com.rentaltech.techrental.staff.service.devicereplacement.DeviceReplacementReportService deviceReplacementReportService;
 
     @Override
     public CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, String username) {
@@ -228,33 +237,71 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Tạo BookingCalendar cho device mới
         bookingCalendarService.createBookingsForAllocations(List.of(savedAllocation));
 
-        // Tạo Task để staff đi đổi máy
+        // Tìm hoặc tạo TaskCategory "Device Replacement"
         TaskCategory replacementCategory = taskCategoryRepository.findByNameIgnoreCase("Device Replacement")
-                .orElseGet(() -> taskCategoryRepository.findByNameIgnoreCase("Delivery")
-                        .orElseThrow(() -> new IllegalStateException("Không tìm thấy TaskCategory cho device replacement")));
+                .orElseGet(() -> {
+                    // Nếu không có "Device Replacement", thử tìm "Delivery"
+                    return taskCategoryRepository.findByNameIgnoreCase("Delivery")
+                            .orElseGet(() -> {
+                                // Nếu không có cả 2, tự động tạo category "Device Replacement"
+                                TaskCategory newCategory = TaskCategory.builder()
+                                        .name("Device Replacement")
+                                        .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
+                                        .build();
+                                return taskCategoryRepository.save(newCategory);
+                            });
+                });
 
-        // Tìm staff phù hợp (CUSTOMER_SUPPORT_STAFF hoặc TECHNICIAN)
-        List<Staff> availableStaff = findAvailableSupportStaff();
-        Set<Staff> assignedStaff = availableStaff.isEmpty() 
-                ? Set.of(staff) 
-                : Set.of(availableStaff.get(0));
+        // Tìm task pending của order (cùng category "Device Replacement")
+        // Chỉ tạo 1 task cho tất cả complaints cùng order
+        List<TaskStatus> pendingStatuses = List.of(
+                com.rentaltech.techrental.staff.model.TaskStatus.PENDING,
+                com.rentaltech.techrental.staff.model.TaskStatus.IN_PROGRESS
+        );
+        List<Task> existingTasks = taskCustomRepository.findPendingTasksByOrderAndCategory(
+                order.getOrderId(),
+                replacementCategory.getTaskCategoryId(),
+                pendingStatuses
+        );
 
-        TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
-                .taskCategoryId(replacementCategory.getTaskCategoryId())
-                .orderId(order.getOrderId())
-                .assignedStaffIds(assignedStaff.stream().map(Staff::getStaffId).collect(Collectors.toList()))
-                .description(String.format("Thay thế thiết bị %s (Serial: %s) bằng thiết bị %s (Serial: %s) cho đơn hàng #%d. Khiếu nại #%d",
-                        brokenDevice.getDeviceModel().getDeviceName(),
-                        brokenDevice.getSerialNumber(),
-                        replacementDevice.getDeviceModel().getDeviceName(),
-                        replacementDevice.getSerialNumber(),
-                        order.getOrderId(),
-                        complaintId))
-                .plannedStart(LocalDateTime.now())
-                .plannedEnd(LocalDateTime.now().plusHours(24)) // Deadline 24h
-                .build();
+        Task replacementTask;
+        if (!existingTasks.isEmpty()) {
+            // Đã có task pending → dùng task đó
+            replacementTask = existingTasks.get(0); // Lấy task đầu tiên
+            // Update description để bao gồm device mới
+            updateTaskDescriptionWithNewDevice(replacementTask, brokenDevice, replacementDevice, complaintId);
+        } else {
+            // Chưa có task → tạo mới
+            // Tìm TẤT CẢ OPERATOR active để assign task cho họ
+            List<Staff> operators = staffService.getStaffByRole(
+                    com.rentaltech.techrental.staff.model.StaffRole.OPERATOR
+            ).stream()
+                    .filter(s -> s.getIsActive() != null && s.getIsActive())
+                    .collect(Collectors.toList());
 
-        Task replacementTask = taskService.createTask(taskRequest, username);
+            // Assign task cho tất cả OPERATOR active
+            // Nếu không có OPERATOR active, fallback về staff hiện tại
+            List<Long> assignedOperatorIds = operators.isEmpty()
+                    ? List.of(staff.getStaffId())
+                    : operators.stream().map(Staff::getStaffId).collect(Collectors.toList());
+
+            TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
+                    .taskCategoryId(replacementCategory.getTaskCategoryId())
+                    .orderId(order.getOrderId())
+                    .assignedStaffIds(assignedOperatorIds)
+                    .description(String.format("Thay thế thiết bị cho đơn hàng #%d. Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s). Vui lòng assign staff đi giao máy.",
+                            order.getOrderId(),
+                            complaintId,
+                            brokenDevice.getDeviceModel().getDeviceName(),
+                            brokenDevice.getSerialNumber(),
+                            replacementDevice.getDeviceModel().getDeviceName(),
+                            replacementDevice.getSerialNumber()))
+                    .plannedStart(LocalDateTime.now())
+                    .plannedEnd(LocalDateTime.now().plusHours(24)) // Deadline 24h
+                    .build();
+
+            replacementTask = taskService.createTask(taskRequest, username);
+        }
 
         // Update complaint
         complaint.setStatus(ComplaintStatus.PROCESSING);
@@ -265,11 +312,62 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         complaint.setProcessedAt(LocalDateTime.now());
 
         CustomerComplaint saved = complaintRepository.save(complaint);
+        
+        // OPTION 3: Tự động tạo biên bản (hoặc thêm vào biên bản pending nếu có)
+        // Biên bản sẽ được tạo ngay khi process, tự động gộp nếu đã có biên bản pending của order
+        deviceReplacementReportService.createDeviceReplacementReport(saved.getComplaintId(), username);
+        
+        // Reload để lấy replacement report
+        saved = complaintRepository.findById(saved.getComplaintId())
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại sau khi tạo biên bản"));
+        
         return CustomerComplaintResponseDto.from(saved);
     }
 
+    /**
+     * Update task description để bao gồm device mới được thêm vào
+     */
+    private void updateTaskDescriptionWithNewDevice(Task task, Device brokenDevice, Device replacementDevice, Long complaintId) {
+        if (task == null || task.getTaskId() == null) {
+            return;
+        }
+        
+        // Lấy tất cả complaints đang PROCESSING của order để build description đầy đủ
+        List<CustomerComplaint> processingComplaints = complaintRepository
+                .findByRentalOrder_OrderIdAndStatus(task.getOrderId(), ComplaintStatus.PROCESSING);
+        
+        if (processingComplaints.isEmpty()) {
+            return;
+        }
+        
+        // Build description với tất cả devices cần thay thế
+        StringBuilder description = new StringBuilder();
+        description.append(String.format("Thay thế thiết bị cho đơn hàng #%d:\n", task.getOrderId()));
+        
+        for (CustomerComplaint c : processingComplaints) {
+            if (c.getDevice() != null && c.getReplacementDevice() != null) {
+                description.append(String.format("- Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s)\n",
+                        c.getComplaintId(),
+                        c.getDevice().getDeviceModel() != null ? c.getDevice().getDeviceModel().getDeviceName() : "N/A",
+                        c.getDevice().getSerialNumber(),
+                        c.getReplacementDevice().getDeviceModel() != null ? c.getReplacementDevice().getDeviceModel().getDeviceName() : "N/A",
+                        c.getReplacementDevice().getSerialNumber()));
+            }
+        }
+        
+        description.append("Vui lòng assign staff đi giao máy.");
+        
+        // Truncate nếu quá dài (description có limit 1000 chars)
+        String finalDescription = description.length() > 1000 
+                ? description.substring(0, 997) + "..." 
+                : description.toString();
+        
+        task.setDescription(finalDescription);
+        taskRepository.save(task);
+    }
+
     @Override
-    public CustomerComplaintResponseDto resolveComplaint(Long complaintId, String staffNote, String username) {
+    public CustomerComplaintResponseDto resolveComplaint(Long complaintId, String staffNote, List<MultipartFile> evidenceFiles, String username) {
         CustomerComplaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại: " + complaintId));
 
@@ -281,14 +379,65 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản"));
         Staff staff = staffService.getStaffByAccountIdOrThrow(account.getAccountId());
 
+        // Validate: Chỉ staff được assign task mới có thể resolve
+        Task replacementTask = complaint.getReplacementTask();
+        if (replacementTask != null && replacementTask.getTaskId() != null) {
+            boolean isAssigned = replacementTask.getAssignedStaff() != null
+                    && replacementTask.getAssignedStaff().stream()
+                    .anyMatch(s -> s.getStaffId() != null && s.getStaffId().equals(staff.getStaffId()));
+            // ADMIN và OPERATOR có thể resolve bất kỳ complaint nào
+            boolean isAdminOrOperator = account.getRole() == com.rentaltech.techrental.authentication.model.Role.ADMIN
+                    || account.getRole() == com.rentaltech.techrental.authentication.model.Role.OPERATOR;
+            if (!isAssigned && !isAdminOrOperator) {
+                throw new AccessDeniedException("Chỉ staff được assign task mới có thể đánh dấu giải quyết khiếu nại này");
+            }
+        }
+
+        // Biên bản đã được tạo trong processComplaint, chỉ cần validate
+        com.rentaltech.techrental.staff.model.DeviceReplacementReport replacementReport = complaint.getReplacementReport();
+        if (replacementReport == null || replacementReport.getReplacementReportId() == null) {
+            throw new IllegalStateException("Biên bản đổi thiết bị chưa được tạo. Vui lòng xử lý khiếu nại trước.");
+        }
+        if (!replacementReport.getStaffSigned() || !replacementReport.getCustomerSigned()) {
+            throw new IllegalStateException("Cần cả nhân viên và khách hàng ký biên bản đổi thiết bị trước khi giải quyết khiếu nại");
+        }
+
+        // Upload ảnh bằng chứng
+        List<String> evidenceUrls = new ArrayList<>();
+        if (evidenceFiles != null && !evidenceFiles.isEmpty()) {
+            for (MultipartFile file : evidenceFiles) {
+                if (file != null && !file.isEmpty()) {
+                    String url = imageStorageService.uploadComplaintEvidence(file, complaintId);
+                    evidenceUrls.add(url);
+                }
+            }
+        }
+
+        // Update complaint
         complaint.setStatus(ComplaintStatus.RESOLVED);
         complaint.setResolvedAt(LocalDateTime.now());
         complaint.setResolvedBy(staff);
         if (staffNote != null && !staffNote.isBlank()) {
             complaint.setStaffNote(staffNote);
         }
+        if (!evidenceUrls.isEmpty()) {
+            // Lưu danh sách URL dưới dạng JSON array string
+            complaint.setEvidenceUrls(String.join(",", evidenceUrls));
+        }
+        // Đảm bảo replacementReport được link
+        if (complaint.getReplacementReport() == null && replacementReport != null) {
+            complaint.setReplacementReport(replacementReport);
+        }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
+
+        // Tự động update task status thành COMPLETED
+        if (replacementTask != null && replacementTask.getTaskId() != null) {
+            replacementTask.setStatus(TaskStatus.COMPLETED);
+            replacementTask.setCompletedAt(LocalDateTime.now());
+            taskRepository.save(replacementTask);
+        }
+
         return CustomerComplaintResponseDto.from(saved);
     }
 
@@ -343,29 +492,5 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .orElse(null);
     }
 
-    /**
-     * Tìm staff phù hợp để assign task (CUSTOMER_SUPPORT_STAFF hoặc TECHNICIAN)
-     */
-    private List<Staff> findAvailableSupportStaff() {
-        // Tìm CUSTOMER_SUPPORT_STAFF trước
-        List<Staff> supportStaffs = staffService.getStaffByRole(
-                com.rentaltech.techrental.staff.model.StaffRole.CUSTOMER_SUPPORT_STAFF
-        ).stream()
-                .filter(staff -> staff.getIsActive() != null && staff.getIsActive())
-                .collect(Collectors.toList());
-
-        if (!supportStaffs.isEmpty()) {
-            return supportStaffs;
-        }
-
-        // Fallback: TECHNICIAN
-        List<Staff> technicians = staffService.getStaffByRole(
-                com.rentaltech.techrental.staff.model.StaffRole.TECHNICIAN
-        ).stream()
-                .filter(staff -> staff.getIsActive() != null && staff.getIsActive())
-                .collect(Collectors.toList());
-
-        return technicians;
-    }
 }
 

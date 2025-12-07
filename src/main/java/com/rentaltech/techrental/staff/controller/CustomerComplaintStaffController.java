@@ -5,7 +5,6 @@ import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.CancelComplaintRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.ProcessComplaintRequestDto;
-import com.rentaltech.techrental.webapi.customer.model.dto.ResolveComplaintRequestDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerComplaintService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,10 +13,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -66,7 +67,7 @@ public class CustomerComplaintStaffController {
         );
     }
 
-    @PostMapping("/{complaintId}/process")
+    @PatchMapping("/{complaintId}/process")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
     @Operation(summary = "Xử lý khiếu nại", description = "Tự động tìm device thay thế, tạo allocation mới, tạo task cho staff đi đổi máy")
     @ApiResponses({
@@ -90,31 +91,31 @@ public class CustomerComplaintStaffController {
         );
     }
 
-    @PostMapping("/{complaintId}/resolve")
+    @PatchMapping(value = "/{complaintId}/resolve", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Đánh dấu đã giải quyết", description = "Đánh dấu khiếu nại đã được giải quyết (sau khi hoàn thành task đổi máy)")
+    @Operation(summary = "Đánh dấu đã giải quyết", description = "Đánh dấu khiếu nại đã được giải quyết (sau khi hoàn thành task đổi máy). Tự động update task status thành COMPLETED. Yêu cầu upload ảnh bằng chứng.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đánh dấu giải quyết thành công"),
-            @ApiResponse(responseCode = "400", description = "Khiếu nại không ở trạng thái PROCESSING"),
+            @ApiResponse(responseCode = "400", description = "Khiếu nại không ở trạng thái PROCESSING hoặc thiếu ảnh bằng chứng"),
             @ApiResponse(responseCode = "403", description = "Không có quyền truy cập"),
             @ApiResponse(responseCode = "404", description = "Không tìm thấy khiếu nại")
     })
     public ResponseEntity<?> resolveComplaint(
             @PathVariable Long complaintId,
-            @RequestBody(required = false) ResolveComplaintRequestDto request,
+            @RequestPart(value = "staffNote", required = false) String staffNote,
+            @RequestPart(value = "evidenceFiles", required = false) List<MultipartFile> evidenceFiles,
             Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
-        String staffNote = request != null ? request.getStaffNote() : null;
-        CustomerComplaintResponseDto response = complaintService.resolveComplaint(complaintId, staffNote, username);
+        CustomerComplaintResponseDto response = complaintService.resolveComplaint(complaintId, staffNote, evidenceFiles, username);
         return ResponseUtil.createSuccessResponse(
                 "Đánh dấu giải quyết thành công",
-                "Khiếu nại đã được đánh dấu là đã giải quyết",
+                "Khiếu nại đã được đánh dấu là đã giải quyết và task đã được tự động hoàn thành",
                 response,
                 HttpStatus.OK
         );
     }
 
-    @PostMapping("/{complaintId}/cancel")
+    @PatchMapping("/{complaintId}/cancel")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Hủy khiếu nại", description = "Hủy khiếu nại (chỉ ADMIN hoặc OPERATOR)")
     @ApiResponses({

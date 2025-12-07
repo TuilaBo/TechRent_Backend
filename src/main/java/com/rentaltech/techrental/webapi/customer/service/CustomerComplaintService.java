@@ -45,8 +45,9 @@ public interface CustomerComplaintService {
     
     /**
      * Staff đánh dấu đã giải quyết (sau khi hoàn thành task đổi máy)
+     * Tự động update task status thành COMPLETED
      */
-    CustomerComplaintResponseDto resolveComplaint(Long complaintId, String staffNote, String username);
+    CustomerComplaintResponseDto resolveComplaint(Long complaintId, String staffNote, List<org.springframework.web.multipart.MultipartFile> evidenceFiles, String username);
     
     /**
      * Staff hủy khiếu nại (nếu không cần thay thế)

@@ -61,6 +61,10 @@ public class CustomerComplaint {
     @JoinColumn(name = "replacement_allocation_id")
     private Allocation replacementAllocation; // Allocation mới cho device thay thế
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "replacement_report_id")
+    private com.rentaltech.techrental.staff.model.DeviceReplacementReport replacementReport; // Biên bản đổi thiết bị
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -73,6 +77,9 @@ public class CustomerComplaint {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resolved_by_staff_id")
     private Staff resolvedBy; // Staff đã giải quyết
+
+    @Column(name = "evidence_urls", columnDefinition = "text")
+    private String evidenceUrls; // Danh sách URL ảnh bằng chứng (JSON array hoặc comma-separated)
 
     @PrePersist
     public void onCreate() {

@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -28,11 +29,13 @@ public class CustomerComplaintResponseDto {
     private String replacementDeviceSerialNumber;
     private Long replacementTaskId;
     private Long replacementAllocationId;
+    private Long replacementReportId; // ID biên bản đổi thiết bị
     private LocalDateTime createdAt;
     private LocalDateTime processedAt;
     private LocalDateTime resolvedAt;
     private Long resolvedByStaffId;
     private String resolvedByStaffName;
+    private List<String> evidenceUrls; // Danh sách URL ảnh bằng chứng
 
     public static CustomerComplaintResponseDto from(CustomerComplaint complaint) {
         if (complaint == null) {
@@ -58,12 +61,17 @@ public class CustomerComplaintResponseDto {
                         ? complaint.getReplacementTask().getTaskId() : null)
                 .replacementAllocationId(complaint.getReplacementAllocation() != null 
                         ? complaint.getReplacementAllocation().getAllocationId() : null)
+                .replacementReportId(complaint.getReplacementReport() != null 
+                        ? complaint.getReplacementReport().getReplacementReportId() : null)
                 .createdAt(complaint.getCreatedAt())
                 .processedAt(complaint.getProcessedAt())
                 .resolvedAt(complaint.getResolvedAt())
                 .resolvedByStaffId(complaint.getResolvedBy() != null ? complaint.getResolvedBy().getStaffId() : null)
                 .resolvedByStaffName(complaint.getResolvedBy() != null && complaint.getResolvedBy().getAccount() != null
                         ? complaint.getResolvedBy().getAccount().getUsername() : null)
+                .evidenceUrls(complaint.getEvidenceUrls() != null && !complaint.getEvidenceUrls().isBlank()
+                        ? java.util.Arrays.asList(complaint.getEvidenceUrls().split(","))
+                        : java.util.Collections.emptyList())
                 .build();
     }
 }

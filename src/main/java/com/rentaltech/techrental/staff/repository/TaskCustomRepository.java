@@ -436,4 +436,44 @@ public class TaskCustomRepository {
         
         return entityManager.createQuery(countQuery).getSingleResult();
     }
+
+    /**
+     * Tìm pending tasks theo order và category (sử dụng JPA Criteria API)
+     * Dùng cho device replacement - chỉ tạo 1 task cho tất cả complaints cùng order
+     */
+    public List<Task> findPendingTasksByOrderAndCategory(
+            Long orderId,
+            Long categoryId,
+            List<TaskStatus> statuses) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Task> query = cb.createQuery(Task.class);
+        Root<Task> task = query.from(Task.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+
+        // t.orderId = :orderId
+        if (orderId != null) {
+            predicates.add(cb.equal(task.get("orderId"), orderId));
+        }
+
+        // t.taskCategory.taskCategoryId = :categoryId
+        if (categoryId != null) {
+            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        }
+
+        // t.status in (:statuses)
+        if (statuses != null && !statuses.isEmpty()) {
+            predicates.add(task.get("status").in(statuses));
+        }
+
+        // Combine predicates
+        if (!predicates.isEmpty()) {
+            query.where(cb.and(predicates.toArray(new Predicate[0])));
+        }
+
+        // Order by createdAt ASC
+        query.orderBy(cb.asc(task.get("createdAt")));
+
+        return entityManager.createQuery(query).getResultList();
+    }
 }
