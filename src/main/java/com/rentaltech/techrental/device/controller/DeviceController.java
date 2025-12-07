@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.device.controller;
 
+import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionUpdateRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceRequestDto;
@@ -26,6 +27,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 @RestController
@@ -251,12 +253,15 @@ public class DeviceController {
             @RequestParam(required = false) Long deviceModelId,
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String deviceName,
-            Pageable pageable) {
-        var page = service.search(serialNumber, shelfCode, status, deviceModelId, brand, deviceName, pageable);
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
+        var pageResult = service.search(serialNumber, shelfCode, status, deviceModelId, brand, deviceName, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm thiết bị",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
-                page,
+                pageResult,
                 HttpStatus.OK
         );
     }

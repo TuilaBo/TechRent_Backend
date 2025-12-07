@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.device.controller;
 
+import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.dto.BrandRequestDto;
 import com.rentaltech.techrental.device.service.BrandService;
@@ -15,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -117,12 +120,15 @@ public class BrandController {
     public ResponseEntity<?> search(
             @RequestParam(required = false) String brandName,
             @RequestParam(required = false) Boolean isActive,
-            Pageable pageable) {
-        var page = service.search(brandName, isActive, pageable);
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
+        var pageResult = service.search(brandName, isActive, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm thương hiệu",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
-                page,
+                pageResult,
                 HttpStatus.OK
         );
     }
