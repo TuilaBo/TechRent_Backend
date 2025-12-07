@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.rentalorder.controller;
 
+import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -186,12 +188,16 @@ public class RentalOrderController {
             @RequestParam(required = false) String endDateFrom,
             @RequestParam(required = false) String endDateTo,
             @RequestParam(required = false) String createdAtFrom,
-            @RequestParam(required = false) String createdAtTo, Pageable pageable) {
-        var page = service.search(orderStatus, customerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
+            @RequestParam(required = false) String createdAtTo,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
+        var pageResult = service.search(orderStatus, customerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm đơn thuê",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
-                page,
+                pageResult,
                 HttpStatus.OK
         );
     }

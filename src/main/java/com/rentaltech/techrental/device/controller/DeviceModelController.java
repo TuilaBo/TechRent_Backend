@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.device.controller;
 
+import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.dto.DeviceModelRequestDto;
 import com.rentaltech.techrental.device.service.DeviceModelService;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -147,12 +149,15 @@ public class DeviceModelController {
             @RequestParam(required = false) Long deviceCategoryId,
             @RequestParam(required = false) BigDecimal pricePerDay,
             @RequestParam(required = false) Boolean isActive,
-            Pageable pageable) {
-        var page = service.search(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive, pageable);
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
+        var pageResult = service.search(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm mẫu thiết bị",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
-                page,
+                pageResult,
                 HttpStatus.OK
         );
     }

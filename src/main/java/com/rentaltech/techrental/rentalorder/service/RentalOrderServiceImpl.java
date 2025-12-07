@@ -73,6 +73,11 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(RentalOrderServiceImpl.class);
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
+    private static final EnumSet<OrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
+            OrderStatus.PENDING_KYC,
+            OrderStatus.PENDING,
+            OrderStatus.PROCESSING
+    );
 
     private final RentalOrderRepository rentalOrderRepository;
     private final OrderDetailRepository orderDetailRepository;
@@ -396,12 +401,37 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
     @Override
     public void delete(Long id) {
-        if (!rentalOrderRepository.existsById(id)) {
-            throw new NoSuchElementException("Không tìm thấy đơn thuê: " + id);
+        RentalOrder order = rentalOrderRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
+        OrderStatus currentStatus = order.getOrderStatus();
+        if (currentStatus == null || !CANCELLABLE_STATUSES.contains(currentStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Chỉ có thể hủy đơn ở trạng thái PENDING_KYC, PENDING hoặc PROCESSING");
+        }
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
+        if (!details.isEmpty()) {
+            details.forEach(detail -> detail.setStatus(OrderStatus.CANCELLED));
+            orderDetailRepository.saveAll(details);
+        }
+        List<Task> tasks = taskRepository.findByOrderId(id);
+        if (!tasks.isEmpty()) {
+            boolean changed = false;
+            for (Task task : tasks) {
+                if (task == null || task.getStatus() == null) {
+                    continue;
+                }
+                if (task.getStatus() == TaskStatus.PENDING || task.getStatus() == TaskStatus.IN_PROGRESS) {
+                    task.setStatus(TaskStatus.CANCELLED);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                taskRepository.saveAll(tasks);
+            }
         }
         reservationService.cancelReservations(id);
-        orderDetailRepository.deleteByRentalOrder_OrderId(id);
-        rentalOrderRepository.deleteById(id);
+        rentalOrderRepository.save(order);
     }
 
     private RentalOrderResponseDto buildOrderResponseWithExtensions(RentalOrder order) {

@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.rentalorder.model.dto;
 
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
+import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +19,7 @@ public class OrderDetailResponseDto {
     private BigDecimal pricePerDay;
     private BigDecimal depositAmountPerUnit;
     private Long deviceModelId;
+    private OrderStatus status;
 
     public static OrderDetailResponseDto from(OrderDetail detail) {
         if (detail == null) {
@@ -30,6 +32,7 @@ public class OrderDetailResponseDto {
                 .pricePerDay(detail.getPricePerDay())
                 .depositAmountPerUnit(detail.getDepositAmountPerUnit())
                 .deviceModelId(model != null ? model.getDeviceModelId() : null)
+                .status(detail.getStatus())
                 .build();
     }
 }

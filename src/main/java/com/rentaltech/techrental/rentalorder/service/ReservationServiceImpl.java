@@ -6,6 +6,9 @@ import com.rentaltech.techrental.rentalorder.model.Reservation;
 import com.rentaltech.techrental.rentalorder.model.ReservationStatus;
 import com.rentaltech.techrental.rentalorder.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,8 @@ public class ReservationServiceImpl implements ReservationService {
     private static final Duration UNDER_REVIEW_DURATION = Duration.ofHours(6);
     private static final Set<ReservationStatus> ACTIVE_STATUSES =
             EnumSet.of(ReservationStatus.PENDING_REVIEW, ReservationStatus.UNDER_REVIEW);
+    private static final Set<ReservationStatus> TECHNICIAN_STATUSES =
+            EnumSet.of(ReservationStatus.UNDER_REVIEW);
 
     private final ReservationRepository reservationRepository;
 
@@ -95,11 +100,12 @@ public class ReservationServiceImpl implements ReservationService {
         if (deviceModelId == null || start == null || end == null || !start.isBefore(end)) {
             return 0L;
         }
+        Set<ReservationStatus> statuses = getStatusesForCurrentUser();
         return reservationRepository.sumReservedQuantity(
                 deviceModelId,
                 start,
                 end,
-                ACTIVE_STATUSES,
+                statuses,
                 LocalDateTime.now()
         );
     }
@@ -139,5 +145,16 @@ public class ReservationServiceImpl implements ReservationService {
             return;
         }
         reservationRepository.overrideStatusForOrder(orderId, targetStatus, expirationTime);
+    }
+
+    private Set<ReservationStatus> getStatusesForCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ACTIVE_STATUSES;
+        }
+        boolean isTechnician = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_TECHNICIAN"::equals);
+        return isTechnician ? TECHNICIAN_STATUSES : ACTIVE_STATUSES;
     }
 }
