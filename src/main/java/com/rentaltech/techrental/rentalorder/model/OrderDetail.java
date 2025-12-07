@@ -1,8 +1,6 @@
 package com.rentaltech.techrental.rentalorder.model;
 
 import com.rentaltech.techrental.device.model.DeviceModel;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,16 +38,4 @@ public class OrderDetail {
     @ManyToOne
     @JoinColumn(name = "device_model_id", referencedColumnName = "device_model_id", nullable = false)
     private DeviceModel deviceModel;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    @Builder.Default
-    private OrderStatus status = OrderStatus.PENDING;
-
-    @PrePersist
-    public void ensureStatus() {
-        if (status == null) {
-            status = OrderStatus.PENDING;
-        }
-    }
 }

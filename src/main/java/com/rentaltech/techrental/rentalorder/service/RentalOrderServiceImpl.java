@@ -409,11 +409,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                     "Chỉ có thể hủy đơn ở trạng thái PENDING_KYC, PENDING hoặc PROCESSING");
         }
         order.setOrderStatus(OrderStatus.CANCELLED);
-        List<OrderDetail> details = orderDetailRepository.findByRentalOrder_OrderId(id);
-        if (!details.isEmpty()) {
-            details.forEach(detail -> detail.setStatus(OrderStatus.CANCELLED));
-            orderDetailRepository.saveAll(details);
-        }
         List<Task> tasks = taskRepository.findByOrderId(id);
         if (!tasks.isEmpty()) {
             boolean changed = false;
