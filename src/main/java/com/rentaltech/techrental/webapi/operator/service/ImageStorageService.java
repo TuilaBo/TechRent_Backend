@@ -16,6 +16,8 @@ public interface ImageStorageService {
     String uploadInvoiceProof(MultipartFile file, Long settlementId);
 
     String uploadPolicyFile(MultipartFile file, Long policyId, String fileName);
+
+    String uploadComplaintEvidence(MultipartFile file, Long complaintId);
 }
 
 
