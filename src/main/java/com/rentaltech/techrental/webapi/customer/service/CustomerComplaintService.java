@@ -41,7 +41,22 @@ public interface CustomerComplaintService {
     /**
      * Staff xử lý khiếu nại: Tự động tìm device thay thế, tạo allocation mới, tạo task
      */
-    CustomerComplaintResponseDto processComplaint(Long complaintId, String staffNote, String username);
+    CustomerComplaintResponseDto processComplaint(Long complaintId,
+                                                  com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource faultSource,
+                                                  java.util.List<Long> conditionDefinitionIds,
+                                                  String damageNote,
+                                                  String staffNote,
+                                                  String username);
+
+    /**
+     * Sau khi kiểm tra tại chỗ, staff cập nhật nguồn lỗi và condition hư hỏng (nếu có).
+     */
+    CustomerComplaintResponseDto updateFaultAndConditions(Long complaintId,
+                                                          com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource faultSource,
+                                                          java.util.List<Long> conditionDefinitionIds,
+                                                          String damageNote,
+                                                          String staffNote,
+                                                          String username);
     
     /**
      * Staff đánh dấu đã giải quyết (sau khi hoàn thành task đổi máy)

@@ -68,6 +68,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     private final BookingCalendarRepository bookingCalendarRepository;
     private final ImageStorageService imageStorageService;
     private final com.rentaltech.techrental.staff.service.devicereplacement.DeviceReplacementReportService deviceReplacementReportService;
+    private final com.rentaltech.techrental.device.service.DeviceConditionService deviceConditionService;
 
     @Override
     public CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, String username) {
@@ -182,7 +183,12 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     }
 
     @Override
-    public CustomerComplaintResponseDto processComplaint(Long complaintId, String staffNote, String username) {
+    public CustomerComplaintResponseDto processComplaint(Long complaintId,
+                                                         com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource faultSource,
+                                                         java.util.List<Long> conditionDefinitionIds,
+                                                         String damageNote,
+                                                         String staffNote,
+                                                         String username) {
         CustomerComplaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại: " + complaintId));
 
@@ -272,17 +278,15 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             updateTaskDescriptionWithNewDevice(replacementTask, brokenDevice, replacementDevice, complaintId);
         } else {
             // Chưa có task → tạo mới
-            // Tìm TẤT CẢ OPERATOR active để assign task cho họ
+            // Assign cho tất cả OPERATOR active; ai nhận trước sẽ assign tiếp cho technician
             List<Staff> operators = staffService.getStaffByRole(
                     com.rentaltech.techrental.staff.model.StaffRole.OPERATOR
             ).stream()
                     .filter(s -> s.getIsActive() != null && s.getIsActive())
                     .collect(Collectors.toList());
 
-            // Assign task cho tất cả OPERATOR active
-            // Nếu không có OPERATOR active, fallback về staff hiện tại
             List<Long> assignedOperatorIds = operators.isEmpty()
-                    ? List.of(staff.getStaffId())
+                    ? List.of(staff.getStaffId()) // fallback: assign người đang xử lý
                     : operators.stream().map(Staff::getStaffId).collect(Collectors.toList());
 
             TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
@@ -305,11 +309,21 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         // Update complaint
         complaint.setStatus(ComplaintStatus.PROCESSING);
+        complaint.setFaultSource(faultSource != null
+                ? faultSource
+                : com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.UNKNOWN);
         complaint.setStaffNote(staffNote);
         complaint.setReplacementDevice(replacementDevice);
         complaint.setReplacementTask(replacementTask);
         complaint.setReplacementAllocation(savedAllocation);
         complaint.setProcessedAt(LocalDateTime.now());
+
+        // Nếu lỗi do khách: ghi nhận các condition hư hỏng để tính phí sau này
+        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
+                && conditionDefinitionIds != null
+                && !conditionDefinitionIds.isEmpty()) {
+            addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
+        }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
         
@@ -322,6 +336,64 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại sau khi tạo biên bản"));
         
         return CustomerComplaintResponseDto.from(saved);
+    }
+
+    @Override
+    public CustomerComplaintResponseDto updateFaultAndConditions(Long complaintId,
+                                                                 com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource faultSource,
+                                                                 java.util.List<Long> conditionDefinitionIds,
+                                                                 String damageNote,
+                                                                 String staffNote,
+                                                                 String username) {
+        CustomerComplaint complaint = complaintRepository.findById(complaintId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại: " + complaintId));
+
+        if (complaint.getStatus() != ComplaintStatus.PROCESSING) {
+            throw new IllegalStateException("Chỉ có thể cập nhật nguồn lỗi khi complaint ở trạng thái PROCESSING");
+        }
+
+        Account account = accountService.getByUsername(username)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy tài khoản"));
+        Staff staff = staffService.getStaffByAccountIdOrThrow(account.getAccountId());
+
+        Device brokenDevice = complaint.getDevice();
+        if (brokenDevice == null || brokenDevice.getDeviceId() == null) {
+            throw new IllegalStateException("Không xác định được thiết bị của khiếu nại");
+        }
+
+        if (faultSource != null) {
+            complaint.setFaultSource(faultSource);
+        }
+        if (staffNote != null && !staffNote.isBlank()) {
+            complaint.setStaffNote(staffNote);
+        }
+
+        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
+                && conditionDefinitionIds != null
+                && !conditionDefinitionIds.isEmpty()) {
+            addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
+        }
+
+        CustomerComplaint saved = complaintRepository.save(complaint);
+        return CustomerComplaintResponseDto.from(saved);
+    }
+
+    private void addDamageConditions(Long deviceId,
+                                     java.util.List<Long> conditionDefinitionIds,
+                                     String damageNote,
+                                     Long staffId) {
+        for (Long conditionDefinitionId : conditionDefinitionIds) {
+            if (conditionDefinitionId == null) {
+                continue;
+            }
+            deviceConditionService.updateCondition(
+                    deviceId,
+                    conditionDefinitionId,
+                    null,
+                    damageNote,
+                    List.of(),
+                    staffId);
+        }
     }
 
     /**

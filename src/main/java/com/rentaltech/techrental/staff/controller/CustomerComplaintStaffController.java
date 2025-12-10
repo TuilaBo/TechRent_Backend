@@ -5,12 +5,14 @@ import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.CancelComplaintRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.ProcessComplaintRequestDto;
+import com.rentaltech.techrental.webapi.customer.model.dto.UpdateComplaintFaultRequestDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerComplaintService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -82,10 +84,50 @@ public class CustomerComplaintStaffController {
             Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         String staffNote = request != null ? request.getStaffNote() : null;
-        CustomerComplaintResponseDto response = complaintService.processComplaint(complaintId, staffNote, username);
+        var faultSource = request != null ? request.getFaultSource() : null;
+        var conditionDefinitionIds = request != null ? request.getConditionDefinitionIds() : null;
+        var damageNote = request != null ? request.getDamageNote() : null;
+        CustomerComplaintResponseDto response = complaintService.processComplaint(
+                complaintId,
+                faultSource,
+                conditionDefinitionIds,
+                damageNote,
+                staffNote,
+                username);
         return ResponseUtil.createSuccessResponse(
                 "Xử lý khiếu nại thành công",
                 "Đã tìm thấy device thay thế và tạo task cho staff đi đổi máy",
+                response,
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping("/{complaintId}/fault")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Cập nhật nguồn lỗi và condition sau khi kiểm tra",
+            description = "Dùng khi staff đã kiểm tra tại chỗ để xác định lỗi do ai và ghi nhận conditionDefinitionId cho hư hỏng của khách.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc complaint không ở trạng thái PROCESSING"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền truy cập"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy khiếu nại")
+    })
+    public ResponseEntity<?> updateFaultAndConditions(
+            @PathVariable Long complaintId,
+            @RequestBody @Valid UpdateComplaintFaultRequestDto request,
+            Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        CustomerComplaintResponseDto response = complaintService.updateFaultAndConditions(
+                complaintId,
+                request.getFaultSource(),
+                request.getConditionDefinitionIds(),
+                request.getDamageNote(),
+                request.getStaffNote(),
+                username
+        );
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật nguồn lỗi thành công",
+                "Đã ghi nhận nguồn lỗi và tình trạng hư hỏng (nếu có)",
                 response,
                 HttpStatus.OK
         );

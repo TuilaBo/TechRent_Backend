@@ -6,7 +6,6 @@ import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 public interface RentalOrderService {
@@ -16,11 +15,6 @@ public interface RentalOrderService {
     Page<RentalOrderResponseDto> search(
             String orderStatus,
             Long customerId,
-            String shippingAddress,
-            BigDecimal minTotalPrice,
-            BigDecimal maxTotalPrice,
-            BigDecimal minPricePerDay,
-            BigDecimal maxPricePerDay,
             String startDateFrom,
             String startDateTo,
             String endDateFrom,
