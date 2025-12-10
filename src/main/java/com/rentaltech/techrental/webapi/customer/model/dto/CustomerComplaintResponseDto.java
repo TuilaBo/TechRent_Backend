@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.webapi.customer.model.dto;
 
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import lombok.AllArgsConstructor;
@@ -23,6 +24,7 @@ public class CustomerComplaintResponseDto {
     private String deviceModelName;
     private Long allocationId;
     private ComplaintStatus status;
+    private ComplaintFaultSource faultSource;
     private String customerDescription;
     private String staffNote;
     private Long replacementDeviceId;
@@ -51,6 +53,7 @@ public class CustomerComplaintResponseDto {
                         ? complaint.getDevice().getDeviceModel().getDeviceName() : null)
                 .allocationId(complaint.getAllocation() != null ? complaint.getAllocation().getAllocationId() : null)
                 .status(complaint.getStatus())
+                .faultSource(complaint.getFaultSource())
                 .customerDescription(complaint.getCustomerDescription())
                 .staffNote(complaint.getStaffNote())
                 .replacementDeviceId(complaint.getReplacementDevice() != null 

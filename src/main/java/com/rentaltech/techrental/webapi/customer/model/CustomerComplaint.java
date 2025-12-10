@@ -43,6 +43,11 @@ public class CustomerComplaint {
     @Builder.Default
     private ComplaintStatus status = ComplaintStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fault_source", length = 50)
+    @Builder.Default
+    private ComplaintFaultSource faultSource = ComplaintFaultSource.UNKNOWN;
+
     @Column(name = "customer_description", columnDefinition = "text", nullable = false)
     private String customerDescription; // Mô tả lỗi từ khách hàng
 
@@ -88,6 +93,9 @@ public class CustomerComplaint {
         }
         if (status == null) {
             status = ComplaintStatus.PENDING;
+        }
+        if (faultSource == null) {
+            faultSource = ComplaintFaultSource.UNKNOWN;
         }
     }
 }
