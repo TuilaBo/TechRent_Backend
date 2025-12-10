@@ -80,6 +80,14 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
         return uploadFile(file, options);
     }
 
+    @Override
+    public String uploadComplaintEvidence(MultipartFile file, Long complaintId) {
+        String folder = complaintId != null
+                ? String.format("techrental/complaints/complaint_%d", complaintId)
+                : "techrental/complaints";
+        return uploadFile(file, buildOptions(folder, "evidence"));
+    }
+
     private String uploadFile(MultipartFile file, Map<String, Object> options) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Tệp rỗng");

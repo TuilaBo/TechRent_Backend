@@ -144,10 +144,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRuntimeException(RuntimeException ex, WebRequest request) {
+        String message = ex.getMessage();
+        if (message == null || message.isEmpty()) {
+            message = ex.getClass().getSimpleName() + " occurred";
+        }
+        // Log full stack trace for debugging
+        System.err.println("RuntimeException: " + message);
+        ex.printStackTrace();
         return ResponseUtil.createErrorResponse(
                 "INTERNAL_ERROR",
                 "Lỗi hệ thống",
-                "Có lỗi xảy ra: " + ex.getMessage(),
+                "Có lỗi xảy ra: " + message,
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }

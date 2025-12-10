@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.controller;
 
+import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Settlement;
 import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
@@ -17,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/settlements")
@@ -88,9 +91,12 @@ public class SettlementController {
             @ApiResponse(responseCode = "200", description = "Trả về danh sách settlement"),
             @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
     })
-    public ResponseEntity<?> getAll(Pageable pageable) {
-        var page = settlementService.getAll(pageable);
-        var pageDto = page.map(SettlementResponseDto::from);
+    public ResponseEntity<?> getAll(@RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "20") int size,
+                                    @RequestParam(required = false) List<String> sort) {
+        Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
+        var pageResult = settlementService.getAll(pageable);
+        var pageDto = pageResult.map(SettlementResponseDto::from);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Danh sách tất cả settlement",
                 "Tất cả settlements trong hệ thống với phân trang",
