@@ -43,8 +43,8 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
@@ -99,8 +99,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<RentalOrderResponseDto> search(String orderStatus, Long customerId, String shippingAddress, BigDecimal minTotalPrice, BigDecimal maxTotalPrice, BigDecimal minPricePerDay, BigDecimal maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo, Pageable pageable) {
+    public Page<RentalOrderResponseDto> search(String orderStatus, Long customerId, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo, Pageable pageable) {
         Long effectiveCustomerId = customerId;
+        Long authenticatedCustomerId = null;
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated()) {
@@ -109,13 +110,53 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                     .anyMatch("ROLE_CUSTOMER"::equals);
             if (isCustomer) {
                 var username = auth.getName();
-                var customerOpt = customerRepository.findByAccount_Username(username);
-                effectiveCustomerId = customerOpt.map(Customer::getCustomerId).orElse(-1L);
+                Customer customer = customerRepository.findByAccount_Username(username)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Không tìm thấy thông tin khách hàng cho tài khoản đang đăng nhập"));
+                authenticatedCustomerId = customer.getCustomerId();
+                effectiveCustomerId = authenticatedCustomerId;
             }
         }
 
-        Specification<RentalOrder> spec = buildSpecification(orderStatus, effectiveCustomerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo);
-        return rentalOrderRepository.findAll(spec, pageable).map(this::buildOrderResponseWithExtensions);
+        OrderStatus parsedStatus = null;
+        if (orderStatus != null && !orderStatus.isBlank()) {
+            try {
+                parsedStatus = OrderStatus.valueOf(orderStatus.toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                parsedStatus = null;
+            }
+        }
+        LocalDateTime sFrom = parseDateTime(startDateFrom);
+        LocalDateTime sTo = parseDateTime(startDateTo);
+        LocalDateTime eFrom = parseDateTime(endDateFrom);
+        LocalDateTime eTo = parseDateTime(endDateTo);
+        LocalDateTime cFrom = parseDateTime(createdAtFrom);
+        LocalDateTime cTo = parseDateTime(createdAtTo);
+
+        Page<RentalOrderResponseDto> pageResult = rentalOrderRepository.searchRentalOrders(
+                        parsedStatus,
+                        effectiveCustomerId,
+                        sFrom,
+                        sTo,
+                        eFrom,
+                        eTo,
+                        cFrom,
+                        cTo,
+                        pageable)
+                .map(this::buildOrderResponseWithExtensions);
+
+        if (authenticatedCustomerId != null) {
+            Long finalCustomerId = authenticatedCustomerId;
+            List<RentalOrderResponseDto> filteredContent = pageResult.getContent().stream()
+                    .filter(dto -> finalCustomerId.equals(dto.getCustomerId()))
+                    .toList();
+            if (filteredContent.size() != pageResult.getContent().size()) {
+                int removed = pageResult.getContent().size() - filteredContent.size();
+                log.warn("Customer {} attempted to access {} rental orders not belonging to them via search endpoint", finalCustomerId, removed);
+                return new PageImpl<>(filteredContent, pageResult.getPageable(), pageResult.getTotalElements());
+            }
+        }
+
+        return pageResult;
     }
 
     @Override
@@ -722,50 +763,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                     msg
             );
         }
-    }
-
-    private Specification<RentalOrder> buildSpecification(String orderStatus, Long customerId, String shippingAddress, BigDecimal minTotalPrice, BigDecimal maxTotalPrice, BigDecimal minPricePerDay, BigDecimal maxPricePerDay, String startDateFrom, String startDateTo, String endDateFrom, String endDateTo, String createdAtFrom, String createdAtTo) {
-        return (root, query, cb) -> {
-            var predicate = cb.conjunction();
-            predicate.getExpressions().add(cb.isNull(root.get("parentOrder")));
-            if (orderStatus != null && !orderStatus.isBlank()) {
-                try {
-                    var st = OrderStatus.valueOf(orderStatus.toUpperCase());
-                    predicate.getExpressions().add(cb.equal(root.get("orderStatus"), st));
-                } catch (IllegalArgumentException ignored) {}
-            }
-            if (customerId != null) {
-                predicate.getExpressions().add(cb.equal(root.join("customer").get("customerId"), customerId));
-            }
-            if (shippingAddress != null && !shippingAddress.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("shippingAddress")), "%" + shippingAddress.toLowerCase() + "%"));
-            }
-            if (minTotalPrice != null) {
-                predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("totalPrice"), minTotalPrice));
-            }
-            if (maxTotalPrice != null) {
-                predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("totalPrice"), maxTotalPrice));
-            }
-            if (minPricePerDay != null) {
-                predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("pricePerDay"), minPricePerDay));
-            }
-            if (maxPricePerDay != null) {
-                predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("pricePerDay"), maxPricePerDay));
-            }
-            LocalDateTime sFrom = parseDateTime(startDateFrom);
-            if (sFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("startDate"), sFrom));
-            LocalDateTime sTo = parseDateTime(startDateTo);
-            if (sTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("startDate"), sTo));
-            LocalDateTime eFrom = parseDateTime(endDateFrom);
-            if (eFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("endDate"), eFrom));
-            LocalDateTime eTo = parseDateTime(endDateTo);
-            if (eTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("endDate"), eTo));
-            LocalDateTime cFrom = parseDateTime(createdAtFrom);
-            if (cFrom != null) predicate.getExpressions().add(cb.greaterThanOrEqualTo(root.get("createdAt"), cFrom));
-            LocalDateTime cTo = parseDateTime(createdAtTo);
-            if (cTo != null) predicate.getExpressions().add(cb.lessThanOrEqualTo(root.get("createdAt"), cTo));
-            return predicate;
-        };
     }
 
     private LocalDateTime parseDateTime(String value) {

@@ -19,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -178,11 +177,6 @@ public class RentalOrderController {
     public ResponseEntity<?> search(
             @RequestParam(required = false) String orderStatus,
             @RequestParam(required = false) Long customerId,
-            @RequestParam(required = false) String shippingAddress,
-            @RequestParam(required = false) BigDecimal minTotalPrice,
-            @RequestParam(required = false) BigDecimal maxTotalPrice,
-            @RequestParam(required = false) BigDecimal minPricePerDay,
-            @RequestParam(required = false) BigDecimal maxPricePerDay,
             @RequestParam(required = false) String startDateFrom,
             @RequestParam(required = false) String startDateTo,
             @RequestParam(required = false) String endDateFrom,
@@ -193,7 +187,7 @@ public class RentalOrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) List<String> sort) {
         Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
-        var pageResult = service.search(orderStatus, customerId, shippingAddress, minTotalPrice, maxTotalPrice, minPricePerDay, maxPricePerDay, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
+        var pageResult = service.search(orderStatus, customerId, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm đơn thuê",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",
@@ -202,4 +196,3 @@ public class RentalOrderController {
         );
     }
 }
-

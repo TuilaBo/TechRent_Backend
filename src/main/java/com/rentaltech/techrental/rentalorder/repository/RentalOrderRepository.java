@@ -2,8 +2,12 @@ package com.rentaltech.techrental.rentalorder.repository;
 
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -18,4 +22,27 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     List<RentalOrder> findByParentOrder(RentalOrder parentOrder);
     List<RentalOrder> findByParentOrderIsNull();
     List<RentalOrder> findByCustomer_CustomerIdAndParentOrderIsNull(Long customerId);
+
+    @Query("""
+            SELECT ro FROM RentalOrder ro
+            WHERE ro.parentOrder IS NULL
+              AND ro.orderStatus = COALESCE(:orderStatus, ro.orderStatus)
+              AND ro.customer.customerId = COALESCE(:customerId, ro.customer.customerId)
+              AND ro.startDate >= COALESCE(:startDateFrom, ro.startDate)
+              AND ro.startDate <= COALESCE(:startDateTo, ro.startDate)
+              AND ro.endDate >= COALESCE(:endDateFrom, ro.endDate)
+              AND ro.endDate <= COALESCE(:endDateTo, ro.endDate)
+              AND ro.createdAt >= COALESCE(:createdAtFrom, ro.createdAt)
+              AND ro.createdAt <= COALESCE(:createdAtTo, ro.createdAt)
+            """)
+    Page<RentalOrder> searchRentalOrders(
+            @Param("orderStatus") OrderStatus orderStatus,
+            @Param("customerId") Long customerId,
+            @Param("startDateFrom") LocalDateTime startDateFrom,
+            @Param("startDateTo") LocalDateTime startDateTo,
+            @Param("endDateFrom") LocalDateTime endDateFrom,
+            @Param("endDateTo") LocalDateTime endDateTo,
+            @Param("createdAtFrom") LocalDateTime createdAtFrom,
+            @Param("createdAtTo") LocalDateTime createdAtTo,
+            Pageable pageable);
 }
