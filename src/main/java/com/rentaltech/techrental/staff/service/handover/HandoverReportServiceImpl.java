@@ -562,7 +562,8 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         HandoverReport saved = handoverReportRepository.save(report);
 //        deletePinCode(key);
 
-        // Update order status to IN_USE when both signed
+        // Update order timeline & status
+        updateOrderTimelineAfterSign(saved);
         checkAndUpdateOrderStatusIfBothSigned(saved);
         createSettlementAfterCustomerSigned(saved);
 
@@ -586,6 +587,42 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 markDevicesAsRenting(order.getOrderId());
                 incrementDeviceUsageCount(order.getOrderId());
             }
+        }
+    }
+
+    private void updateOrderTimelineAfterSign(HandoverReport report) {
+        if (report == null) {
+            return;
+        }
+        RentalOrder order = report.getRentalOrder();
+        if (order == null) {
+            return;
+        }
+        LocalDateTime signatureMoment = report.getCustomerSignedAt() != null
+                ? report.getCustomerSignedAt()
+                : report.getStaffSignedAt();
+        if (signatureMoment == null) {
+            return;
+        }
+        boolean updated = false;
+        if (report.getHandoverType() == HandoverType.CHECKOUT) {
+            if (order.getStartDate() == null) {
+                order.setStartDate(signatureMoment);
+                updated = true;
+            }
+            if (order.getDurationDays() != null) {
+                LocalDateTime recalculatedPlanEnd = signatureMoment.plusDays(order.getDurationDays());
+                if (!recalculatedPlanEnd.equals(order.getPlanEndDate())) {
+                    order.setPlanEndDate(recalculatedPlanEnd);
+                    updated = true;
+                }
+            }
+        } else if (report.getHandoverType() == HandoverType.CHECKIN) {
+            order.setEndDate(signatureMoment);
+            updated = true;
+        }
+        if (updated) {
+            rentalOrderRepository.save(order);
         }
     }
 

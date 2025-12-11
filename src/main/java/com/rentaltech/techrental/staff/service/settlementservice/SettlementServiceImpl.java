@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -41,6 +42,7 @@ public class SettlementServiceImpl implements SettlementService {
     private final DiscrepancyReportRepository discrepancyReportRepository;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
+    private static final BigDecimal LATE_FEE_RATE = new BigDecimal("0.10");
 
     @Override
     public Settlement create(SettlementCreateRequestDto request) {
@@ -72,7 +74,7 @@ public class SettlementServiceImpl implements SettlementService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + orderId));
         BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
         BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
-        BigDecimal lateFee = BigDecimal.ZERO;
+        BigDecimal lateFee = calculateLateFee(order);
         BigDecimal accessoryFee = BigDecimal.ZERO;
         BigDecimal finalReturn = totalDeposit
                 .subtract(damageFee)
@@ -229,5 +231,22 @@ public class SettlementServiceImpl implements SettlementService {
         return reports.stream()
                 .map(report -> report.getPenaltyAmount() != null ? report.getPenaltyAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateLateFee(RentalOrder order) {
+        if (order == null || order.getPlanEndDate() == null || order.getEndDate() == null || order.getPricePerDay() == null) {
+            return BigDecimal.ZERO;
+        }
+        LocalDateTime threshold = order.getPlanEndDate().plusHours(1);
+        LocalDateTime returnedAt = order.getEndDate();
+        if (!returnedAt.isAfter(threshold)) {
+            return BigDecimal.ZERO;
+        }
+        long hoursLate = ChronoUnit.HOURS.between(threshold, returnedAt);
+        if (hoursLate <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal hourlyRate = order.getPricePerDay().multiply(LATE_FEE_RATE);
+        return hourlyRate.multiply(BigDecimal.valueOf(hoursLate));
     }
 }

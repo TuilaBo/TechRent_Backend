@@ -214,8 +214,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Cần check từ startDate đến endDate để đảm bảo device không bị booking bởi order khác
         Device replacementDevice = findReplacementDevice(
                 orderDetail.getDeviceModel().getDeviceModelId(),
-                order.getStartDate(),  // Check từ startDate của order
-                order.getEndDate()     // Đến endDate của order
+                order.getEffectiveStartDate(),
+                order.getEffectiveEndDate()
         );
 
         if (replacementDevice == null) {

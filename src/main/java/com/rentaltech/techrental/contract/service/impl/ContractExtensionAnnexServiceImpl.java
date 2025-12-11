@@ -62,7 +62,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         String annexNumber = buildAnnexNumber(contract.getContractNumber(), annexCount + 1);
         List<OrderDetail> extensionDetails = orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId());
 
-        int extensionDays = (int) ChronoUnit.DAYS.between(extensionOrder.getStartDate(), extensionOrder.getEndDate());
+        int extensionDays = (int) ChronoUnit.DAYS.between(extensionOrder.getEffectiveStartDate(), extensionOrder.getEffectiveEndDate());
         BigDecimal extensionFee = defaultZero(extensionOrder.getTotalPrice());
         BigDecimal vatRate = BigDecimal.ZERO;
         BigDecimal vatAmount = extensionFee.multiply(vatRate);
@@ -76,12 +76,12 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .extensionOrder(extensionOrder)
                 .originalOrderId(originalOrder.getOrderId())
                 .title("Phụ lục gia hạn hợp đồng " + contract.getContractNumber())
-                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + extensionOrder.getEndDate())
+                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + extensionOrder.getEffectiveEndDate())
                 .legalReference("Căn cứ Bộ luật Dân sự 2015 và Luật Thương mại 2005")
                 .extensionReason("Nhu cầu tiếp tục sử dụng thiết bị của khách hàng")
-                .previousEndDate(originalOrder.getEndDate())
-                .extensionStartDate(extensionOrder.getStartDate())
-                .extensionEndDate(extensionOrder.getEndDate())
+                .previousEndDate(originalOrder.getEffectiveEndDate())
+                .extensionStartDate(extensionOrder.getEffectiveStartDate())
+                .extensionEndDate(extensionOrder.getEffectiveEndDate())
                 .extensionDays(extensionDays)
                 .extensionFee(extensionFee)
                 .vatRate(vatRate)
@@ -91,7 +91,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .annexContent(annexContent)
                 .status(ContractStatus.PENDING_ADMIN_SIGNATURE)
                 .issuedAt(LocalDateTime.now())
-                .effectiveDate(extensionOrder.getStartDate())
+                .effectiveDate(extensionOrder.getEffectiveStartDate())
                 .createdBy(createdBy)
                 .build();
 
@@ -212,8 +212,8 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         builder.append("Số phụ lục: ").append(contract.getContractNumber()).append("\n\n");
         builder.append("Căn cứ hợp đồng số: ").append(contract.getContractNumber()).append(" ký ngày ")
                 .append(contract.getStartDate()).append("; hai bên thống nhất gia hạn như sau:\n");
-        builder.append("- Thời hạn gia hạn: từ ").append(extensionOrder.getStartDate()).append(" đến ")
-                .append(extensionOrder.getEndDate()).append(" (" + extensionDays + " ngày).\n");
+        builder.append("- Thời hạn gia hạn: từ ").append(extensionOrder.getEffectiveStartDate()).append(" đến ")
+                .append(extensionOrder.getEffectiveEndDate()).append(" (" + extensionDays + " ngày).\n");
         builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND, thuế VAT: ")
                 .append(vatAmount).append(" VND, tổng thanh toán: ").append(total).append(" VND.\n");
         builder.append("- Thiết bị áp dụng: \n");

@@ -38,7 +38,7 @@ public class RentalOrderNotificationScheduler {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime threshold = now.plusDays(1);
         try {
-            List<RentalOrder> orders = rentalOrderRepository.findByOrderStatusAndEndDateBetween(
+            List<RentalOrder> orders = rentalOrderRepository.findByOrderStatusAndPlanEndDateBetween(
                     OrderStatus.IN_USE, now, threshold);
             orders.forEach(this::notifyCustomerNearDue);
         } catch (Exception ex) {
@@ -62,7 +62,7 @@ public class RentalOrderNotificationScheduler {
         String message = String.format(
                 "Đơn thuê #%d sẽ hết hạn vào %s. Vui lòng xác nhận gia hạn hoặc ngày trả hàng.",
                 order.getOrderId(),
-                order.getEndDate() != null ? order.getEndDate() : "thời gian đã đặt"
+                order.getPlanEndDate() != null ? order.getPlanEndDate() : "thời gian đã đặt"
         );
         try {
             notificationService.notifyAccount(

@@ -26,6 +26,9 @@ public class RentalOrderResponseDto {
     private Long orderId;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private LocalDateTime planStartDate;
+    private LocalDateTime planEndDate;
+    private Integer durationDays;
     private String shippingAddress;
     private OrderStatus orderStatus;
     private BigDecimal depositAmount;
@@ -87,6 +90,9 @@ public class RentalOrderResponseDto {
                 .orderId(order.getOrderId())
                 .startDate(order.getStartDate())
                 .endDate(order.getEndDate())
+                .planStartDate(order.getPlanStartDate())
+                .planEndDate(order.getPlanEndDate())
+                .durationDays(order.getDurationDays())
                 .shippingAddress(order.getShippingAddress())
                 .orderStatus(order.getOrderStatus())
                 .depositAmount(order.getDepositAmount())

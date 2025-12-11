@@ -5,8 +5,13 @@ import com.rentaltech.techrental.contract.service.SMSService;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
 import com.rentaltech.techrental.device.model.AllocationSnapshotType;
+import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
+import com.rentaltech.techrental.device.model.DiscrepancyType;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
+import com.rentaltech.techrental.device.service.DiscrepancyReportService;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.authentication.model.Account;
@@ -21,7 +26,9 @@ import com.rentaltech.techrental.staff.repository.DeviceReplacementReportItemRep
 import com.rentaltech.techrental.staff.repository.DeviceReplacementReportRepository;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import jakarta.annotation.PostConstruct;
@@ -61,6 +68,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     private final StaffRepository staffRepository;
     private final AllocationSnapshotService allocationSnapshotService;
     private final CustomerComplaintRepository customerComplaintRepository;
+    private final DiscrepancyReportService discrepancyReportService;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -83,7 +91,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Override
     @Transactional
     public DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername) {
-        com.rentaltech.techrental.webapi.customer.model.CustomerComplaint complaint = 
+        CustomerComplaint complaint = 
                 customerComplaintRepository.findById(complaintId)
                 .orElseThrow(() -> new IllegalArgumentException("Customer complaint not found: " + complaintId));
 
@@ -184,6 +192,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
 
         DeviceReplacementReport saved = replacementReportRepository.save(report);
         replacementReportItemRepository.saveAll(List.of(oldItem, newItem));
+        createDiscrepancyForOldDevice(complaint, oldAllocation);
 
         // Tạo snapshots cho cả 2 devices
         // Device cũ: FINAL snapshot (trước khi đổi)
@@ -461,6 +470,55 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         item.getEvidenceUrls().addAll(newUrls);
         DeviceReplacementReportItem saved = replacementReportItemRepository.save(item);
         return DeviceReplacementReportItemResponseDto.fromEntity(saved);
+    }
+
+    private void createDiscrepancyForOldDevice(CustomerComplaint complaint, Allocation allocation) {
+        if (complaint == null || allocation == null) {
+            return;
+        }
+        Long complaintId = complaint.getComplaintId();
+        Long orderDetailId = allocation.getOrderDetail() != null
+                ? allocation.getOrderDetail().getOrderDetailId()
+                : null;
+        Long deviceId = allocation.getDevice() != null ? allocation.getDevice().getDeviceId() : null;
+
+        if (complaintId == null || orderDetailId == null || deviceId == null) {
+            log.warn("Bỏ qua tạo discrepancy cho complaint {} vì thiếu thông tin orderDetail/device", complaintId);
+            return;
+        }
+
+        List<DiscrepancyReportResponseDto> existingReports =
+                discrepancyReportService.getByReference(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT, complaintId);
+        boolean alreadyCreated = existingReports != null && existingReports.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(dto -> Objects.equals(dto.getDeviceId(), deviceId));
+        if (alreadyCreated) {
+            return;
+        }
+
+        String staffNote = StringUtils.hasText(complaint.getStaffNote())
+                ? complaint.getStaffNote()
+                : complaint.getCustomerDescription();
+
+        discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
+                .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
+                .refId(complaintId)
+                .discrepancyType(resolveDiscrepancyType(complaint))
+                .orderDetailId(orderDetailId)
+                .deviceId(deviceId)
+                .staffNote(staffNote)
+                .build());
+    }
+
+    private DiscrepancyType resolveDiscrepancyType(CustomerComplaint complaint) {
+        ComplaintFaultSource faultSource = complaint != null ? complaint.getFaultSource() : null;
+        if (faultSource == ComplaintFaultSource.RENTAL_DEVICE) {
+            return DiscrepancyType.WRONG_CONDITION;
+        }
+        if (faultSource == ComplaintFaultSource.CUSTOMER) {
+            return DiscrepancyType.DAMAGE;
+        }
+        return DiscrepancyType.OTHER;
     }
 
     // PIN management methods

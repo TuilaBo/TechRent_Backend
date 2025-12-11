@@ -18,6 +18,7 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     List<RentalOrder> findByCustomer_CustomerId(Long customerCustomerId);
     List<RentalOrder> findByCustomer_CustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
     List<RentalOrder> findByOrderStatusAndEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
+    List<RentalOrder> findByOrderStatusAndPlanEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
     boolean existsByParentOrder(RentalOrder parentOrder);
     List<RentalOrder> findByParentOrder(RentalOrder parentOrder);
     List<RentalOrder> findByParentOrderIsNull();
@@ -28,10 +29,10 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
             WHERE ro.parentOrder IS NULL
               AND ro.orderStatus = COALESCE(:orderStatus, ro.orderStatus)
               AND ro.customer.customerId = COALESCE(:customerId, ro.customer.customerId)
-              AND ro.startDate >= COALESCE(:startDateFrom, ro.startDate)
-              AND ro.startDate <= COALESCE(:startDateTo, ro.startDate)
-              AND ro.endDate >= COALESCE(:endDateFrom, ro.endDate)
-              AND ro.endDate <= COALESCE(:endDateTo, ro.endDate)
+              AND ro.planStartDate >= COALESCE(:startDateFrom, ro.planStartDate)
+              AND ro.planStartDate <= COALESCE(:startDateTo, ro.planStartDate)
+              AND ro.planEndDate >= COALESCE(:endDateFrom, ro.planEndDate)
+              AND ro.planEndDate <= COALESCE(:endDateTo, ro.planEndDate)
               AND ro.createdAt >= COALESCE(:createdAtFrom, ro.createdAt)
               AND ro.createdAt <= COALESCE(:createdAtTo, ro.createdAt)
             """)

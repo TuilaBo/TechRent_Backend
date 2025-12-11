@@ -162,12 +162,12 @@ public class RentalOrderServiceImpl implements RentalOrderService {
     @Override
     public RentalOrderResponseDto create(RentalOrderRequestDto request) {
         if (request == null) throw new IllegalArgumentException("Thông tin đơn thuê không được để trống");
-        if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("Cần cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
+        if (request.getPlanStartDate() == null || request.getPlanEndDate() == null) {
+            throw new IllegalArgumentException("Cần cung cấp đầy đủ thời gian dự kiến bắt đầu và kết thúc");
         }
-        long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
+        long days = ChronoUnit.DAYS.between(request.getPlanStartDate(), request.getPlanEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu");
+            throw new IllegalArgumentException("Thời gian kết thúc dự kiến phải sau thời gian bắt đầu");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
@@ -183,8 +183,11 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         Computed computed = computeFromDetails(request);
 
         RentalOrder order = RentalOrder.builder()
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
+                .startDate(null)
+                .endDate(null)
+                .planStartDate(request.getPlanStartDate())
+                .planEndDate(request.getPlanEndDate())
+                .durationDays(Math.toIntExact(days))
                 .shippingAddress(request.getShippingAddress())
                 .orderStatus(kycVerified ? OrderStatus.PENDING : OrderStatus.PENDING_KYC)
                 .depositAmount(computed.totalDeposit())
@@ -266,12 +269,12 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + id));
 
         if (request == null) throw new IllegalArgumentException("Thông tin đơn thuê không được để trống");
-        if (request.getStartDate() == null || request.getEndDate() == null) {
-            throw new IllegalArgumentException("Cần cung cấp đầy đủ ngày bắt đầu và ngày kết thúc");
+        if (request.getPlanStartDate() == null || request.getPlanEndDate() == null) {
+            throw new IllegalArgumentException("Cần cung cấp đầy đủ thời gian dự kiến bắt đầu và kết thúc");
         }
-        long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
+        long days = ChronoUnit.DAYS.between(request.getPlanStartDate(), request.getPlanEndDate());
         if (days <= 0) {
-            throw new IllegalArgumentException("Ngày kết thúc phải sau ngày bắt đầu");
+            throw new IllegalArgumentException("Thời gian kết thúc dự kiến phải sau thời gian bắt đầu");
         }
 
         Authentication authCreate = SecurityContextHolder.getContext().getAuthentication();
@@ -285,8 +288,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
 
         Computed computed = computeFromDetails(request);
 
-        existing.setStartDate(request.getStartDate());
-        existing.setEndDate(request.getEndDate());
+        existing.setPlanStartDate(request.getPlanStartDate());
+        existing.setPlanEndDate(request.getPlanEndDate());
+        existing.setDurationDays(Math.toIntExact(days));
         existing.setShippingAddress(request.getShippingAddress());
         existing.setOrderStatus(kycVerified ? OrderStatus.PENDING : OrderStatus.PENDING_KYC);
         existing.setDepositAmount(computed.totalDeposit());
@@ -321,8 +325,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chỉ xác nhận trả hàng cho đơn đang sử dụng");
         }
 
-        LocalDateTime plannedStart = order.getEndDate() != null
-                ? order.getEndDate().minusHours(1)
+        LocalDateTime baseline = order.getEffectiveEndDate();
+        LocalDateTime plannedStart = baseline != null
+                ? baseline.minusHours(1)
                 : LocalDateTime.now();
         LocalDateTime plannedEnd = plannedStart.plusHours(3);
 
@@ -405,8 +410,11 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .map(OrderDetail::getPricePerDay)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         RentalOrder extension = RentalOrder.builder()
-                .startDate(extensionStart)
-                .endDate(extensionEnd)
+                .startDate(null)
+                .endDate(null)
+                .planStartDate(extensionStart)
+                .planEndDate(extensionEnd)
+                .durationDays(Math.toIntExact(extensionDays))
                 .shippingAddress(original.getShippingAddress())
                 .orderStatus(OrderStatus.PROCESSING)
                 .depositAmount(BigDecimal.ZERO)
@@ -538,7 +546,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                     .orderDetail(newDetail)
                     .qcReport(null)
                     .status(originalAllocation.getStatus())
-                    .allocatedAt(newOrder.getStartDate())
+                    .allocatedAt(newOrder.getEffectiveStartDate())
                     .returnedAt(null)
                     .notes(originalAllocation.getNotes())
                     .build();
@@ -731,8 +739,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             return new OperatorOrderNotification(
                     order.getOrderId(),
                     order.getCustomer() != null ? order.getCustomer().getCustomerId() : null,
-                    order.getStartDate(),
-                    order.getEndDate(),
+                    order.getPlanStartDate(),
+                    order.getPlanEndDate(),
                     order.getShippingAddress(),
                     order.getOrderStatus(),
                     msg
@@ -797,7 +805,7 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 throw new IllegalArgumentException("Cần cung cấp số lượng thiết bị trong chi tiết đơn thuê");
             }
             long available = bookingCalendarService.getAvailableCountByModel(
-                    model.getDeviceModelId(), request.getStartDate(), request.getEndDate()
+                    model.getDeviceModelId(), request.getPlanStartDate(), request.getPlanEndDate()
             );
             if (d.getQuantity() > available) {
                 throw new IllegalArgumentException("Số lượng thuê vượt quá số thiết bị khả dụng trong thời gian đã chọn");

@@ -25,11 +25,20 @@ public class RentalOrder {
     @Column(name = "order_id", updatable = false, nullable = false)
     private Long orderId;
 
-    @Column(name = "start_date", nullable = false)
+    @Column(name = "start_date")
     private LocalDateTime startDate;
 
-    @Column(name = "end_date", nullable = false)
+    @Column(name = "end_date")
     private LocalDateTime endDate;
+
+    @Column(name = "plan_start_date", nullable = false)
+    private LocalDateTime planStartDate;
+
+    @Column(name = "plan_end_date", nullable = false)
+    private LocalDateTime planEndDate;
+
+    @Column(name = "duration_days", nullable = false)
+    private Integer durationDays;
 
     @Column(name = "shipping_address", length = 500)
     private String shippingAddress;
@@ -76,4 +85,12 @@ public class RentalOrder {
     @Builder.Default
     @Column(name = "is_extended", nullable = false)
     private boolean extended = false;
+
+    public LocalDateTime getEffectiveStartDate() {
+        return startDate != null ? startDate : planStartDate;
+    }
+
+    public LocalDateTime getEffectiveEndDate() {
+        return endDate != null ? endDate : planEndDate;
+    }
 }

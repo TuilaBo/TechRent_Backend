@@ -586,7 +586,9 @@ public class ContractServiceImpl implements ContractService {
             List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(orderId);
             
             // Tính số ngày thuê
-            long days = ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate());
+            LocalDateTime rentalStart = order.getEffectiveStartDate();
+            LocalDateTime rentalEnd = order.getEffectiveEndDate();
+            long days = ChronoUnit.DAYS.between(rentalStart, rentalEnd);
             Integer rentalPeriodDays = (int) days;
             
             // Tạo mô tả từ các thiết bị trong đơn
@@ -625,9 +627,9 @@ public class ContractServiceImpl implements ContractService {
                     .rentalPeriodDays(rentalPeriodDays)
                     .totalAmount(order.getTotalPrice())
                     .depositAmount(order.getDepositAmount())
-                    .startDate(order.getStartDate())
-                    .endDate(order.getEndDate())
-                    .expiresAt(order.getEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
+                    .startDate(rentalStart)
+                    .endDate(rentalEnd)
+                    .expiresAt(order.getEffectiveEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
                     .createdBy(createdBy)
                     .build();
 
@@ -727,9 +729,9 @@ public class ContractServiceImpl implements ContractService {
         StringBuilder content = new StringBuilder();
         content.append("<h2>HỢP ĐỒNG THUÊ THIẾT BỊ CÔNG NGHỆ</h2>");
         content.append("<p><strong>Đơn thuê:</strong> #").append(order.getOrderId()).append("</p>");
-        content.append("<p><strong>Ngày bắt đầu:</strong> ").append(order.getStartDate()).append("</p>");
-        content.append("<p><strong>Ngày kết thúc:</strong> ").append(order.getEndDate()).append("</p>");
-        content.append("<p><strong>Số ngày thuê:</strong> ").append(ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate())).append(" ngày</p>");
+        content.append("<p><strong>Ngày bắt đầu:</strong> ").append(order.getEffectiveStartDate()).append("</p>");
+        content.append("<p><strong>Ngày kết thúc:</strong> ").append(order.getEffectiveEndDate()).append("</p>");
+        content.append("<p><strong>Số ngày thuê:</strong> ").append(ChronoUnit.DAYS.between(order.getEffectiveStartDate(), order.getEffectiveEndDate())).append(" ngày</p>");
         content.append("<h3>Thiết bị thuê:</h3>");
         content.append("<ul>");
         for (OrderDetail detail : orderDetails) {
