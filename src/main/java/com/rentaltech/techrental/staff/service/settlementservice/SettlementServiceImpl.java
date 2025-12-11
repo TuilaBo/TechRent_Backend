@@ -4,11 +4,11 @@ import com.rentaltech.techrental.device.model.DiscrepancyReport;
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.rentalorder.service.LateFeeConfigService;
 import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
@@ -36,13 +36,12 @@ public class SettlementServiceImpl implements SettlementService {
     private final SettlementRepository settlementRepository;
     private final RentalOrderRepository rentalOrderRepository;
     private final TaskRepository taskRepository;
-    private final TaskCategoryRepository taskCategoryRepository;
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportRepository discrepancyReportRepository;
+    private final LateFeeConfigService lateFeeConfigService;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
-    private static final BigDecimal LATE_FEE_RATE = new BigDecimal("0.10");
 
     @Override
     public Settlement create(SettlementCreateRequestDto request) {
@@ -175,14 +174,8 @@ public class SettlementServiceImpl implements SettlementService {
         if (orderId == null) {
             return;
         }
-        TaskCategory pickupCategory = taskCategoryRepository.findByNameIgnoreCase("Pick up rental order")
-                .orElseGet(() -> taskCategoryRepository.findByName("Pick up rental order").orElse(null));
-        if (pickupCategory == null) {
-            return;
-        }
         Task latestTask = taskRepository.findByOrderId(orderId).stream()
-                .filter(task -> task.getTaskCategory() != null
-                        && pickupCategory.getTaskCategoryId().equals(task.getTaskCategory().getTaskCategoryId()))
+                .filter(task -> task.getTaskCategory() == TaskCategoryType.PICK_UP_RENTAL_ORDER)
                 .max(Comparator.comparing(Task::getCreatedAt, Comparator.nullsLast(LocalDateTime::compareTo)))
                 .orElse(null);
         if (latestTask == null || latestTask.getAssignedStaff() == null) {
@@ -234,19 +227,22 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     private BigDecimal calculateLateFee(RentalOrder order) {
-        if (order == null || order.getPlanEndDate() == null || order.getEndDate() == null || order.getPricePerDay() == null) {
+        if (order == null || order.getPlanEndDate() == null) {
             return BigDecimal.ZERO;
         }
-        LocalDateTime threshold = order.getPlanEndDate().plusHours(1);
-        LocalDateTime returnedAt = order.getEndDate();
-        if (!returnedAt.isAfter(threshold)) {
+        BigDecimal configuredRate = lateFeeConfigService.getHourlyFeeValue();
+        if (configuredRate == null || configuredRate.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        long hoursLate = ChronoUnit.HOURS.between(threshold, returnedAt);
+        LocalDateTime graceThreshold = order.getPlanEndDate().plusHours(3);
+        LocalDateTime referenceTime = order.getEndDate() != null ? order.getEndDate() : LocalDateTime.now();
+        if (!referenceTime.isAfter(graceThreshold)) {
+            return BigDecimal.ZERO;
+        }
+        long hoursLate = ChronoUnit.HOURS.between(graceThreshold, referenceTime);
         if (hoursLate <= 0) {
             return BigDecimal.ZERO;
         }
-        BigDecimal hourlyRate = order.getPricePerDay().multiply(LATE_FEE_RATE);
-        return hourlyRate.multiply(BigDecimal.valueOf(hoursLate));
+        return configuredRate.multiply(BigDecimal.valueOf(hoursLate));
     }
 }

@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.repository;
 
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,7 +16,7 @@ import java.util.List;
 public interface TaskRepository extends JpaRepository<Task, Long> {
     
     // Find tasks by category
-    List<Task> findByTaskCategory_TaskCategoryId(Long taskCategoryId);
+    List<Task> findByTaskCategory(TaskCategoryType taskCategory);
     
     // Find tasks by order
     List<Task> findByOrderId(Long orderId);
@@ -24,7 +25,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByStatus(TaskStatus status);
     
     // Find tasks by category and status
-    List<Task> findByTaskCategory_TaskCategoryIdAndStatus(Long taskCategoryId, TaskStatus status);
+    List<Task> findByTaskCategoryAndStatus(TaskCategoryType taskCategory, TaskStatus status);
 
     @Query("""
             select case when count(t) > 0 then true else false end
@@ -56,27 +57,27 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                                              @Param("targetDate") LocalDate targetDate);
 
     @Query("""
-            select t.taskCategory.name, count(t)
+            select t.taskCategory, count(t)
             from Task t
             where t.status = com.rentaltech.techrental.staff.model.TaskStatus.COMPLETED
               and t.completedAt between :startTime and :endTime
-              and (:categoryId is null or t.taskCategory.taskCategoryId = :categoryId)
-            group by t.taskCategory.name
-            order by t.taskCategory.name
+              and (:category is null or t.taskCategory = :category)
+            group by t.taskCategory
+            order by t.taskCategory
             """)
     List<Object[]> countCompletedTasksByCategory(@Param("startTime") LocalDateTime startTime,
                                                  @Param("endTime") LocalDateTime endTime,
-                                                 @Param("categoryId") Long categoryId);
+                                                 @Param("category") TaskCategoryType category);
 
     @Query("""
-            select t.taskCategory.taskCategoryId, t.taskCategory.name, count(t)
+            select t.taskCategory, count(t)
             from Task t
             join t.assignedStaff s
             where t.status = com.rentaltech.techrental.staff.model.TaskStatus.COMPLETED
               and s.staffId = :staffId
               and t.completedAt between :startTime and :endTime
-            group by t.taskCategory.taskCategoryId, t.taskCategory.name
-            order by t.taskCategory.name
+            group by t.taskCategory
+            order by t.taskCategory
             """)
     List<Object[]> countCompletedTasksByStaffAndCategory(@Param("staffId") Long staffId,
                                                           @Param("startTime") LocalDateTime startTime,

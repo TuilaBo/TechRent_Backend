@@ -1,96 +1,66 @@
 package com.rentaltech.techrental.staff.service.taskcategoryservice;
 
-import com.rentaltech.techrental.staff.model.TaskCategory;
-import com.rentaltech.techrental.staff.model.dto.TaskCategoryCreateRequestDto;
-import com.rentaltech.techrental.staff.model.dto.TaskCategoryUpdateRequestDto;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Optional;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class TaskCategoryServiceImplTest {
 
-    @Mock
-    private TaskCategoryRepository taskCategoryRepository;
+    private TaskCategoryServiceImpl service;
 
-    @InjectMocks
-    private TaskCategoryServiceImpl taskCategoryService;
-
-    @Test
-    void createTaskCategoryRejectsDuplicateName() {
-        TaskCategoryCreateRequestDto request = TaskCategoryCreateRequestDto.builder()
-                .name("Delivery")
-                .description("Handle deliveries")
-                .build();
-        when(taskCategoryRepository.existsByName("Delivery")).thenReturn(true);
-
-        assertThatThrownBy(() -> taskCategoryService.createTaskCategory(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("đã tồn tại");
-
-        verify(taskCategoryRepository, never()).save(any());
+    @BeforeEach
+    void setUp() {
+        service = new TaskCategoryServiceImpl();
     }
 
     @Test
-    void createTaskCategoryPersistsNewRecord() {
-        TaskCategoryCreateRequestDto request = TaskCategoryCreateRequestDto.builder()
-                .name("Pickup")
-                .description("Collect returned devices")
-                .build();
-
-        when(taskCategoryRepository.existsByName("Pickup")).thenReturn(false);
-        when(taskCategoryRepository.save(any(TaskCategory.class))).thenAnswer(invocation -> {
-            TaskCategory category = invocation.getArgument(0);
-            category.setTaskCategoryId(5L);
-            return category;
-        });
-
-        TaskCategory saved = taskCategoryService.createTaskCategory(request);
-
-        assertThat(saved.getTaskCategoryId()).isEqualTo(5L);
-        assertThat(saved.getName()).isEqualTo("Pickup");
-        assertThat(saved.getDescription()).isEqualTo("Collect returned devices");
+    void getAllTaskCategoriesReturnsAllEnumDefinitions() {
+        List<Integer> ids = service.getAllTaskCategories().stream()
+                .map(TaskCategoryType.TaskCategoryDefinition::taskCategoryId)
+                .toList();
+        assertThat(ids)
+                .hasSize(TaskCategoryType.values().length)
+                .containsExactlyInAnyOrderElementsOf(IntStream.rangeClosed(1, TaskCategoryType.values().length)
+                        .boxed()
+                        .toList());
     }
 
     @Test
-    void updateTaskCategoryValidatesRenameConflict() {
-        TaskCategory existing = TaskCategory.builder()
-                .taskCategoryId(7L)
-                .name("Delivery")
-                .description("Old")
-                .build();
-
-        TaskCategoryUpdateRequestDto request = TaskCategoryUpdateRequestDto.builder()
-                .name("Support")
-                .description("Customer support tasks")
-                .build();
-
-        when(taskCategoryRepository.findById(7L)).thenReturn(Optional.of(existing));
-        when(taskCategoryRepository.existsByName("Support")).thenReturn(true);
-
-        assertThatThrownBy(() -> taskCategoryService.updateTaskCategory(7L, request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("đã tồn tại");
+    void getTaskCategoryFindsMatchingDefinition() {
+        assertThat(service.getTaskCategory(TaskCategoryType.DELIVERY))
+                .isPresent()
+                .get()
+                .extracting(TaskCategoryType.TaskCategoryDefinition::name)
+                .isEqualTo(TaskCategoryType.DELIVERY.getName());
     }
 
     @Test
-    void deleteTaskCategoryValidatesExistence() {
-        when(taskCategoryRepository.existsById(99L)).thenReturn(false);
+    void getTaskCategoryByIdReturnsDefinition() {
+        int id = TaskCategoryType.DELIVERY.getId();
+        assertThat(service.getTaskCategoryById(id))
+                .isPresent()
+                .get()
+                .extracting(TaskCategoryType.TaskCategoryDefinition::taskCategoryId)
+                .isEqualTo(id);
+    }
 
-        assertThatThrownBy(() -> taskCategoryService.deleteTaskCategory(99L))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("không tồn tại");
+    @Test
+    void searchTaskCategoriesMatchesByNameOrDescription() {
+        assertThat(service.searchTaskCategoriesByName("delivery"))
+                .isNotEmpty()
+                .first()
+                .extracting(TaskCategoryType.TaskCategoryDefinition::taskCategoryId)
+                .isEqualTo(TaskCategoryType.DELIVERY.getId());
+    }
+
+    @Test
+    void checkTaskCategoryExistsValidatesDisplayName() {
+        assertThat(service.checkTaskCategoryExists("Pre rental QC")).isTrue();
+        assertThat(service.checkTaskCategoryExists("unknown")).isFalse();
     }
 }

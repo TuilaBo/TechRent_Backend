@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -28,6 +29,5 @@ public class TaskRuleRequestDto {
     /**
      * Rule áp dụng cho TaskCategory cụ thể; null = áp dụng cho mọi category.
      */
-    private Long taskCategoryId;
+    private TaskCategoryType taskCategory;
 }
-

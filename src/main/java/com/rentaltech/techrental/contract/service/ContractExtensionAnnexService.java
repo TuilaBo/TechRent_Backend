@@ -5,6 +5,7 @@ import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexResponseDto;
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexSignRequestDto;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 
 import java.util.List;
 
@@ -12,7 +13,7 @@ public interface ContractExtensionAnnexService {
 
     ContractExtensionAnnex createAnnexForExtension(Contract contract,
                                                   RentalOrder originalOrder,
-                                                  RentalOrder extensionOrder,
+                                                  RentalOrderExtension extension,
                                                   Long createdBy);
 
     List<ContractExtensionAnnexResponseDto> getAnnexesForContract(Long contractId);

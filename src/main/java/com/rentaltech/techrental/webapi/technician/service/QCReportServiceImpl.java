@@ -33,6 +33,7 @@ import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
@@ -470,8 +471,8 @@ public class QCReportServiceImpl implements QCReportService {
     public List<QCReportResponseDto> getReportsByOrder(Long rentalOrderId) {
         List<Task> qcTasks = taskRepository.findByOrderId(rentalOrderId).stream()
                 .filter(task -> {
-                    String type = task.getTaskCategory().getName();
-                    return type != null && (type.equalsIgnoreCase("Pre rental QC") || type.equalsIgnoreCase("Post rental QC"));
+                    TaskCategoryType type = task.getTaskCategory();
+                    return type == TaskCategoryType.PRE_RENTAL_QC || type == TaskCategoryType.POST_RENTAL_QC;
                 })
                 .toList();
 

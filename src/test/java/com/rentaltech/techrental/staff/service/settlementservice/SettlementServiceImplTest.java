@@ -3,17 +3,17 @@ package com.rentaltech.techrental.staff.service.settlementservice;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.service.LateFeeConfigService;
 import com.rentaltech.techrental.staff.model.Settlement;
 import com.rentaltech.techrental.staff.model.SettlementState;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
@@ -28,6 +28,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -55,13 +56,13 @@ class SettlementServiceImplTest {
     @Mock
     private TaskRepository taskRepository;
     @Mock
-    private TaskCategoryRepository taskCategoryRepository;
-    @Mock
     private NotificationService notificationService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
     @Mock
     private DiscrepancyReportRepository discrepancyReportRepository;
+    @Mock
+    private LateFeeConfigService lateFeeConfigService;
 
     @InjectMocks
     private SettlementServiceImpl settlementService;
@@ -136,6 +137,31 @@ class SettlementServiceImplTest {
     }
 
     @Test
+    void calculateLateFeeUsesConfiguredRateAfterGracePeriod() {
+        long orderId = 4L;
+        RentalOrder order = rentalOrder(orderId, 44L, 444L);
+        LocalDateTime planEnd = LocalDateTime.now().minusHours(8);
+        LocalDateTime actualEnd = planEnd.plusHours(6);
+        order.setPlanStartDate(planEnd.minusDays(10));
+        order.setPlanEndDate(planEnd);
+        order.setEndDate(actualEnd);
+
+        when(rentalOrderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(settlementRepository.findByRentalOrder_OrderId(orderId)).thenReturn(Optional.empty());
+        when(settlementRepository.save(any(Settlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId))
+                .thenReturn(List.of());
+        when(lateFeeConfigService.getHourlyFeeValue()).thenReturn(BigDecimal.valueOf(15));
+
+        Settlement created = settlementService.createAutomaticForOrder(orderId);
+
+        long expectedHours = ChronoUnit.HOURS.between(planEnd.plusHours(3), actualEnd);
+        BigDecimal expectedLateFee = BigDecimal.valueOf(15).multiply(BigDecimal.valueOf(expectedHours));
+        assertThat(created.getLateFee()).isEqualTo(expectedLateFee);
+        assertThat(created.getFinalReturnAmount()).isEqualTo(order.getDepositAmount().subtract(expectedLateFee));
+    }
+
+    @Test
     void updateAppliesIssuedTimestampWhenStateBecomesIssued() {
         Settlement settlement = Settlement.builder()
                 .settlementId(7L)
@@ -180,13 +206,9 @@ class SettlementServiceImplTest {
                 .staffRole(StaffRole.CUSTOMER_SUPPORT_STAFF)
                 .account(Account.builder().accountId(202L).username("support").email("support@example.com").password("secret").role(null).build())
                 .build();
-        TaskCategory pickupCategory = TaskCategory.builder()
-                .taskCategoryId(15L)
-                .name("Pick up rental order")
-                .build();
         Task task = Task.builder()
                 .taskId(301L)
-                .taskCategory(pickupCategory)
+                .taskCategory(TaskCategoryType.PICK_UP_RENTAL_ORDER)
                 .orderId(orderId)
                 .assignedStaff(new LinkedHashSet<>(Set.of(supportStaff)))
                 .createdAt(LocalDateTime.now().minusHours(2))
@@ -200,7 +222,6 @@ class SettlementServiceImplTest {
                 .build();
 
         when(settlementRepository.findById(12L)).thenReturn(Optional.of(settlement));
-        when(taskCategoryRepository.findByNameIgnoreCase("Pick up rental order")).thenReturn(Optional.of(pickupCategory));
         when(taskRepository.findByOrderId(orderId)).thenReturn(List.of(task));
         when(settlementRepository.save(settlement)).thenReturn(settlement);
 

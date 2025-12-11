@@ -16,6 +16,7 @@ import com.rentaltech.techrental.finance.model.PaymentMethod;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
@@ -52,36 +53,40 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
     @Override
     public ContractExtensionAnnex createAnnexForExtension(Contract contract,
                                                           RentalOrder originalOrder,
-                                                          RentalOrder extensionOrder,
+                                                          RentalOrderExtension extension,
                                                           Long createdBy) {
-        if (contract == null || extensionOrder == null || originalOrder == null) {
+        if (contract == null || extension == null || originalOrder == null) {
             throw new IllegalArgumentException("Thiếu dữ liệu để tạo phụ lục gia hạn");
         }
 
         long annexCount = annexRepository.countByContract_ContractId(contract.getContractId());
         String annexNumber = buildAnnexNumber(contract.getContractNumber(), annexCount + 1);
-        List<OrderDetail> extensionDetails = orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId());
+        List<OrderDetail> extensionDetails = orderDetailRepository.findByRentalOrder_OrderId(originalOrder.getOrderId());
 
-        int extensionDays = (int) ChronoUnit.DAYS.between(extensionOrder.getEffectiveStartDate(), extensionOrder.getEffectiveEndDate());
-        BigDecimal extensionFee = defaultZero(extensionOrder.getTotalPrice());
+        LocalDateTime start = extension.getExtensionStartDate();
+        LocalDateTime end = extension.getExtensionEndDate();
+        int extensionDays = extension.getExtensionDays() != null
+                ? extension.getExtensionDays()
+                : (int) ChronoUnit.DAYS.between(start, end);
+        BigDecimal extensionFee = defaultZero(extension.getTotalPrice());
         BigDecimal vatRate = BigDecimal.ZERO;
         BigDecimal vatAmount = extensionFee.multiply(vatRate);
         BigDecimal totalPayable = extensionFee.add(vatAmount);
 
-        String annexContent = buildAnnexContent(contract, originalOrder, extensionOrder, extensionDetails, extensionDays, extensionFee, vatAmount, totalPayable);
+        String annexContent = buildAnnexContent(contract, originalOrder, extension, extensionDetails, extensionDays, extensionFee, vatAmount, totalPayable);
 
         ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
                 .annexNumber(annexNumber)
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(extension)
                 .originalOrderId(originalOrder.getOrderId())
                 .title("Phụ lục gia hạn hợp đồng " + contract.getContractNumber())
-                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + extensionOrder.getEffectiveEndDate())
+                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + end)
                 .legalReference("Căn cứ Bộ luật Dân sự 2015 và Luật Thương mại 2005")
                 .extensionReason("Nhu cầu tiếp tục sử dụng thiết bị của khách hàng")
                 .previousEndDate(originalOrder.getEffectiveEndDate())
-                .extensionStartDate(extensionOrder.getEffectiveStartDate())
-                .extensionEndDate(extensionOrder.getEffectiveEndDate())
+                .extensionStartDate(start)
+                .extensionEndDate(end)
                 .extensionDays(extensionDays)
                 .extensionFee(extensionFee)
                 .vatRate(vatRate)
@@ -91,7 +96,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .annexContent(annexContent)
                 .status(ContractStatus.PENDING_ADMIN_SIGNATURE)
                 .issuedAt(LocalDateTime.now())
-                .effectiveDate(extensionOrder.getEffectiveStartDate())
+                .effectiveDate(start)
                 .createdBy(createdBy)
                 .build();
 
@@ -201,7 +206,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
 
     private String buildAnnexContent(Contract contract,
                                      RentalOrder originalOrder,
-                                     RentalOrder extensionOrder,
+                                     RentalOrderExtension extension,
                                      List<OrderDetail> details,
                                      int extensionDays,
                                      BigDecimal extensionFee,
@@ -212,8 +217,8 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         builder.append("Số phụ lục: ").append(contract.getContractNumber()).append("\n\n");
         builder.append("Căn cứ hợp đồng số: ").append(contract.getContractNumber()).append(" ký ngày ")
                 .append(contract.getStartDate()).append("; hai bên thống nhất gia hạn như sau:\n");
-        builder.append("- Thời hạn gia hạn: từ ").append(extensionOrder.getEffectiveStartDate()).append(" đến ")
-                .append(extensionOrder.getEffectiveEndDate()).append(" (" + extensionDays + " ngày).\n");
+        builder.append("- Thời hạn gia hạn: từ ").append(extension.getExtensionStartDate()).append(" đến ")
+                .append(extension.getExtensionEndDate()).append(" (" + extensionDays + " ngày).\n");
         builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND, thuế VAT: ")
                 .append(vatAmount).append(" VND, tổng thanh toán: ").append(total).append(" VND.\n");
         builder.append("- Thiết bị áp dụng: \n");
@@ -267,7 +272,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
     }
 
     private Invoice createInvoiceForAnnex(ContractExtensionAnnex annex) {
-        RentalOrder extensionOrder = annex.getExtensionOrder();
+        RentalOrder baseOrder = annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getOriginalOrder() : null;
         BigDecimal subTotal = defaultZero(annex.getExtensionFee());
         BigDecimal taxAmount = defaultZero(annex.getVatAmount());
         BigDecimal discountAmount = BigDecimal.ZERO;
@@ -275,7 +280,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         BigDecimal totalAmount = defaultZero(annex.getTotalPayable());
 
         Invoice invoice = Invoice.builder()
-                .rentalOrder(extensionOrder)
+                .rentalOrder(baseOrder)
                 .invoiceType(InvoiceType.RENT_PAYMENT)
                 .paymentMethod(PaymentMethod.PAYOS)
                 .paymentDate(null)

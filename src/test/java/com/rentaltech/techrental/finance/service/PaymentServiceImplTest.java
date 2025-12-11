@@ -27,7 +27,6 @@ import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
@@ -36,6 +35,7 @@ import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,8 +77,6 @@ class PaymentServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private TaskRepository taskRepository;
-    @Mock
-    private TaskCategoryRepository taskCategoryRepository;
     @Mock
     private ReservationService reservationService;
     @Mock
@@ -239,7 +237,6 @@ class PaymentServiceImplTest {
             invc.setInvoiceId(99L);
             return invc;
         });
-        when(rentalOrderRepository.findByParentOrder(order)).thenReturn(Collections.emptyList());
         when(staffService.getStaffByRole(StaffRole.OPERATOR)).thenReturn(List.of(
                 Staff.builder()
                         .staffId(15L)
@@ -247,16 +244,15 @@ class PaymentServiceImplTest {
                         .account(Account.builder().accountId(77L).username("staff").build())
                         .build()
         ));
-        TaskCategory qcCategory = TaskCategory.builder().taskCategoryId(22L).name("Post rental QC").build();
-        when(taskCategoryRepository.findByNameIgnoreCase("Post rental QC")).thenReturn(Optional.of(qcCategory));
-
         MockMultipartFile proof = new MockMultipartFile("proof", "proof.png", "image/png", new byte[]{1, 2});
 
         InvoiceResponseDto response = paymentService.confirmDepositRefund(3L, "operator", proof);
 
         assertThat(response.getInvoiceId()).isEqualTo(99L);
         verify(transactionRepository).save(any(Transaction.class));
-        verify(taskRepository).save(any(Task.class));
+        ArgumentCaptor<Task> taskCaptor = ArgumentCaptor.forClass(Task.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getTaskCategory()).isEqualTo(TaskCategoryType.POST_RENTAL_QC);
     }
 
     @Test
@@ -306,11 +302,6 @@ class PaymentServiceImplTest {
     }
 
     private void stubDeliveryTaskDependencies() {
-        TaskCategory deliveryCategory = TaskCategory.builder()
-                .taskCategoryId(101L)
-                .name("DELIVERY")
-                .build();
-        when(taskCategoryRepository.findByNameIgnoreCase("DELIVERY")).thenReturn(Optional.of(deliveryCategory));
         when(taskRepository.findByOrderId(anyLong())).thenReturn(Collections.emptyList());
     }
 

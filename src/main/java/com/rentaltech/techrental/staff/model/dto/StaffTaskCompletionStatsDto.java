@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -41,8 +42,8 @@ public class StaffTaskCompletionStatsDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TaskCategoryCompletionDto {
-        private Long taskCategoryId;
-        private String taskCategoryName;
+        private TaskCategoryType taskCategory;
+        private String taskCategoryDisplayName;
         private Long completedCount;
     }
 }

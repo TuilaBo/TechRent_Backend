@@ -4,7 +4,6 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.ContractType;
-import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.DeviceContractTerm;
 import com.rentaltech.techrental.contract.model.dto.ContractCreateRequestDto;
 import com.rentaltech.techrental.contract.model.dto.DigitalSignatureRequestDto;
@@ -15,7 +14,6 @@ import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
 import com.rentaltech.techrental.contract.service.DeviceContractTermService;
-import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
@@ -81,9 +79,6 @@ public class ContractServiceImpl implements ContractService {
 
     @Autowired
     private DeviceContractTermService deviceContractTermService;
-
-    @Autowired
-    private ContractExtensionAnnexService contractExtensionAnnexService;
 
     @Autowired
     private NotificationService notificationService;
@@ -572,16 +567,6 @@ public class ContractServiceImpl implements ContractService {
             RentalOrder order = rentalOrderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn thuê với ID: " + orderId));
             
-            // Nếu là đơn gia hạn, chỉ tạo phụ lục thay vì tạo hợp đồng mới
-            if (isExtensionOrder(order)) {
-                handleExtensionAnnexCreation(order, createdBy);
-                return order.getParentOrder() == null
-                        ? contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getOrderId())
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng cho đơn gia hạn"))
-                        : contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getParentOrder().getOrderId())
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng gốc cho đơn gia hạn"));
-            }
-
             // Lấy chi tiết đơn thuê
             List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(orderId);
             
@@ -641,38 +626,6 @@ public class ContractServiceImpl implements ContractService {
         }
     }
 
-    private boolean isExtensionOrder(RentalOrder order) {
-        if (order == null) {
-            return false;
-        }
-        return order.getParentOrder() != null || order.isExtended();
-    }
-
-    private void handleExtensionAnnexCreation(RentalOrder extensionOrder, Long createdBy) {
-        RentalOrder originalOrder = extensionOrder.getParentOrder();
-        if (originalOrder == null || originalOrder.getOrderId() == null) {
-            log.warn("Bỏ qua tạo phụ lục vì đơn gia hạn {} không có parent order", extensionOrder.getOrderId());
-            return;
-        }
-        Optional<Contract> parentContractOpt = contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(originalOrder.getOrderId());
-        if (parentContractOpt.isEmpty()) {
-            log.warn("Không tìm thấy hợp đồng gốc cho đơn {} để tạo phụ lục", originalOrder.getOrderId());
-            return;
-        }
-        Contract baseContract = parentContractOpt.get();
-        try {
-            ContractExtensionAnnex annex = contractExtensionAnnexService.createAnnexForExtension(
-                    baseContract,
-                    originalOrder,
-                    extensionOrder,
-                    createdBy
-            );
-            notifyAnnexCreation(baseContract, originalOrder, annex);
-        } catch (Exception ex) {
-            log.error("Không thể tạo phụ lục cho đơn gia hạn {}: {}", extensionOrder.getOrderId(), ex.getMessage(), ex);
-        }
-    }
-
     private void notifyCustomerContractReadyForSignature(Contract contract) {
         if (contract == null || contract.getCustomerId() == null) {
             return;
@@ -690,35 +643,6 @@ public class ContractServiceImpl implements ContractService {
             );
         } catch (Exception ex) {
             log.error("Không thể gửi thông báo ký hợp đồng cho customer {}: {}", contract.getCustomerId(), ex.getMessage());
-        }
-    }
-
-    private void notifyAnnexCreation(Contract contract, RentalOrder originalOrder, ContractExtensionAnnex annex) {
-        if (annex == null) {
-            return;
-        }
-        String customerMessage = String.format(
-                "Phụ lục %s gia hạn đơn #%d từ %s đến %s đang chờ bạn ký.",
-                annex.getAnnexNumber(),
-                originalOrder.getOrderId(),
-                annex.getExtensionStartDate(),
-                annex.getExtensionEndDate()
-        );
-        if (originalOrder.getCustomer() != null && originalOrder.getCustomer().getAccount() != null) {
-            notificationService.notifyAccount(
-                    originalOrder.getCustomer().getAccount().getAccountId(),
-                    NotificationType.CONTRACT_ANNEX_CREATED,
-                    "Phụ lục gia hạn chờ ký",
-                    customerMessage
-            );
-        }
-        if (contract.getCreatedBy() != null) {
-            notificationService.notifyAccount(
-                    contract.getCreatedBy(),
-                    NotificationType.CONTRACT_ANNEX_CREATED,
-                    "Phụ lục gia hạn cần admin ký",
-                    "Phụ lục " + annex.getAnnexNumber() + " đang chờ ký trước khi gửi khách hàng."
-            );
         }
     }
 

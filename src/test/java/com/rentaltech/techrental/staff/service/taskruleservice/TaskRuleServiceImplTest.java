@@ -3,11 +3,10 @@ package com.rentaltech.techrental.staff.service.taskruleservice;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.staff.model.StaffRole;
-import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRuleCustomRepository;
 import com.rentaltech.techrental.staff.repository.TaskRuleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,9 +38,6 @@ class TaskRuleServiceImplTest {
     private TaskRuleCustomRepository taskRuleCustomRepository;
     @Mock
     private AccountService accountService;
-    @Mock
-    private TaskCategoryRepository taskCategoryRepository;
-
     private TaskRuleServiceImpl taskRuleService;
 
     private TaskRuleRequestDto baseRequest;
@@ -55,14 +51,9 @@ class TaskRuleServiceImplTest {
         baseRequest.setActive(true);
         baseRequest.setEffectiveFrom(LocalDateTime.now().plusDays(1));
         baseRequest.setEffectiveTo(LocalDateTime.now().plusDays(10));
-        baseRequest.setTaskCategoryId(100L);
+        baseRequest.setTaskCategory(TaskCategoryType.POST_RENTAL_QC);
 
-        lenient().when(taskCategoryRepository.findById(anyLong())).thenAnswer(invocation -> {
-            Long id = invocation.getArgument(0);
-            return Optional.of(TaskCategory.builder().taskCategoryId(id).build());
-        });
-
-        taskRuleService = new TaskRuleServiceImpl(taskRuleRepository, taskRuleCustomRepository, accountService, taskCategoryRepository);
+        taskRuleService = new TaskRuleServiceImpl(taskRuleRepository, taskRuleCustomRepository, accountService);
     }
 
     @Test
@@ -99,12 +90,12 @@ class TaskRuleServiceImplTest {
         TaskRuleResponseDto response = taskRuleService.create(baseRequest, "rule-admin");
 
         assertThat(response.getTaskRuleId()).isEqualTo(10L);
-        assertThat(response.getTaskCategoryId()).isEqualTo(100L);
+        assertThat(response.getTaskCategory()).isEqualTo(TaskCategoryType.POST_RENTAL_QC);
 
         ArgumentCaptor<TaskRule> captor = ArgumentCaptor.forClass(TaskRule.class);
         verify(taskRuleRepository).save(captor.capture());
         assertThat(captor.getValue().getCreatedBy()).isEqualTo("rule-admin");
-        assertThat(captor.getValue().getTaskCategory().getTaskCategoryId()).isEqualTo(100L);
+        assertThat(captor.getValue().getTaskCategory()).isEqualTo(TaskCategoryType.POST_RENTAL_QC);
     }
 
     @Test
@@ -113,7 +104,7 @@ class TaskRuleServiceImplTest {
                 .taskRuleId(20L)
                 .name("Old name")
                 .description("old")
-                .taskCategory(TaskCategory.builder().taskCategoryId(5L).build())
+                .taskCategory(TaskCategoryType.MAINTENANCE)
                 .staffRole(StaffRole.OPERATOR)
                 .build();
 
@@ -124,7 +115,7 @@ class TaskRuleServiceImplTest {
         request.setActive(false);
         request.setEffectiveFrom(LocalDateTime.now().plusDays(2));
         request.setEffectiveTo(LocalDateTime.now().plusDays(4));
-        request.setTaskCategoryId(9L);
+        request.setTaskCategory(TaskCategoryType.DELIVERY);
 
         when(taskRuleRepository.findById(20L)).thenReturn(Optional.of(existing));
         when(taskRuleRepository.save(existing)).thenReturn(existing);
@@ -133,7 +124,7 @@ class TaskRuleServiceImplTest {
         TaskRuleResponseDto response = taskRuleService.update(20L, request, "operator");
 
         assertThat(response.getName()).isEqualTo("Updated");
-        assertThat(existing.getTaskCategory().getTaskCategoryId()).isEqualTo(9L);
+        assertThat(existing.getTaskCategory()).isEqualTo(TaskCategoryType.DELIVERY);
         assertThat(existing.getStaffRole()).isNull();
         assertThat(existing.getCreatedBy()).isEqualTo("operator");
     }

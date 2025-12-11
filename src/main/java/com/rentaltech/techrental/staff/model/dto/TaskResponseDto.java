@@ -2,6 +2,7 @@ package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,7 +21,7 @@ import java.util.Objects;
 @NoArgsConstructor
 public class TaskResponseDto {
     private Long taskId;
-    private Long taskCategoryId;
+    private Integer taskCategoryId;
     private String taskCategoryName;
     private Long orderId;
     private List<AssignedStaffSummary> assignedStaff;
@@ -35,16 +36,17 @@ public class TaskResponseDto {
         if (task == null) {
             return null;
         }
-        var category = task.getTaskCategory();
+        TaskCategoryType category = task.getTaskCategory();
         List<AssignedStaffSummary> assignedStaffDtos = task.getAssignedStaff() == null
                 ? List.of()
                 : task.getAssignedStaff().stream()
                 .filter(Objects::nonNull)
                 .map(AssignedStaffSummary::fromStaff)
                 .toList();
+        Integer categoryId = category != null ? category.getId() : null;
         return TaskResponseDto.builder()
                 .taskId(task.getTaskId())
-                .taskCategoryId(category != null ? category.getTaskCategoryId() : null)
+                .taskCategoryId(categoryId)
                 .taskCategoryName(category != null ? category.getName() : null)
                 .orderId(task.getOrderId())
                 .assignedStaff(assignedStaffDtos)

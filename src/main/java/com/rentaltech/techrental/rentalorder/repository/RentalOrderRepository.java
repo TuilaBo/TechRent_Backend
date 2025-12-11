@@ -19,14 +19,9 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     List<RentalOrder> findByCustomer_CustomerIdAndOrderStatus(Long customerId, OrderStatus orderStatus);
     List<RentalOrder> findByOrderStatusAndEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
     List<RentalOrder> findByOrderStatusAndPlanEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
-    boolean existsByParentOrder(RentalOrder parentOrder);
-    List<RentalOrder> findByParentOrder(RentalOrder parentOrder);
-    List<RentalOrder> findByParentOrderIsNull();
-    List<RentalOrder> findByCustomer_CustomerIdAndParentOrderIsNull(Long customerId);
-
     @Query("""
             SELECT ro FROM RentalOrder ro
-            WHERE ro.parentOrder IS NULL
+            WHERE ro.orderId = COALESCE(:orderId, ro.orderId)
               AND ro.orderStatus = COALESCE(:orderStatus, ro.orderStatus)
               AND ro.customer.customerId = COALESCE(:customerId, ro.customer.customerId)
               AND ro.planStartDate >= COALESCE(:startDateFrom, ro.planStartDate)
@@ -39,6 +34,7 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     Page<RentalOrder> searchRentalOrders(
             @Param("orderStatus") OrderStatus orderStatus,
             @Param("customerId") Long customerId,
+            @Param("orderId") Long orderId,
             @Param("startDateFrom") LocalDateTime startDateFrom,
             @Param("startDateTo") LocalDateTime startDateTo,
             @Param("endDateFrom") LocalDateTime endDateFrom,

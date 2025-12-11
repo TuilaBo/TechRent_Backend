@@ -24,7 +24,6 @@ import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.*;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
@@ -58,7 +57,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-    private static final String DELIVERY_CATEGORY_NAME = "DELIVERY";
+    private static final TaskCategoryType DELIVERY_CATEGORY = TaskCategoryType.DELIVERY;
 
     private final PayOS payOS;
     private final VnpayConfig vnpayConfig;
@@ -69,7 +68,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final ContractExtensionAnnexRepository contractExtensionAnnexRepository;
     private final NotificationService notificationService;
     private final TaskRepository taskRepository;
-    private final TaskCategoryRepository taskCategoryRepository;
     private final ReservationService reservationService;
     private final BookingCalendarService bookingCalendarService;
     private final AllocationRepository allocationRepository;
@@ -205,10 +203,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (success) {
             invoice.setPaymentDate(LocalDateTime.now());
 
-            boolean extensionOrder = isExtensionOrder(rentalOrder);
             if (rentalOrder != null) {
                 log.info("Updating rental order status for order {}", rentalOrder.getOrderId());
-                rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
+                rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
@@ -226,9 +223,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             if (transactionCreated && rentalOrder != null) {
                 notifyPaymentSuccess(rentalOrder);
-                if (!extensionOrder) {
-                    createDeliveryTaskIfNeeded(rentalOrder);
-                }
+                createDeliveryTaskIfNeeded(rentalOrder);
             }
         } else {
             invoice.setPaymentDate(null);
@@ -257,20 +252,13 @@ public class PaymentServiceImpl implements PaymentService {
         if (rentalOrder.getOrderId() == null) {
             return;
         }
-        TaskCategory deliveryCategory = taskCategoryRepository.findByNameIgnoreCase(DELIVERY_CATEGORY_NAME)
-                .orElseGet(() -> taskCategoryRepository.findByName(DELIVERY_CATEGORY_NAME).orElse(null));
-        if (deliveryCategory == null) {
-            log.warn("Không thể tạo task giao hàng vì không tìm thấy category '{}'", DELIVERY_CATEGORY_NAME);
-            return;
-        }
         boolean alreadyExists = taskRepository.findByOrderId(rentalOrder.getOrderId()).stream()
-                .anyMatch(task -> task.getTaskCategory() != null
-                        && task.getTaskCategory().getTaskCategoryId().equals(deliveryCategory.getTaskCategoryId()));
+                .anyMatch(task -> task.getTaskCategory() == DELIVERY_CATEGORY);
         if (alreadyExists) {
             return;
         }
         Task deliveryTask = Task.builder()
-                .taskCategory(deliveryCategory)
+                .taskCategory(DELIVERY_CATEGORY)
                 .orderId(rentalOrder.getOrderId())
                 .description(String.format("Chuẩn bị giao đơn hàng #%d cho khách.", rentalOrder.getOrderId()))
                 .plannedStart(LocalDateTime.now())
@@ -290,16 +278,6 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         bookingCalendarService.createBookingsForAllocations(allocations);
-    }
-
-    private boolean isExtensionOrder(RentalOrder rentalOrder) {
-        if (rentalOrder == null) {
-            return false;
-        }
-        if (rentalOrder.getParentOrder() != null) {
-            return true;
-        }
-        return rentalOrder.isExtended();
     }
 
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
@@ -551,14 +529,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
-        // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED (bao gồm các đơn extend)
+        // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED
         order.setOrderStatus(OrderStatus.COMPLETED);
         rentalOrderRepository.save(order);
-        List<RentalOrder> extensionOrders = rentalOrderRepository.findByParentOrder(order);
-        if (!extensionOrders.isEmpty()) {
-            extensionOrders.forEach(ext -> ext.setOrderStatus(OrderStatus.COMPLETED));
-            rentalOrderRepository.saveAll(extensionOrders);
-        }
 
         settlement.setState(SettlementState.Closed);
         if (settlement.getIssuedAt() == null) {
@@ -579,13 +552,8 @@ public class PaymentServiceImpl implements PaymentService {
         if (order == null || order.getOrderId() == null) {
             return;
         }
-        Optional<TaskCategory> categoryOpt = taskCategoryRepository.findByNameIgnoreCase("Post rental QC");
-        if (categoryOpt.isEmpty()) {
-            log.warn("Không tìm thấy task category Post rental QC nên không thể tạo task");
-            return;
-        }
         Task task = Task.builder()
-                .taskCategory(categoryOpt.get())
+                .taskCategory(TaskCategoryType.POST_RENTAL_QC)
                 .orderId(order.getOrderId())
                 .description("QC sau thuê sau khi hoàn cọc")
                 .plannedStart(LocalDateTime.now())
@@ -638,10 +606,9 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setPaymentDate(LocalDateTime.now());
 
             RentalOrder rentalOrder = invoice.getRentalOrder();
-            boolean extensionOrder = isExtensionOrder(rentalOrder);
             if (rentalOrder != null) {
                 log.info("VNPAY payment succeeded for order {} - updating status", rentalOrder.getOrderId());
-                rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
+                rentalOrder.setOrderStatus(OrderStatus.DELIVERY_CONFIRMED);
                 rentalOrderRepository.save(rentalOrder);
                 rentalOrderRepository.flush(); // Ensure order status is persisted before proceeding
                 log.info("VNPAY order {} status updated to DELIVERY_CONFIRMED successfully", rentalOrder.getOrderId());
@@ -689,12 +656,10 @@ public class PaymentServiceImpl implements PaymentService {
                     log.error("Failed to send payment success notification for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
 
-                if (!extensionOrder) {
-                    try {
-                        createDeliveryTaskIfNeeded(rentalOrder);
-                    } catch (Exception e) {
-                        log.error("Failed to create delivery task for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
-                    }
+                try {
+                    createDeliveryTaskIfNeeded(rentalOrder);
+                } catch (Exception e) {
+                    log.error("Failed to create delivery task for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
             }
         } else {
@@ -752,19 +717,11 @@ public class PaymentServiceImpl implements PaymentService {
         if (rentalOrder == null || rentalOrder.getOrderId() == null) {
             return;
         }
-        if (isExtensionOrder(rentalOrder)) {
-            contractExtensionAnnexRepository.findFirstByExtensionOrder_OrderId(rentalOrder.getOrderId())
-                    .ifPresent(annex -> {
-                        annex.setStatus(ContractStatus.ACTIVE);
-                        contractExtensionAnnexRepository.save(annex);
-                    });
-        } else {
-            contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(rentalOrder.getOrderId())
-                    .ifPresent(contract -> {
-                        contract.setStatus(ContractStatus.ACTIVE);
-                        contract.setSignedAt(Optional.ofNullable(contract.getSignedAt()).orElse(LocalDateTime.now()));
-                        contractRepository.save(contract);
-                    });
-        }
+        contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(rentalOrder.getOrderId())
+                .ifPresent(contract -> {
+                    contract.setStatus(ContractStatus.ACTIVE);
+                    contract.setSignedAt(Optional.ofNullable(contract.getSignedAt()).orElse(LocalDateTime.now()));
+                    contractRepository.save(contract);
+                });
     }
 }

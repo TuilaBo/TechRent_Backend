@@ -1,7 +1,8 @@
 package com.rentaltech.techrental.staff.service.taskruleservice;
 
-import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
+import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto;
 
@@ -24,8 +25,8 @@ public interface TaskRuleService {
 
     TaskRule getActiveRuleEntity();
 
-    TaskRule getActiveRuleEntity(StaffRole role, Long taskCategoryId);
+    TaskRule getActiveRuleEntity(StaffRole role, TaskCategoryType taskCategory);
 
-    TaskRule getActiveRuleEntityByCategory(Long taskCategoryId);
+    TaskRule getActiveRuleEntityByCategory(TaskCategoryType taskCategory);
 }
 

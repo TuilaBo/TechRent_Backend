@@ -34,8 +34,8 @@ public class ContractExtensionAnnexResponseDto {
     @Schema(description = "Số hợp đồng gốc")
     private String contractNumber;
 
-    @Schema(description = "ID đơn gia hạn")
-    private Long extensionOrderId;
+    @Schema(description = "ID bản ghi gia hạn đơn thuê")
+    private Long extensionId;
 
     @Schema(description = "ID đơn thuê ban đầu")
     private Long originalOrderId;
@@ -128,7 +128,7 @@ public class ContractExtensionAnnexResponseDto {
                 .annexNumber(annex.getAnnexNumber())
                 .contractId(annex.getContract() != null ? annex.getContract().getContractId() : null)
                 .contractNumber(annex.getContract() != null ? annex.getContract().getContractNumber() : null)
-                .extensionOrderId(annex.getExtensionOrder() != null ? annex.getExtensionOrder().getOrderId() : null)
+                .extensionId(annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getExtensionId() : null)
                 .originalOrderId(annex.getOriginalOrderId())
                 .title(annex.getTitle())
                 .description(annex.getDescription())

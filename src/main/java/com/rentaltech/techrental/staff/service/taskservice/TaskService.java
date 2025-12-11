@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.service.taskservice;
 
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.TaskUpdateRequestDto;
 
@@ -12,10 +13,10 @@ public interface TaskService {
     List<Task> getAllTasks();
     Task getTaskById(Long taskId);
     Task getTaskById(Long taskId, String username);
-    List<Task> getTasksByCategory(Long categoryId);
+    List<Task> getTasksByCategory(TaskCategoryType category);
     List<Task> getTasksByOrder(Long orderId, String username);
-    List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status, String username);
-    org.springframework.data.domain.Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String username, org.springframework.data.domain.Pageable pageable);
+    List<Task> getTasks(TaskCategoryType category, Long orderId, Long assignedStaffId, String status, String username);
+    org.springframework.data.domain.Page<Task> getTasksWithPagination(TaskCategoryType category, Long orderId, Long assignedStaffId, String status, String username, org.springframework.data.domain.Pageable pageable);
     Task updateTask(Long taskId, TaskUpdateRequestDto request, String username);
     void deleteTask(Long taskId, String username);
     List<Task> getOverdueTasks();
@@ -28,9 +29,9 @@ public interface TaskService {
 
     List<com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto> getMonthlyCompletionStats(int year,
                                                                                                      int month,
-                                                                                                     Long categoryId);
+                                                                                                     TaskCategoryType category);
 
     com.rentaltech.techrental.staff.model.dto.TaskRuleResponseDto getActiveTaskRule();
 
-    List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, Long categoryId, String username);
+    List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, TaskCategoryType category, String username);
 }

@@ -9,8 +9,8 @@ import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
@@ -64,8 +64,6 @@ class RentalOrderServiceImplTest {
     @Mock
     private TaskRepository taskRepository;
     @Mock
-    private TaskCategoryRepository taskCategoryRepository;
-    @Mock
     private StaffService staffService;
     @Mock
     private NotificationService notificationService;
@@ -79,6 +77,8 @@ class RentalOrderServiceImplTest {
     private AllocationConditionSnapshotRepository allocationConditionSnapshotRepository;
     @Mock
     private DiscrepancyReportRepository discrepancyReportRepository;
+    @Mock
+    private RentalOrderExtensionRepository rentalOrderExtensionRepository;
 
     @InjectMocks
     private RentalOrderServiceImpl service;

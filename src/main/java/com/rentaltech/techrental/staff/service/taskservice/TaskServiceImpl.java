@@ -49,9 +49,6 @@ public class TaskServiceImpl implements TaskService {
     private TaskRepository taskRepository;
 
     @Autowired
-    private TaskCategoryRepository taskCategoryRepository;
-
-    @Autowired
     private TaskCustomRepository taskCustomRepository;
 
     @Autowired
@@ -85,9 +82,7 @@ public class TaskServiceImpl implements TaskService {
         try {
             // Validate business rules
             validateTaskCreationRequest(request);
-
-            TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
+            TaskCategoryType category = request.getTaskCategory();
 
             // Tìm danh sách staff được assign (nếu có)
             Set<Staff> assignedStaff = resolveStaffMembers(request.getAssignedStaffIds());
@@ -122,8 +117,8 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void validateTaskCreationRequest(TaskCreateRequestDto request) {
-        if (request.getTaskCategoryId() == null) {
-            throw new IllegalArgumentException("Cần cung cấp TaskCategoryId");
+        if (request.getTaskCategory() == null) {
+            throw new IllegalArgumentException("Cần cung cấp TaskCategory");
         }
         // orderId là optional - có thể tạo task không gắn với order
         if (request.getPlannedStart() != null && request.getPlannedEnd() != null) {
@@ -153,8 +148,11 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<Task> getTasksByCategory(Long categoryId) {
-        return taskRepository.findByTaskCategory_TaskCategoryId(categoryId);
+    public List<Task> getTasksByCategory(TaskCategoryType category) {
+        if (category == null) {
+            throw new IllegalArgumentException("Cần cung cấp category");
+        }
+        return taskRepository.findByTaskCategory(category);
     }
 
     @Override
@@ -171,13 +169,9 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status, String username) {
+    public List<Task> getTasks(TaskCategoryType category, Long orderId, Long assignedStaffId, String status, String username) {
         AccessContext access = resolveAccessContext(username);
         Long effectiveAssignedStaffId = resolveEffectiveAssignedStaff(assignedStaffId, access);
-
-        if (categoryId != null && !taskCategoryRepository.existsById(categoryId)) {
-            throw new NoSuchElementException("Không tìm thấy TaskCategory");
-        }
 
         if (orderId != null && !rentalOrderRepository.existsById(orderId)) {
             throw new NoSuchElementException("Không tìm thấy đơn hàng");
@@ -188,10 +182,10 @@ public class TaskServiceImpl implements TaskService {
         }
 
         List<Task> tasks = taskRepository.findAll();
-        if (categoryId != null) {
+        if (category != null) {
             tasks = tasks.stream()
                     .filter(task -> task.getTaskCategory() != null
-                            && task.getTaskCategory().getTaskCategoryId().equals(categoryId))
+                            && task.getTaskCategory() == category)
                     .collect(Collectors.toList());
         }
         if (orderId != null) {
@@ -214,14 +208,10 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String username, Pageable pageable) {
+    public Page<Task> getTasksWithPagination(TaskCategoryType category, Long orderId, Long assignedStaffId, String status, String username, Pageable pageable) {
         try {
             AccessContext access = resolveAccessContext(username);
             Long effectiveAssignedStaffId = resolveEffectiveAssignedStaff(assignedStaffId, access);
-
-        if (categoryId != null && !taskCategoryRepository.existsById(categoryId)) {
-            throw new NoSuchElementException("Không tìm thấy TaskCategory");
-        }
 
         if (orderId != null && !rentalOrderRepository.existsById(orderId)) {
             throw new NoSuchElementException("Không tìm thấy đơn hàng");
@@ -239,7 +229,7 @@ public class TaskServiceImpl implements TaskService {
         // Lấy tất cả tasks (không pagination) để sort theo khoảng cách tuyệt đối
         // Sau đó mới paginate
         List<Task> allTasks = taskCustomRepository.findTasksWithFilters(
-                categoryId,
+                category,
                 orderId,
                 effectiveAssignedStaffId,
                 taskStatus,
@@ -324,8 +314,8 @@ public class TaskServiceImpl implements TaskService {
         // Tạo Page mới với paginated content
         return new PageImpl<>(paginatedContent, pageable, filteredTasks.size());
         } catch (Exception e) {
-            log.error("Error in getTasksWithPagination: username={}, categoryId={}, orderId={}, assignedStaffId={}, status={}", 
-                    username, categoryId, orderId, assignedStaffId, status, e);
+            log.error("Error in getTasksWithPagination: username={}, category={}, orderId={}, assignedStaffId={}, status={}",
+                    username, category, orderId, assignedStaffId, status, e);
             throw new RuntimeException("Lỗi khi lấy danh sách tác vụ: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
         }
     }
@@ -337,12 +327,10 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy công việc"));
 
-        TaskCategory effectiveCategory = task.getTaskCategory();
-        if (request.getTaskCategoryId() != null) {
-            TaskCategory category = taskCategoryRepository.findById(request.getTaskCategoryId())
-                    .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory"));
-            effectiveCategory = category;
-            task.setTaskCategory(category);
+        TaskCategoryType effectiveCategory = task.getTaskCategory();
+        if (request.getTaskCategory() != null) {
+            effectiveCategory = request.getTaskCategory();
+            task.setTaskCategory(effectiveCategory);
         }
 
         Set<Staff> staffMembersForNotification = null;
@@ -450,13 +438,13 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public List<com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto> getMonthlyCompletionStats(int year,
                                                                                                             int month,
-                                                                                                            Long categoryId) {
+                                                                                                            TaskCategoryType category) {
         if (month < 1 || month > 12) {
             throw new IllegalArgumentException("Tháng không hợp lệ");
         }
         LocalDateTime start = LocalDate.of(year, month, 1).atStartOfDay();
         LocalDateTime end = start.plusMonths(1);
-        List<Object[]> records = taskRepository.countCompletedTasksByCategory(start, end, categoryId);
+        List<Object[]> records = taskRepository.countCompletedTasksByCategory(start, end, category);
         return records.stream()
                 .map(com.rentaltech.techrental.staff.model.dto.TaskCompletionStatsDto::fromRecord)
                 .toList();
@@ -468,18 +456,18 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, Long categoryId, String username) {
+    public List<com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto> getStaffTaskCountByCategory(Long staffId, LocalDate targetDate, TaskCategoryType category, String username) {
         AccessContext access = resolveAccessContext(username);
         Long effectiveStaffId = resolveEffectiveAssignedStaff(staffId, access);
         if (effectiveStaffId == null) {
             throw new IllegalArgumentException("Không thể xác định staffId. Vui lòng đăng nhập hoặc cung cấp staffId");
         }
         LocalDate date = targetDate != null ? targetDate : LocalDate.now();
-        List<Object[]> records = taskCustomRepository.countActiveTasksByStaffCategoryAndDateGrouped(effectiveStaffId, date, categoryId);
+        List<Object[]> records = taskCustomRepository.countActiveTasksByStaffCategoryAndDateGrouped(effectiveStaffId, date, category);
         return records.stream()
                 .map(record -> {
-                    Long catId = (Long) record[2];
-                    com.rentaltech.techrental.staff.model.TaskRule rule = taskRuleService.getActiveRuleEntityByCategory(catId);
+                    TaskCategoryType cat = (TaskCategoryType) record[2];
+                    com.rentaltech.techrental.staff.model.TaskRule rule = taskRuleService.getActiveRuleEntityByCategory(cat);
                     Integer maxTasksPerDay = (rule != null && rule.getMaxTasksPerDay() != null) ? rule.getMaxTasksPerDay() : null;
                     return com.rentaltech.techrental.staff.model.dto.StaffTaskCountByCategoryDto.from(record, maxTasksPerDay);
                 })
@@ -549,16 +537,15 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
-    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart, Long excludeTaskId, TaskCategory taskCategory) {
+    private void enforceDailyCapacity(Set<Staff> staffMembers, LocalDateTime plannedStart, Long excludeTaskId, TaskCategoryType taskCategory) {
         if (staffMembers == null || staffMembers.isEmpty()) {
             return;
         }
-        if (taskCategory == null || taskCategory.getTaskCategoryId() == null) {
+        if (taskCategory == null) {
             return;
         }
         
-        Long categoryId = taskCategory.getTaskCategoryId();
-        TaskRule activeRule = taskRuleService.getActiveRuleEntityByCategory(categoryId);
+        TaskRule activeRule = taskRuleService.getActiveRuleEntityByCategory(taskCategory);
         if (activeRule == null || activeRule.getMaxTasksPerDay() == null || activeRule.getMaxTasksPerDay() <= 0) {
             return;
         }
@@ -572,10 +559,10 @@ public class TaskServiceImpl implements TaskService {
             }
 
             long currentCount = taskCustomRepository.countActiveTasksByStaffCategoryAndDate(
-                    staff.getStaffId(), categoryId, targetDate, excludeTaskId);
+                    staff.getStaffId(), taskCategory, targetDate, excludeTaskId);
             if (currentCount >= maxPerDay) {
                 throw new IllegalStateException("Nhân viên " + staff.getStaffId()
-                        + " (category=" + categoryId + ") đã đạt giới hạn " + maxPerDay
+                        + " (category=" + taskCategory + ") đã đạt giới hạn " + maxPerDay
                         + " công việc trong ngày " + targetDate
                         + " (hiện tại: " + currentCount + " công việc)");
             }
@@ -678,20 +665,29 @@ public class TaskServiceImpl implements TaskService {
         rentalOrderRepository.findById(task.getOrderId())
                 .map(RentalOrder::getCustomer)
                 .filter(customer -> customer != null && customer.getCustomerId() != null)
-                .ifPresent(customer -> notificationService.notifyAccount(
-                        customer.getAccount().getAccountId(),
-                        switch (task.getTaskCategory().getName()) {
-                            case "Pre rental QC" -> NotificationType.ORDER_PROCESSING;
-                            case "Post rental QC" -> NotificationType.ORDER_NEAR_DUE;
+                .ifPresent(customer -> {
+                    TaskCategoryType category = task.getTaskCategory();
+                    NotificationType notificationType = NotificationType.ORDER_ACTIVE;
+                    String body = "Đơn hàng của bạn đang được xử lý.";
+                    if (category != null) {
+                        notificationType = switch (category) {
+                            case PRE_RENTAL_QC -> NotificationType.ORDER_PROCESSING;
+                            case POST_RENTAL_QC -> NotificationType.ORDER_NEAR_DUE;
                             default -> NotificationType.ORDER_ACTIVE;
-                        },
-                        "Đơn hàng đang được xử lý",
-                        switch (task.getTaskCategory().getName()) {
-                            case "Pre rental QC" -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.";
-                            case "Post rental QC" -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên để thu hồi.";
+                        };
+                        body = switch (category) {
+                            case PRE_RENTAL_QC -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên chuẩn bị.";
+                            case POST_RENTAL_QC -> "Đơn hàng của bạn đang được phân công cho kỹ thuật viên để thu hồi.";
                             default -> "Đơn hàng của bạn đang được xử lý.";
-                        })
-                );
+                        };
+                    }
+                    notificationService.notifyAccount(
+                            customer.getAccount().getAccountId(),
+                            notificationType,
+                            "Đơn hàng đang được xử lý",
+                            body
+                    );
+                });
     }
 
     private void notifyAssignedStaffChannels(Task task, Set<Staff> assignees) {
@@ -738,8 +734,8 @@ public class TaskServiceImpl implements TaskService {
 
     private record TaskAssignmentNotification(Long taskId,
                                               Long orderId,
-                                              Long taskCategoryId,
-                                              String taskCategoryName,
+                                              TaskCategoryType taskCategory,
+                                              String taskCategoryDisplayName,
                                               String description,
                                               TaskStatus status,
                                               LocalDateTime plannedStart,
@@ -749,11 +745,11 @@ public class TaskServiceImpl implements TaskService {
             if (task == null) {
                 return null;
             }
-            TaskCategory category = task.getTaskCategory();
+            TaskCategoryType category = task.getTaskCategory();
             return new TaskAssignmentNotification(
                     task.getTaskId(),
                     task.getOrderId(),
-                    category != null ? category.getTaskCategoryId() : null,
+                    category,
                     category != null ? category.getName() : null,
                     task.getDescription(),
                     task.getStatus(),

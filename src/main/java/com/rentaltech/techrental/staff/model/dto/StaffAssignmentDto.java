@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import lombok.Builder;
 import lombok.Value;
@@ -12,8 +13,8 @@ import java.time.LocalDateTime;
 public class StaffAssignmentDto {
     Long taskId;
     Long orderId;
-    Long taskCategoryId;
-    String taskCategoryName;
+    TaskCategoryType taskCategory;
+    String taskCategoryDisplayName;
     String description;
     LocalDateTime plannedStart;
     LocalDateTime plannedEnd;
@@ -23,11 +24,12 @@ public class StaffAssignmentDto {
         if (task == null) {
             return null;
         }
+        TaskCategoryType category = task.getTaskCategory();
         return StaffAssignmentDto.builder()
                 .taskId(task.getTaskId())
                 .orderId(task.getOrderId())
-                .taskCategoryId(task.getTaskCategory() != null ? task.getTaskCategory().getTaskCategoryId() : null)
-                .taskCategoryName(task.getTaskCategory() != null ? task.getTaskCategory().getName() : null)
+                .taskCategory(category)
+                .taskCategoryDisplayName(category != null ? category.getName() : null)
                 .description(task.getDescription())
                 .plannedStart(task.getPlannedStart())
                 .plannedEnd(task.getPlannedEnd())

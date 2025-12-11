@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.repository;
 
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
@@ -107,57 +108,12 @@ public class TaskCustomRepository {
         return entityManager.createQuery(query).getResultList();
     }
 
-    public long countActiveTasksByStaffCategoryAndDate(Long staffId, Long categoryId, LocalDate targetDate, Long excludeTaskId) {
+    public long countActiveTasksByStaffCategoryAndDate(Long staffId, TaskCategoryType category, LocalDate targetDate, Long excludeTaskId) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Long> query = cb.createQuery(Long.class);
         Root<Task> task = query.from(Task.class);
 
         var staffJoin = task.join("assignedStaff");
-
-        LocalDateTime startOfDay = targetDate.atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
-
-        Predicate staffMatch = cb.equal(staffJoin.get("staffId"), staffId);
-        Predicate categoryMatch = cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId);
-
-        Predicate statusPending = cb.equal(task.get("status"), TaskStatus.PENDING);
-        Predicate statusInProgress = cb.equal(task.get("status"), TaskStatus.IN_PROGRESS);
-        Predicate statusCompleted = cb.equal(task.get("status"), TaskStatus.COMPLETED);
-        Predicate activeStatus = cb.or(statusPending, statusInProgress, statusCompleted);
-
-        Predicate plannedInDay = cb.and(
-                cb.isNotNull(task.get("plannedStart")),
-                cb.greaterThanOrEqualTo(task.get("plannedStart"), startOfDay),
-                cb.lessThan(task.get("plannedStart"), endOfDay)
-        );
-
-        Predicate createdInDay = cb.and(
-                cb.isNull(task.get("plannedStart")),
-                cb.greaterThanOrEqualTo(task.get("createdAt"), startOfDay),
-                cb.lessThan(task.get("createdAt"), endOfDay)
-        );
-
-        Predicate dateMatch = cb.or(plannedInDay, createdInDay);
-
-        Predicate basePredicate = cb.and(staffMatch, categoryMatch, activeStatus, dateMatch);
-
-        if (excludeTaskId != null) {
-            Predicate notSameTask = cb.notEqual(task.get("taskId"), excludeTaskId);
-            basePredicate = cb.and(basePredicate, notSameTask);
-        }
-
-        query.select(cb.countDistinct(task)).where(basePredicate);
-
-        return entityManager.createQuery(query).getSingleResult();
-    }
-
-    public List<Object[]> countActiveTasksByStaffCategoryAndDateGrouped(Long staffId, LocalDate targetDate, Long categoryId) {
-        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-        CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
-        Root<Task> task = query.from(Task.class);
-
-        var staffJoin = task.join("assignedStaff");
-        var categoryJoin = task.join("taskCategory");
 
         LocalDateTime startOfDay = targetDate.atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
@@ -185,8 +141,56 @@ public class TaskCustomRepository {
 
         Predicate basePredicate = cb.and(staffMatch, activeStatus, dateMatch);
 
-        if (categoryId != null) {
-            Predicate categoryMatch = cb.equal(categoryJoin.get("taskCategoryId"), categoryId);
+        if (category != null) {
+            Predicate categoryMatch = cb.equal(task.get("taskCategory"), category);
+            basePredicate = cb.and(basePredicate, categoryMatch);
+        }
+
+        if (excludeTaskId != null) {
+            Predicate notSameTask = cb.notEqual(task.get("taskId"), excludeTaskId);
+            basePredicate = cb.and(basePredicate, notSameTask);
+        }
+
+        query.select(cb.countDistinct(task)).where(basePredicate);
+
+        return entityManager.createQuery(query).getSingleResult();
+    }
+
+    public List<Object[]> countActiveTasksByStaffCategoryAndDateGrouped(Long staffId, LocalDate targetDate, TaskCategoryType category) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+        Root<Task> task = query.from(Task.class);
+
+        var staffJoin = task.join("assignedStaff");
+
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
+        Predicate staffMatch = cb.equal(staffJoin.get("staffId"), staffId);
+
+        Predicate statusPending = cb.equal(task.get("status"), TaskStatus.PENDING);
+        Predicate statusInProgress = cb.equal(task.get("status"), TaskStatus.IN_PROGRESS);
+        Predicate statusCompleted = cb.equal(task.get("status"), TaskStatus.COMPLETED);
+        Predicate activeStatus = cb.or(statusPending, statusInProgress, statusCompleted);
+
+        Predicate plannedInDay = cb.and(
+                cb.isNotNull(task.get("plannedStart")),
+                cb.greaterThanOrEqualTo(task.get("plannedStart"), startOfDay),
+                cb.lessThan(task.get("plannedStart"), endOfDay)
+        );
+
+        Predicate createdInDay = cb.and(
+                cb.isNull(task.get("plannedStart")),
+                cb.greaterThanOrEqualTo(task.get("createdAt"), startOfDay),
+                cb.lessThan(task.get("createdAt"), endOfDay)
+        );
+
+        Predicate dateMatch = cb.or(plannedInDay, createdInDay);
+
+        Predicate basePredicate = cb.and(staffMatch, activeStatus, dateMatch);
+
+        if (category != null) {
+            Predicate categoryMatch = cb.equal(task.get("taskCategory"), category);
             basePredicate = cb.and(basePredicate, categoryMatch);
         }
 
@@ -195,18 +199,16 @@ public class TaskCustomRepository {
         query.multiselect(
                 staffJoin.get("staffId"),
                 cb.coalesce(accountJoin.get("username"), ""),
-                categoryJoin.get("taskCategoryId"),
-                categoryJoin.get("name"),
+                task.get("taskCategory"),
                 cb.countDistinct(task)
         )
         .where(basePredicate)
         .groupBy(
                 staffJoin.get("staffId"),
                 accountJoin.get("username"),
-                categoryJoin.get("taskCategoryId"),
-                categoryJoin.get("name")
+                task.get("taskCategory")
         )
-        .orderBy(cb.asc(categoryJoin.get("name")));
+        .orderBy(cb.asc(task.get("taskCategory")));
 
         return entityManager.createQuery(query).getResultList();
     }
@@ -339,7 +341,7 @@ public class TaskCustomRepository {
     }
 
     public Page<Task> findTasksWithFilters(
-            Long categoryId,
+            TaskCategoryType category,
             Long orderId,
             Long assignedStaffId,
             TaskStatus status,
@@ -352,8 +354,8 @@ public class TaskCustomRepository {
         
         List<Predicate> predicates = new ArrayList<>();
         
-        if (categoryId != null) {
-            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        if (category != null) {
+            predicates.add(cb.equal(task.get("taskCategory"), category));
         }
         
         if (orderId != null) {
@@ -386,7 +388,7 @@ public class TaskCustomRepository {
         
         // Apply pagination (chỉ khi không phải unpaged)
         List<Task> content;
-        long total = countTasksWithFilters(categoryId, orderId, assignedStaffId, status);
+        long total = countTasksWithFilters(category, orderId, assignedStaffId, status);
         
         if (pageable.isUnpaged()) {
             // Không apply pagination, lấy tất cả
@@ -402,7 +404,7 @@ public class TaskCustomRepository {
     }
     
     private long countTasksWithFilters(
-            Long categoryId,
+            TaskCategoryType category,
             Long orderId,
             Long assignedStaffId,
             TaskStatus status) {
@@ -412,8 +414,8 @@ public class TaskCustomRepository {
         
         List<Predicate> predicates = new ArrayList<>();
         
-        if (categoryId != null) {
-            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        if (category != null) {
+            predicates.add(cb.equal(task.get("taskCategory"), category));
         }
         
         if (orderId != null) {
@@ -443,7 +445,7 @@ public class TaskCustomRepository {
      */
     public List<Task> findPendingTasksByOrderAndCategory(
             Long orderId,
-            Long categoryId,
+            TaskCategoryType category,
             List<TaskStatus> statuses) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Task> query = cb.createQuery(Task.class);
@@ -456,9 +458,9 @@ public class TaskCustomRepository {
             predicates.add(cb.equal(task.get("orderId"), orderId));
         }
 
-        // t.taskCategory.taskCategoryId = :categoryId
-        if (categoryId != null) {
-            predicates.add(cb.equal(task.get("taskCategory").get("taskCategoryId"), categoryId));
+        // t.taskCategory = :category
+        if (category != null) {
+            predicates.add(cb.equal(task.get("taskCategory"), category));
         }
 
         // t.status in (:statuses)

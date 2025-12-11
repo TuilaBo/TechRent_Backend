@@ -2,6 +2,8 @@ package com.rentaltech.techrental.config;
 
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RentalOrderNotificationScheduler {
 
     private final RentalOrderRepository rentalOrderRepository;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
     private static final ScheduledExecutorService EMAIL_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
@@ -50,7 +53,11 @@ public class RentalOrderNotificationScheduler {
         if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
             return;
         }
-        if (rentalOrderRepository.existsByParentOrder(order)) {
+        boolean hasUpcomingExtension = rentalOrderExtensionRepository.existsByOriginalOrderAndStatusIn(
+                order,
+                List.of(RentalOrderExtensionStatus.CREATED, RentalOrderExtensionStatus.IN_EFFECT)
+        );
+        if (hasUpcomingExtension) {
             log.debug("Bỏ qua gửi near-due cho đơn {} vì đã có đơn gia hạn", order.getOrderId());
             return;
         }

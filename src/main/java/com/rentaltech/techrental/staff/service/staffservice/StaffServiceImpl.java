@@ -5,6 +5,7 @@ import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.dto.AdminStaffCreateWithAccountRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.StaffTaskCompletionStatsDto;
@@ -119,11 +120,15 @@ public class StaffServiceImpl implements StaffService {
             List<Object[]> categoryRecords = taskRepository.countCompletedTasksByStaffAndCategory(
                     stat.getStaffId(), startTime, endTime);
             List<StaffTaskCompletionStatsDto.TaskCategoryCompletionDto> categoryCompletions = categoryRecords.stream()
-                    .map(record -> StaffTaskCompletionStatsDto.TaskCategoryCompletionDto.builder()
-                            .taskCategoryId((Long) record[0])
-                            .taskCategoryName((String) record[1])
-                            .completedCount((Long) record[2])
-                            .build())
+                    .map(record -> {
+                        TaskCategoryType category = record[0] instanceof TaskCategoryType type ? type : null;
+                        Long count = record[1] instanceof Number ? ((Number) record[1]).longValue() : 0L;
+                        return StaffTaskCompletionStatsDto.TaskCategoryCompletionDto.builder()
+                                .taskCategory(category)
+                                .taskCategoryDisplayName(category != null ? category.getName() : null)
+                                .completedCount(count)
+                                .build();
+                    })
                     .toList();
             stat.setTaskCompletionsByCategory(categoryCompletions);
         }

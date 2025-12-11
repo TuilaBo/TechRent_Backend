@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.staff.repository;
 
 import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskRule;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -22,7 +23,7 @@ public class TaskRuleCustomRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public Optional<TaskRule> findActiveRuleByContext(LocalDateTime now, StaffRole role, Long taskCategoryId) {
+    public Optional<TaskRule> findActiveRuleByContext(LocalDateTime now, StaffRole role, TaskCategoryType taskCategory) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<TaskRule> query = cb.createQuery(TaskRule.class);
         Root<TaskRule> root = query.from(TaskRule.class);
@@ -52,11 +53,11 @@ public class TaskRuleCustomRepository {
             ));
         }
 
-        // (:taskCategoryId is null OR taskCategory is null OR taskCategory.id = :taskCategoryId)
-        if (taskCategoryId != null) {
+        // (:taskCategory is null OR taskCategory = :taskCategory)
+        if (taskCategory != null) {
             predicates.add(cb.or(
                     root.get("taskCategory").isNull(),
-                    cb.equal(root.get("taskCategory").get("taskCategoryId"), taskCategoryId)
+                    cb.equal(root.get("taskCategory"), taskCategory)
             ));
         }
 
@@ -65,7 +66,7 @@ public class TaskRuleCustomRepository {
                 .when(
                         cb.and(
                                 roleEqual(cb, root, role),
-                                categoryEqual(cb, root, taskCategoryId)
+                                categoryEqual(cb, root, taskCategory)
                         ), 0)
                 .when(
                         cb.and(
@@ -75,7 +76,7 @@ public class TaskRuleCustomRepository {
                 .when(
                         cb.and(
                                 root.get("staffRole").isNull(),
-                                categoryEqual(cb, root, taskCategoryId)
+                                categoryEqual(cb, root, taskCategory)
                         ), 2)
                 .otherwise(3);
 
@@ -130,12 +131,12 @@ public class TaskRuleCustomRepository {
         return cb.equal(root.get("staffRole"), role);
     }
 
-    private Predicate categoryEqual(CriteriaBuilder cb, Root<TaskRule> root, Long taskCategoryId) {
-        if (taskCategoryId == null) {
+    private Predicate categoryEqual(CriteriaBuilder cb, Root<TaskRule> root, TaskCategoryType taskCategory) {
+        if (taskCategory == null) {
             // always false, we only use this helper inside CASE when categoryId != null
             return cb.disjunction();
         }
-        return cb.equal(root.get("taskCategory").get("taskCategoryId"), taskCategoryId);
+        return cb.equal(root.get("taskCategory"), taskCategory);
     }
 }
 

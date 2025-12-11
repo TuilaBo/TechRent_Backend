@@ -49,9 +49,9 @@ public class TaskRule {
     /**
      * Rule áp dụng cho TaskCategory cụ thể, null = áp dụng cho mọi category.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "task_category_id")
-    private TaskCategory taskCategory;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "task_category", length = 100)
+    private TaskCategoryType taskCategory;
 
     @Column(name = "created_by", length = 255)
     private String createdBy;

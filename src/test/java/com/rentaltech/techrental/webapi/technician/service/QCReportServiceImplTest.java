@@ -14,7 +14,7 @@ import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
@@ -111,7 +111,7 @@ class QCReportServiceImplTest {
 
     @Test
     void getReportsByOrderReturnsEmptyWhenNoQcTasks() {
-        Task nonQcTask = task(1L, "Delivery");
+        Task nonQcTask = task(1L, TaskCategoryType.DELIVERY);
         when(taskRepository.findByOrderId(100L)).thenReturn(List.of(nonQcTask));
 
         List<QCReportResponseDto> result = service.getReportsByOrder(100L);
@@ -122,8 +122,8 @@ class QCReportServiceImplTest {
 
     @Test
     void getReportsByOrderFetchesReportsForQcTasks() {
-        Task preTask = task(10L, "Pre rental QC");
-        Task postTask = task(11L, "POST RENTAL QC");
+        Task preTask = task(10L, TaskCategoryType.PRE_RENTAL_QC);
+        Task postTask = task(11L, TaskCategoryType.POST_RENTAL_QC);
         when(taskRepository.findByOrderId(5L)).thenReturn(List.of(preTask, postTask));
 
         QCReport preReport = QCReport.builder()
@@ -152,11 +152,7 @@ class QCReportServiceImplTest {
         assertThat(captor.getValue()).containsExactlyInAnyOrder(10L, 11L);
     }
 
-    private Task task(Long id, String categoryName) {
-        TaskCategory category = TaskCategory.builder()
-                .taskCategoryId(id)
-                .name(categoryName)
-                .build();
+    private Task task(Long id, TaskCategoryType category) {
         return Task.builder()
                 .taskId(id)
                 .taskCategory(category)

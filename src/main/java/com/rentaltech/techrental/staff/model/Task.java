@@ -21,9 +21,9 @@ public class Task {
     @Column(name = "task_id")
     private Long taskId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "task_category_id", nullable = false)
-    private TaskCategory taskCategory;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "task_category", nullable = false, length = 100)
+    private TaskCategoryType taskCategory;
 
     @Column(name = "order_id")
     private Long orderId; // Foreign key to Order table (nullable - có thể tạo task không gắn với order)

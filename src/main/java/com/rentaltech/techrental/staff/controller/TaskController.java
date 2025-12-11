@@ -2,6 +2,7 @@ package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,7 +56,7 @@ public class TaskController {
             @ApiResponse(responseCode = "200", description = "Trả về danh sách tác vụ thành công"),
             @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
     })
-    public ResponseEntity<?> getTasks(@RequestParam(required = false) Long categoryId,
+    public ResponseEntity<?> getTasks(@RequestParam(required = false) TaskCategoryType category,
                                       @RequestParam(required = false) Long orderId,
                                       @RequestParam(required = false) Long assignedStaffId,
                                       @RequestParam(required = false) String status,
@@ -64,7 +65,7 @@ public class TaskController {
                                       Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        org.springframework.data.domain.Page<Task> taskPage = taskService.getTasksWithPagination(categoryId, orderId, assignedStaffId, status, username, pageable);
+        org.springframework.data.domain.Page<Task> taskPage = taskService.getTasksWithPagination(category, orderId, assignedStaffId, status, username, pageable);
 
         org.springframework.data.domain.Page<TaskResponseDto> responsePage = taskPage.map(TaskResponseDto::from);
         return ResponseUtil.createSuccessPaginationResponse(
@@ -246,8 +247,8 @@ public class TaskController {
     })
     public ResponseEntity<?> getCompletionStats(@RequestParam int year,
                                                 @RequestParam int month,
-                                                @RequestParam(required = false) Long taskCategoryId) {
-        List<TaskCompletionStatsDto> stats = taskService.getMonthlyCompletionStats(year, month, taskCategoryId);
+                                                @RequestParam(required = false) TaskCategoryType taskCategory) {
+        List<TaskCompletionStatsDto> stats = taskService.getMonthlyCompletionStats(year, month, taskCategory);
         return ResponseUtil.createSuccessResponse(
                 "Thống kê hoàn thành",
                 "Theo category",
@@ -282,11 +283,11 @@ public class TaskController {
     })
     public ResponseEntity<?> getStaffTaskCountByCategory(@RequestParam(required = false) Long staffId,
                                                           @RequestParam(required = false) @io.swagger.v3.oas.annotations.media.Schema(example = "2025-12-01") String date,
-                                                          @RequestParam(required = false) Long categoryId,
+                                                          @RequestParam(required = false) TaskCategoryType category,
                                                           Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
-        List<StaffTaskCountByCategoryDto> stats = taskService.getStaffTaskCountByCategory(staffId, targetDate, categoryId, username);
+        List<StaffTaskCountByCategoryDto> stats = taskService.getStaffTaskCountByCategory(staffId, targetDate, category, username);
         return ResponseUtil.createSuccessResponse(
                 "Thống kê công việc theo category",
                 "Số lượng công việc của nhân viên theo từng category trong ngày",

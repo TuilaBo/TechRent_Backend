@@ -18,6 +18,4 @@ public interface ContractExtensionAnnexRepository extends JpaRepository<Contract
     long countByContract_ContractId(Long contractId);
 
     List<ContractExtensionAnnex> findByContract_ContractIdAndStatus(Long contractId, ContractStatus status);
-
-    Optional<ContractExtensionAnnex> findFirstByExtensionOrder_OrderId(Long orderId);
 }

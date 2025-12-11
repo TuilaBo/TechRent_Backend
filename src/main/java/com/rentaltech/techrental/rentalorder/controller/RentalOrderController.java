@@ -2,8 +2,11 @@ package com.rentaltech.techrental.rentalorder.controller;
 
 import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.rentalorder.model.dto.LateFeeConfigRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtensionResponseDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
+import com.rentaltech.techrental.rentalorder.service.LateFeeConfigService;
 import com.rentaltech.techrental.rentalorder.service.RentalOrderService;
 import com.rentaltech.techrental.config.RentalOrderNotificationScheduler;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +32,7 @@ public class RentalOrderController {
 
     private final RentalOrderService service;
     private final RentalOrderNotificationScheduler notificationScheduler;
+    private final LateFeeConfigService lateFeeConfigService;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -150,6 +154,39 @@ public class RentalOrderController {
         );
     }
 
+    @GetMapping("/late-fee-rate")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lấy cấu hình phí trả trễ", description = "Truy vấn mức phí trả trễ hiện tại (tính theo giờ)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về cấu hình phí trả trễ"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
+    })
+    public ResponseEntity<?> getLateFeeRate() {
+        return ResponseUtil.createSuccessResponse(
+                "Lấy phí trả trễ thành công",
+                "Thông tin phí trả trễ hiện tại",
+                lateFeeConfigService.getCurrentConfig(),
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping("/late-fee-rate")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Cập nhật phí trả trễ", description = "Điều chỉnh mức phí trả trễ và lưu vào cơ sở dữ liệu")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật phí trả trễ thành công"),
+            @ApiResponse(responseCode = "400", description = "Mức phí không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật do lỗi hệ thống")
+    })
+    public ResponseEntity<?> updateLateFeeRate(@Valid @RequestBody LateFeeConfigRequestDto requestDto) {
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật phí trả trễ thành công",
+                "Mức phí trả trễ đã được lưu",
+                lateFeeConfigService.update(requestDto),
+                HttpStatus.OK
+        );
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
     @Operation(summary = "Xóa đơn thuê", description = "Xóa đơn thuê theo mã")
@@ -177,6 +214,7 @@ public class RentalOrderController {
     public ResponseEntity<?> search(
             @RequestParam(required = false) String orderStatus,
             @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) Long orderId,
             @RequestParam(required = false) String startDateFrom,
             @RequestParam(required = false) String startDateTo,
             @RequestParam(required = false) String endDateFrom,
@@ -187,7 +225,7 @@ public class RentalOrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) List<String> sort) {
         Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
-        var pageResult = service.search(orderStatus, customerId, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
+        var pageResult = service.search(orderStatus, customerId, orderId, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm đơn thuê",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",

@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.rentalorder.service;
 
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
+import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtensionResponseDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
 import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
 import org.springframework.data.domain.Page;
@@ -15,6 +16,7 @@ public interface RentalOrderService {
     Page<RentalOrderResponseDto> search(
             String orderStatus,
             Long customerId,
+            Long orderId,
             String startDateFrom,
             String startDateTo,
             String endDateFrom,
@@ -25,5 +27,5 @@ public interface RentalOrderService {
     RentalOrderResponseDto update(Long id, RentalOrderRequestDto request);
     void delete(Long id);
     RentalOrderResponseDto confirmReturn(Long id);
-    RentalOrderResponseDto extend(RentalOrderExtendRequestDto request);
+    RentalOrderExtensionResponseDto extend(RentalOrderExtendRequestDto request);
 }

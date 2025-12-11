@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import lombok.*;
 
@@ -12,7 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TaskUpdateRequestDto {
-    private Long taskCategoryId;
+    private TaskCategoryType taskCategory;
     private List<Long> assignedStaffIds;
     private String type;
     private String description;

@@ -12,6 +12,7 @@ import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class ContractExtensionAnnexServiceImplTest {
 
     private Contract contract;
     private RentalOrder originalOrder;
-    private RentalOrder extensionOrder;
+    private RentalOrderExtension extension;
 
     @BeforeEach
     void setUp() {
@@ -67,15 +68,18 @@ class ContractExtensionAnnexServiceImplTest {
                 .startDate(LocalDateTime.now().minusDays(5))
                 .endDate(LocalDateTime.now())
                 .build();
-        extensionOrder = RentalOrder.builder()
-                .orderId(11L)
-                .startDate(LocalDateTime.now())
-                .endDate(LocalDateTime.now().plusDays(3))
+        extension = RentalOrderExtension.builder()
+                .extensionId(11L)
+                .originalOrder(originalOrder)
+                .extensionStartDate(LocalDateTime.now())
+                .extensionEndDate(LocalDateTime.now().plusDays(3))
+                .extensionDays(3)
                 .totalPrice(java.math.BigDecimal.valueOf(1000))
+                .depositAmount(java.math.BigDecimal.ZERO)
                 .build();
-        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId()))
+        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(originalOrder.getOrderId()))
                 .thenReturn(List.of(OrderDetail.builder()
-                        .rentalOrder(extensionOrder)
+                        .rentalOrder(originalOrder)
                         .deviceModel(DeviceModel.builder().deviceName("Device X").build())
                         .quantity(1L)
                         .build()));
@@ -88,7 +92,7 @@ class ContractExtensionAnnexServiceImplTest {
     void createAnnexForExtensionBuildsAnnexWithNumberAndContent() {
         when(annexRepository.countByContract_ContractId(contract.getContractId())).thenReturn(0L);
 
-        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, originalOrder, extensionOrder, 99L);
+        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, originalOrder, extension, 99L);
 
         assertThat(annex.getAnnexNumber()).contains("HD202401010001-P");
         assertThat(annex.getExtensionDays()).isEqualTo(3);
@@ -97,7 +101,7 @@ class ContractExtensionAnnexServiceImplTest {
 
     @Test
     void createAnnexThrowsWhenMissingData() {
-        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, originalOrder, extensionOrder, 1L));
+        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, originalOrder, extension, 1L));
     }
 
     @Test
@@ -106,7 +110,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(5L)
                 .annexNumber("HD-PL-01")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(extension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -136,7 +140,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .contract(contract)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(extension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
         when(emailService.sendOTP(any(), any())).thenReturn(true);

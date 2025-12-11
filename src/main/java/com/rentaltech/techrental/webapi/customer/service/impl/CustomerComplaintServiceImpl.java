@@ -16,9 +16,8 @@ import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepositor
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskCategoryType;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
-import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
@@ -58,7 +57,6 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     private final RentalOrderRepository rentalOrderRepository;
     private final DeviceRepository deviceRepository;
     private final AllocationRepository allocationRepository;
-    private final TaskCategoryRepository taskCategoryRepository;
     private final TaskService taskService;
     private final TaskRepository taskRepository;
     private final com.rentaltech.techrental.staff.repository.TaskCustomRepository taskCustomRepository;
@@ -243,20 +241,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Tạo BookingCalendar cho device mới
         bookingCalendarService.createBookingsForAllocations(List.of(savedAllocation));
 
-        // Tìm hoặc tạo TaskCategory "Device Replacement"
-        TaskCategory replacementCategory = taskCategoryRepository.findByNameIgnoreCase("Device Replacement")
-                .orElseGet(() -> {
-                    // Nếu không có "Device Replacement", thử tìm "Delivery"
-                    return taskCategoryRepository.findByNameIgnoreCase("Delivery")
-                            .orElseGet(() -> {
-                                // Nếu không có cả 2, tự động tạo category "Device Replacement"
-                                TaskCategory newCategory = TaskCategory.builder()
-                                        .name("Device Replacement")
-                                        .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
-                                        .build();
-                                return taskCategoryRepository.save(newCategory);
-                            });
-                });
+        TaskCategoryType replacementCategory = TaskCategoryType.MAINTENANCE;
 
         // Tìm task pending của order (cùng category "Device Replacement")
         // Chỉ tạo 1 task cho tất cả complaints cùng order
@@ -266,7 +251,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         );
         List<Task> existingTasks = taskCustomRepository.findPendingTasksByOrderAndCategory(
                 order.getOrderId(),
-                replacementCategory.getTaskCategoryId(),
+                replacementCategory,
                 pendingStatuses
         );
 
@@ -290,7 +275,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                     : operators.stream().map(Staff::getStaffId).collect(Collectors.toList());
 
             TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
-                    .taskCategoryId(replacementCategory.getTaskCategoryId())
+                    .taskCategory(replacementCategory)
                     .orderId(order.getOrderId())
                     .assignedStaffIds(assignedOperatorIds)
                     .description(String.format("Thay thế thiết bị cho đơn hàng #%d. Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s). Vui lòng assign staff đi giao máy.",
