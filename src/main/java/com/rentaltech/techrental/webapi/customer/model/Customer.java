@@ -86,6 +86,10 @@ public class Customer {
     @Column(name = "kyc_rejection_reason", length = 1000)
     private String kycRejectionReason; // Lý do từ chối
 
+    @Column(name = "kyc_rejection_count", nullable = false)
+    @Builder.Default
+    private Integer kycRejectionCount = 0; // Số lần bị từ chối KYC
+
     // KYC personal information fields
     @Column(name = "identification_code", length = 20)
     private String identificationCode; // Số CCCD/CMND/Passport
