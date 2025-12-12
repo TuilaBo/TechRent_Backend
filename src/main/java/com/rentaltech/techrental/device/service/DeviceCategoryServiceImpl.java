@@ -6,7 +6,6 @@ import com.rentaltech.techrental.device.model.dto.DeviceCategoryResponseDto;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,8 +45,8 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
     @Override
     @Transactional(readOnly = true)
     public Page<DeviceCategoryResponseDto> search(String deviceCategoryName, Boolean isActive, Pageable pageable) {
-        Specification<DeviceCategory> spec = buildSpecification(deviceCategoryName, isActive);
-        return repository.findAll(spec, pageable).map(DeviceCategoryResponseDto::from);
+        return repository.searchCategories(deviceCategoryName, isActive, pageable)
+                .map(DeviceCategoryResponseDto::from);
     }
 
     @Override
@@ -78,19 +77,5 @@ public class DeviceCategoryServiceImpl implements DeviceCategoryService {
         entity.setDeviceCategoryName(request.getDeviceCategoryName());
         entity.setDescription(request.getDescription());
         entity.setActive(request.isActive());
-    }
-
-
-    private Specification<DeviceCategory> buildSpecification(String deviceCategoryName, Boolean isActive) {
-        return (root, query, cb) -> {
-            var predicate = cb.conjunction();
-            if (deviceCategoryName != null && !deviceCategoryName.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("deviceCategoryName")), "%" + deviceCategoryName.toLowerCase() + "%"));
-            }
-            if (isActive != null) {
-                predicate.getExpressions().add(cb.equal(root.get("isActive"), isActive));
-            }
-            return predicate;
-        };
     }
 }

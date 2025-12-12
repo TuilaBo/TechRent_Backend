@@ -35,8 +35,8 @@ public class ReservationServiceImpl implements ReservationService {
         if (order == null || details == null || details.isEmpty()) {
             return;
         }
-        LocalDateTime reservationStart = order.getStartDate();
-        LocalDateTime reservationEnd = order.getEndDate();
+        LocalDateTime reservationStart = order.getPlanStartDate();
+        LocalDateTime reservationEnd = order.getPlanEndDate();
         if (reservationStart == null || reservationEnd == null || !reservationStart.isBefore(reservationEnd)) {
             return;
         }

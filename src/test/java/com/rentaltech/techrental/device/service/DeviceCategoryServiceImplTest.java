@@ -10,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Optional;
 
@@ -54,7 +53,8 @@ class DeviceCategoryServiceImplTest {
 
     @Test
     void searchDelegatesToRepository() {
-        when(repository.findAll(org.mockito.ArgumentMatchers.<Specification<DeviceCategory>>any(), any(Pageable.class))).thenReturn(Page.empty());
+        when(repository.searchCategories(any(), any(), any(Pageable.class))).thenReturn(Page.empty());
         assertThat(service.search(null, null, Pageable.unpaged()).getTotalElements()).isZero();
+        verify(repository).searchCategories(any(), any(), any(Pageable.class));
     }
 }

@@ -10,6 +10,7 @@ import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.latefee.LateFeeConfigService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -39,6 +41,7 @@ public class SettlementServiceImpl implements SettlementService {
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportRepository discrepancyReportRepository;
+    private final LateFeeConfigService lateFeeConfigService;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
 
@@ -72,7 +75,7 @@ public class SettlementServiceImpl implements SettlementService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + orderId));
         BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
         BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
-        BigDecimal lateFee = BigDecimal.ZERO;
+        BigDecimal lateFee = calculateLateFee(order);
         BigDecimal accessoryFee = BigDecimal.ZERO;
         BigDecimal finalReturn = totalDeposit
                 .subtract(damageFee)
@@ -229,5 +232,28 @@ public class SettlementServiceImpl implements SettlementService {
         return reports.stream()
                 .map(report -> report.getPenaltyAmount() != null ? report.getPenaltyAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateLateFee(RentalOrder order) {
+        if (order == null || order.getPlanEndDate() == null) {
+            return BigDecimal.ZERO;
+        }
+        LocalDateTime threshold = order.getPlanEndDate().plusHours(3);
+        LocalDateTime now = LocalDateTime.now();
+        if (!now.isAfter(threshold)) {
+            return BigDecimal.ZERO;
+        }
+        long hoursLate = ChronoUnit.HOURS.between(threshold, now);
+        if (hoursLate <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal hourlyRate = lateFeeConfigService.getCurrentRate();
+        if (hourlyRate == null || hourlyRate.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal orderTotal = order.getTotalPrice() != null ? order.getTotalPrice() : BigDecimal.ZERO;
+        return hourlyRate
+                .multiply(BigDecimal.valueOf(hoursLate))
+                .multiply(orderTotal);
     }
 }

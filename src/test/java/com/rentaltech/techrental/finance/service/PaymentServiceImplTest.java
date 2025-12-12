@@ -239,7 +239,6 @@ class PaymentServiceImplTest {
             invc.setInvoiceId(99L);
             return invc;
         });
-        when(rentalOrderRepository.findByParentOrder(order)).thenReturn(Collections.emptyList());
         when(staffService.getStaffByRole(StaffRole.OPERATOR)).thenReturn(List.of(
                 Staff.builder()
                         .staffId(15L)

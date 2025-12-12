@@ -39,12 +39,14 @@ public class BookingCalendarServiceImpl implements BookingCalendarService {
         allocations.forEach(allocation -> {
             if (allocation == null || allocation.getDevice() == null || allocation.getOrderDetail() == null) return;
             var order = allocation.getOrderDetail().getRentalOrder();
-            if (order == null || order.getStartDate() == null || order.getEndDate() == null) return;
+            LocalDateTime start = order != null ? order.getEffectiveStartDate() : null;
+            LocalDateTime end = order != null ? order.getEffectiveEndDate() : null;
+            if (order == null || start == null || end == null) return;
             items.add(BookingCalendar.builder()
                     .device(allocation.getDevice())
                     .rentalOrder(order)
-                    .startTime(order.getStartDate())
-                    .endTime(order.getEndDate())
+                    .startTime(start)
+                    .endTime(end)
                     .status(BookingStatus.BOOKED)
                     .build());
         });

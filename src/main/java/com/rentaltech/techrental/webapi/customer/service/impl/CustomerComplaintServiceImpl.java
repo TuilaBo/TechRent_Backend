@@ -214,8 +214,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Cần check từ startDate đến endDate để đảm bảo device không bị booking bởi order khác
         Device replacementDevice = findReplacementDevice(
                 orderDetail.getDeviceModel().getDeviceModelId(),
-                order.getStartDate(),  // Check từ startDate của order
-                order.getEndDate()     // Đến endDate của order
+                order.getEffectiveStartDate(),
+                order.getEffectiveEndDate()
         );
 
         if (replacementDevice == null) {
@@ -318,10 +318,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         complaint.setReplacementAllocation(savedAllocation);
         complaint.setProcessedAt(LocalDateTime.now());
 
-        // Nếu lỗi do khách: ghi nhận các condition hư hỏng để tính phí sau này
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        // Ghi nhận condition hiện tại của thiết bị để cập nhật trạng thái
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 
@@ -368,9 +366,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             complaint.setStaffNote(staffNote);
         }
 
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 

@@ -4,7 +4,6 @@ import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.ContractType;
-import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.DeviceContractTerm;
 import com.rentaltech.techrental.contract.model.dto.ContractCreateRequestDto;
 import com.rentaltech.techrental.contract.model.dto.DigitalSignatureRequestDto;
@@ -15,7 +14,6 @@ import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
 import com.rentaltech.techrental.contract.service.DeviceContractTermService;
-import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
@@ -81,9 +79,6 @@ public class ContractServiceImpl implements ContractService {
 
     @Autowired
     private DeviceContractTermService deviceContractTermService;
-
-    @Autowired
-    private ContractExtensionAnnexService contractExtensionAnnexService;
 
     @Autowired
     private NotificationService notificationService;
@@ -572,21 +567,13 @@ public class ContractServiceImpl implements ContractService {
             RentalOrder order = rentalOrderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn thuê với ID: " + orderId));
             
-            // Nếu là đơn gia hạn, chỉ tạo phụ lục thay vì tạo hợp đồng mới
-            if (isExtensionOrder(order)) {
-                handleExtensionAnnexCreation(order, createdBy);
-                return order.getParentOrder() == null
-                        ? contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getOrderId())
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng cho đơn gia hạn"))
-                        : contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getParentOrder().getOrderId())
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng gốc cho đơn gia hạn"));
-            }
-
             // Lấy chi tiết đơn thuê
             List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(orderId);
             
             // Tính số ngày thuê
-            long days = ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate());
+            LocalDateTime rentalStart = order.getEffectiveStartDate();
+            LocalDateTime rentalEnd = order.getEffectiveEndDate();
+            long days = ChronoUnit.DAYS.between(rentalStart, rentalEnd);
             Integer rentalPeriodDays = (int) days;
             
             // Tạo mô tả từ các thiết bị trong đơn
@@ -625,9 +612,9 @@ public class ContractServiceImpl implements ContractService {
                     .rentalPeriodDays(rentalPeriodDays)
                     .totalAmount(order.getTotalPrice())
                     .depositAmount(order.getDepositAmount())
-                    .startDate(order.getStartDate())
-                    .endDate(order.getEndDate())
-                    .expiresAt(order.getEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
+                    .startDate(rentalStart)
+                    .endDate(rentalEnd)
+                    .expiresAt(order.getEffectiveEndDate().plusDays(7)) // Hết hạn sau 7 ngày kể từ ngày kết thúc
                     .createdBy(createdBy)
                     .build();
 
@@ -636,38 +623,6 @@ public class ContractServiceImpl implements ContractService {
             
         } catch (Exception e) {
             throw new RuntimeException("Không thể tạo hợp đồng từ đơn thuê: " + e.getMessage());
-        }
-    }
-
-    private boolean isExtensionOrder(RentalOrder order) {
-        if (order == null) {
-            return false;
-        }
-        return order.getParentOrder() != null || order.isExtended();
-    }
-
-    private void handleExtensionAnnexCreation(RentalOrder extensionOrder, Long createdBy) {
-        RentalOrder originalOrder = extensionOrder.getParentOrder();
-        if (originalOrder == null || originalOrder.getOrderId() == null) {
-            log.warn("Bỏ qua tạo phụ lục vì đơn gia hạn {} không có parent order", extensionOrder.getOrderId());
-            return;
-        }
-        Optional<Contract> parentContractOpt = contractRepository.findFirstByOrderIdOrderByCreatedAtDesc(originalOrder.getOrderId());
-        if (parentContractOpt.isEmpty()) {
-            log.warn("Không tìm thấy hợp đồng gốc cho đơn {} để tạo phụ lục", originalOrder.getOrderId());
-            return;
-        }
-        Contract baseContract = parentContractOpt.get();
-        try {
-            ContractExtensionAnnex annex = contractExtensionAnnexService.createAnnexForExtension(
-                    baseContract,
-                    originalOrder,
-                    extensionOrder,
-                    createdBy
-            );
-            notifyAnnexCreation(baseContract, originalOrder, annex);
-        } catch (Exception ex) {
-            log.error("Không thể tạo phụ lục cho đơn gia hạn {}: {}", extensionOrder.getOrderId(), ex.getMessage(), ex);
         }
     }
 
@@ -691,35 +646,6 @@ public class ContractServiceImpl implements ContractService {
         }
     }
 
-    private void notifyAnnexCreation(Contract contract, RentalOrder originalOrder, ContractExtensionAnnex annex) {
-        if (annex == null) {
-            return;
-        }
-        String customerMessage = String.format(
-                "Phụ lục %s gia hạn đơn #%d từ %s đến %s đang chờ bạn ký.",
-                annex.getAnnexNumber(),
-                originalOrder.getOrderId(),
-                annex.getExtensionStartDate(),
-                annex.getExtensionEndDate()
-        );
-        if (originalOrder.getCustomer() != null && originalOrder.getCustomer().getAccount() != null) {
-            notificationService.notifyAccount(
-                    originalOrder.getCustomer().getAccount().getAccountId(),
-                    NotificationType.CONTRACT_ANNEX_CREATED,
-                    "Phụ lục gia hạn chờ ký",
-                    customerMessage
-            );
-        }
-        if (contract.getCreatedBy() != null) {
-            notificationService.notifyAccount(
-                    contract.getCreatedBy(),
-                    NotificationType.CONTRACT_ANNEX_CREATED,
-                    "Phụ lục gia hạn cần admin ký",
-                    "Phụ lục " + annex.getAnnexNumber() + " đang chờ ký trước khi gửi khách hàng."
-            );
-        }
-    }
-
     /**
      * Tạo nội dung hợp đồng
      */
@@ -727,9 +653,9 @@ public class ContractServiceImpl implements ContractService {
         StringBuilder content = new StringBuilder();
         content.append("<h2>HỢP ĐỒNG THUÊ THIẾT BỊ CÔNG NGHỆ</h2>");
         content.append("<p><strong>Đơn thuê:</strong> #").append(order.getOrderId()).append("</p>");
-        content.append("<p><strong>Ngày bắt đầu:</strong> ").append(order.getStartDate()).append("</p>");
-        content.append("<p><strong>Ngày kết thúc:</strong> ").append(order.getEndDate()).append("</p>");
-        content.append("<p><strong>Số ngày thuê:</strong> ").append(ChronoUnit.DAYS.between(order.getStartDate(), order.getEndDate())).append(" ngày</p>");
+        content.append("<p><strong>Ngày bắt đầu:</strong> ").append(order.getEffectiveStartDate()).append("</p>");
+        content.append("<p><strong>Ngày kết thúc:</strong> ").append(order.getEffectiveEndDate()).append("</p>");
+        content.append("<p><strong>Số ngày thuê:</strong> ").append(ChronoUnit.DAYS.between(order.getEffectiveStartDate(), order.getEffectiveEndDate())).append(" ngày</p>");
         content.append("<h3>Thiết bị thuê:</h3>");
         content.append("<ul>");
         for (OrderDetail detail : orderDetails) {

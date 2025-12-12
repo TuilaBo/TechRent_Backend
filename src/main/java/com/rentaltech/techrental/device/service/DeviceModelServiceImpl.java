@@ -13,7 +13,6 @@ import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,8 +77,8 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                                                BigDecimal pricePerDay,
                                                Boolean isActive,
                                                Pageable pageable) {
-        Specification<DeviceModel> spec = buildSpecification(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive);
-        return repository.findAll(spec, pageable).map(DeviceModelResponseDto::from);
+        return repository.searchDeviceModels(deviceName, brandId, amountAvailable, deviceCategoryId, pricePerDay, isActive, pageable)
+                .map(DeviceModelResponseDto::from);
     }
 
     @Override
@@ -160,35 +159,5 @@ public class DeviceModelServiceImpl implements DeviceModelService {
                 request.getDeviceName()
         );
         entity.setImageURL(uploadedUrl);
-    }
-
-    private Specification<DeviceModel> buildSpecification(String deviceName,
-                                                          Long brandId,
-                                                          Long amountAvailable,
-                                                          Long deviceCategoryId,
-                                                          BigDecimal pricePerDay,
-                                                          Boolean isActive) {
-        return (root, query, cb) -> {
-            var predicate = cb.conjunction();
-            if (deviceName != null && !deviceName.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("deviceName")), "%" + deviceName.toLowerCase() + "%"));
-            }
-            if (brandId != null) {
-                predicate.getExpressions().add(cb.equal(root.join("brand").get("brandId"), brandId));
-            }
-            if (amountAvailable != null) {
-                predicate.getExpressions().add(cb.equal(root.join("amountAvailable"), amountAvailable));
-            }
-            if (pricePerDay != null) {
-                predicate.getExpressions().add(cb.equal(root.join("pricePerDay"), pricePerDay));
-            }
-            if (deviceCategoryId != null) {
-                predicate.getExpressions().add(cb.equal(root.join("deviceCategory").get("deviceCategoryId"), deviceCategoryId));
-            }
-            if (isActive != null) {
-                predicate.getExpressions().add(cb.equal(root.get("isActive"), isActive));
-            }
-            return predicate;
-        };
     }
 }

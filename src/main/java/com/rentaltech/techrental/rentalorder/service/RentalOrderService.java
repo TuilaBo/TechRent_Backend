@@ -14,6 +14,7 @@ public interface RentalOrderService {
     List<RentalOrderResponseDto> findAll();
     Page<RentalOrderResponseDto> search(
             String orderStatus,
+            Long orderId,
             Long customerId,
             String startDateFrom,
             String startDateTo,

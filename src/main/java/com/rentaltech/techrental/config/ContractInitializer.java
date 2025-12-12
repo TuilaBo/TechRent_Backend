@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Slf4j
 // @Component
@@ -98,9 +99,16 @@ public class ContractInitializer implements ApplicationRunner {
             return rentalOrderRepository.findAll().get(orderNum - 1);
         }
 
+        LocalDateTime planStart = LocalDateTime.now().plusDays(orderNum * 7L);
+        LocalDateTime planEnd = planStart.plusDays(30);
+        int durationDays = Math.toIntExact(ChronoUnit.DAYS.between(planStart, planEnd));
+
         RentalOrder order = RentalOrder.builder()
-                .startDate(LocalDateTime.now().plusDays(orderNum * 7))
-                .endDate(LocalDateTime.now().plusDays(orderNum * 7 + 30))
+                .startDate(planStart)
+                .endDate(planEnd)
+                .planStartDate(planStart)
+                .planEndDate(planEnd)
+                .durationDays(durationDays)
                 .shippingAddress("123 Đường ABC, Quận XYZ, TP.HCM")
                 .orderStatus(OrderStatus.PENDING)
                 .depositAmount(BigDecimal.valueOf(1000000.0 * orderNum))
@@ -129,8 +137,8 @@ public class ContractInitializer implements ApplicationRunner {
                 .orderId(order1.getOrderId())
                 .contractContent("<h2>HỢP ĐỒNG THUÊ THIẾT BỊ CÔNG NGHỆ</h2>" +
                         "<p><strong>Đơn thuê:</strong> #" + order1.getOrderId() + "</p>" +
-                        "<p><strong>Ngày bắt đầu:</strong> " + order1.getStartDate() + "</p>" +
-                        "<p><strong>Ngày kết thúc:</strong> " + order1.getEndDate() + "</p>" +
+                        "<p><strong>Ngày bắt đầu:</strong> " + order1.getEffectiveStartDate() + "</p>" +
+                        "<p><strong>Ngày kết thúc:</strong> " + order1.getEffectiveEndDate() + "</p>" +
                         "<p><strong>Số ngày thuê:</strong> 30 ngày</p>" +
                         "<h3>Thiết bị thuê:</h3>" +
                         "<ul>" +
@@ -147,9 +155,9 @@ public class ContractInitializer implements ApplicationRunner {
                 .rentalPeriodDays(30)
                 .totalAmount(order1.getTotalPrice())
                 .depositAmount(order1.getDepositAmount())
-                .startDate(order1.getStartDate())
-                .endDate(order1.getEndDate())
-                .expiresAt(order1.getEndDate().plusDays(7))
+                .startDate(order1.getEffectiveStartDate())
+                .endDate(order1.getEffectiveEndDate())
+                .expiresAt(order1.getEffectiveEndDate().plusDays(7))
                 .createdBy(customer.getAccount().getAccountId())
                 .build();
 
@@ -164,8 +172,8 @@ public class ContractInitializer implements ApplicationRunner {
                 .orderId(order2.getOrderId())
                 .contractContent("<h2>HỢP ĐỒNG THUÊ THIẾT BỊ CÔNG NGHỆ</h2>" +
                         "<p><strong>Đơn thuê:</strong> #" + order2.getOrderId() + "</p>" +
-                        "<p><strong>Ngày bắt đầu:</strong> " + order2.getStartDate() + "</p>" +
-                        "<p><strong>Ngày kết thúc:</strong> " + order2.getEndDate() + "</p>" +
+                        "<p><strong>Ngày bắt đầu:</strong> " + order2.getEffectiveStartDate() + "</p>" +
+                        "<p><strong>Ngày kết thúc:</strong> " + order2.getEffectiveEndDate() + "</p>" +
                         "<p><strong>Số ngày thuê:</strong> 30 ngày</p>" +
                         "<h3>Thiết bị thuê:</h3>" +
                         "<ul>" +
@@ -182,9 +190,9 @@ public class ContractInitializer implements ApplicationRunner {
                 .rentalPeriodDays(30)
                 .totalAmount(order2.getTotalPrice())
                 .depositAmount(order2.getDepositAmount())
-                .startDate(order2.getStartDate())
-                .endDate(order2.getEndDate())
-                .expiresAt(order2.getEndDate().plusDays(7))
+                .startDate(order2.getEffectiveStartDate())
+                .endDate(order2.getEffectiveEndDate())
+                .expiresAt(order2.getEffectiveEndDate().plusDays(7))
                 .createdBy(customer.getAccount().getAccountId())
                 .build();
 
