@@ -5,9 +5,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
@@ -31,13 +29,13 @@ public class RentalOrder {
     @Column(name = "end_date")
     private LocalDateTime endDate;
 
-    @Column(name = "plan_start_date", nullable = false)
+    @Column(name = "plan_start_date")
     private LocalDateTime planStartDate;
 
-    @Column(name = "plan_end_date", nullable = false)
+    @Column(name = "plan_end_date")
     private LocalDateTime planEndDate;
 
-    @Column(name = "duration_days", nullable = false)
+    @Column(name = "duration_days")
     private Integer durationDays;
 
     @Column(name = "shipping_address", length = 500)
@@ -75,16 +73,6 @@ public class RentalOrder {
     @ManyToOne
     @JoinColumn(name = "customer_id", referencedColumnName = "customer_id", nullable = false)
     private Customer customer;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_order_id")
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    private RentalOrder parentOrder;
-
-    @Builder.Default
-    @Column(name = "is_extended", nullable = false)
-    private boolean extended = false;
 
     public LocalDateTime getEffectiveStartDate() {
         return startDate != null ? startDate : planStartDate;

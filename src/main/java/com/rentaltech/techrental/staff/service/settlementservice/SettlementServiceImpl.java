@@ -10,6 +10,7 @@ import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.latefee.LateFeeConfigService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -40,9 +41,9 @@ public class SettlementServiceImpl implements SettlementService {
     private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportRepository discrepancyReportRepository;
+    private final LateFeeConfigService lateFeeConfigService;
 
     private static final String STAFF_NOTIFICATION_TOPIC_TEMPLATE = "/topic/staffs/%d/notifications";
-    private static final BigDecimal LATE_FEE_RATE = new BigDecimal("0.10");
 
     @Override
     public Settlement create(SettlementCreateRequestDto request) {
@@ -234,19 +235,25 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     private BigDecimal calculateLateFee(RentalOrder order) {
-        if (order == null || order.getPlanEndDate() == null || order.getEndDate() == null || order.getPricePerDay() == null) {
+        if (order == null || order.getPlanEndDate() == null) {
             return BigDecimal.ZERO;
         }
-        LocalDateTime threshold = order.getPlanEndDate().plusHours(1);
-        LocalDateTime returnedAt = order.getEndDate();
-        if (!returnedAt.isAfter(threshold)) {
+        LocalDateTime threshold = order.getPlanEndDate().plusHours(3);
+        LocalDateTime now = LocalDateTime.now();
+        if (!now.isAfter(threshold)) {
             return BigDecimal.ZERO;
         }
-        long hoursLate = ChronoUnit.HOURS.between(threshold, returnedAt);
+        long hoursLate = ChronoUnit.HOURS.between(threshold, now);
         if (hoursLate <= 0) {
             return BigDecimal.ZERO;
         }
-        BigDecimal hourlyRate = order.getPricePerDay().multiply(LATE_FEE_RATE);
-        return hourlyRate.multiply(BigDecimal.valueOf(hoursLate));
+        BigDecimal hourlyRate = lateFeeConfigService.getCurrentRate();
+        if (hourlyRate == null || hourlyRate.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal orderTotal = order.getTotalPrice() != null ? order.getTotalPrice() : BigDecimal.ZERO;
+        return hourlyRate
+                .multiply(BigDecimal.valueOf(hoursLate))
+                .multiply(orderTotal);
     }
 }

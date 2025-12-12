@@ -114,13 +114,16 @@ class DeviceModelServiceImplTest {
     }
 
     @Test
-    void searchDelegatesToRepositorySpec() {
+    void searchDelegatesToRepositoryQuery() {
         Pageable pageable = Pageable.unpaged();
-        when(deviceModelRepository.findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<DeviceModel>>any(), any(Pageable.class))).thenReturn(Page.empty());
+        when(deviceModelRepository.searchDeviceModels(
+                any(), any(), any(), any(), any(), any(), any(Pageable.class)))
+                .thenReturn(Page.empty());
 
         Page<DeviceModelResponseDto> result = service.search(null, null, null, null, null, null, pageable);
 
         assertThat(result.getTotalElements()).isZero();
-        verify(deviceModelRepository).findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<DeviceModel>>any(), any(Pageable.class));
+        verify(deviceModelRepository).searchDeviceModels(
+                any(), any(), any(), any(), any(), any(), any(Pageable.class));
     }
 }

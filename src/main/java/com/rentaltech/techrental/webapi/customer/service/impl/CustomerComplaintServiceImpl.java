@@ -318,10 +318,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         complaint.setReplacementAllocation(savedAllocation);
         complaint.setProcessedAt(LocalDateTime.now());
 
-        // Nếu lỗi do khách: ghi nhận các condition hư hỏng để tính phí sau này
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        // Ghi nhận condition hiện tại của thiết bị để cập nhật trạng thái
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 
@@ -368,9 +366,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             complaint.setStaffNote(staffNote);
         }
 
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 

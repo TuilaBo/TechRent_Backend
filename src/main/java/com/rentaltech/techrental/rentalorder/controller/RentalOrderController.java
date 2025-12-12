@@ -176,6 +176,7 @@ public class RentalOrderController {
     })
     public ResponseEntity<?> search(
             @RequestParam(required = false) String orderStatus,
+            @RequestParam(required = false) Long orderId,
             @RequestParam(required = false) Long customerId,
             @RequestParam(required = false) String startDateFrom,
             @RequestParam(required = false) String startDateTo,
@@ -187,7 +188,7 @@ public class RentalOrderController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) List<String> sort) {
         Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
-        var pageResult = service.search(orderStatus, customerId, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
+        var pageResult = service.search(orderStatus, orderId, customerId, startDateFrom, startDateTo, endDateFrom, endDateTo, createdAtFrom, createdAtTo, pageable);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Kết quả tìm kiếm đơn thuê",
                 "Áp dụng phân trang/sắp xếp/lọc theo tham số",

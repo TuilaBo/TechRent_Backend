@@ -476,6 +476,9 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         if (complaint == null || allocation == null) {
             return;
         }
+        if (complaint.getFaultSource() != ComplaintFaultSource.CUSTOMER) {
+            return;
+        }
         Long complaintId = complaint.getComplaintId();
         Long orderDetailId = allocation.getOrderDetail() != null
                 ? allocation.getOrderDetail().getOrderDetailId()
@@ -503,23 +506,13 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
                 .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
                 .refId(complaintId)
-                .discrepancyType(resolveDiscrepancyType(complaint))
+                .discrepancyType(DiscrepancyType.DAMAGE)
                 .orderDetailId(orderDetailId)
                 .deviceId(deviceId)
                 .staffNote(staffNote)
                 .build());
     }
 
-    private DiscrepancyType resolveDiscrepancyType(CustomerComplaint complaint) {
-        ComplaintFaultSource faultSource = complaint != null ? complaint.getFaultSource() : null;
-        if (faultSource == ComplaintFaultSource.RENTAL_DEVICE) {
-            return DiscrepancyType.WRONG_CONDITION;
-        }
-        if (faultSource == ComplaintFaultSource.CUSTOMER) {
-            return DiscrepancyType.DAMAGE;
-        }
-        return DiscrepancyType.OTHER;
-    }
 
     // PIN management methods
     private String generatePinCode() {
