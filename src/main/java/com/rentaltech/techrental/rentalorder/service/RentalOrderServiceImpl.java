@@ -343,10 +343,10 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         RentalOrder original = rentalOrderRepository.findById(request.getRentalOrderId())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn thuê: " + request.getRentalOrderId()));
         ensureCustomerOwnership(original, "Chỉ khách hàng sở hữu đơn mới được gia hạn");
-        if (original.getEndDate() == null) {
+        LocalDateTime extensionStart = original.getPlanEndDate();
+        if (extensionStart == null) {
             throw new IllegalStateException("Đơn thuê chưa có ngày kết thúc nên không thể gia hạn");
         }
-        LocalDateTime extensionStart = original.getEndDate();
         LocalDateTime extensionEnd = request.getExtendedEndTime();
         if (!extensionStart.isBefore(extensionEnd)) {
             throw new IllegalArgumentException("Thời gian gia hạn phải diễn ra sau ngày kết thúc hiện tại");

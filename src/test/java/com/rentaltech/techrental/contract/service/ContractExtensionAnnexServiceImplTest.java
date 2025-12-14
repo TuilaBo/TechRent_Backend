@@ -12,6 +12,7 @@ import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ class ContractExtensionAnnexServiceImplTest {
 
     private Contract contract;
     private RentalOrder originalOrder;
-    private RentalOrder extensionOrder;
+    private RentalOrderExtension rentalOrderExtension;
 
     @BeforeEach
     void setUp() {
@@ -65,15 +66,18 @@ class ContractExtensionAnnexServiceImplTest {
                 .startDate(LocalDateTime.now().minusDays(5))
                 .endDate(LocalDateTime.now())
                 .build();
-        extensionOrder = RentalOrder.builder()
-                .orderId(11L)
-                .startDate(LocalDateTime.now())
-                .endDate(LocalDateTime.now().plusDays(3))
-                .totalPrice(java.math.BigDecimal.valueOf(1000))
+        rentalOrderExtension = RentalOrderExtension.builder()
+                .extensionId(100L)
+                .rentalOrder(originalOrder)
+                .extensionStart(LocalDateTime.now())
+                .extensionEnd(LocalDateTime.now().plusDays(3))
+                .durationDays(3)
+                .pricePerDay(java.math.BigDecimal.valueOf(333))
+                .additionalPrice(java.math.BigDecimal.valueOf(1000))
                 .build();
-        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId()))
+        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(originalOrder.getOrderId()))
                 .thenReturn(List.of(OrderDetail.builder()
-                        .rentalOrder(extensionOrder)
+                        .rentalOrder(originalOrder)
                         .deviceModel(DeviceModel.builder().deviceName("Device X").build())
                         .quantity(1L)
                         .build()));
@@ -86,7 +90,7 @@ class ContractExtensionAnnexServiceImplTest {
     void createAnnexForExtensionBuildsAnnexWithNumberAndContent() {
         when(annexRepository.countByContract_ContractId(contract.getContractId())).thenReturn(0L);
 
-        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, originalOrder, extensionOrder, 99L);
+        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, rentalOrderExtension, 99L);
 
         assertThat(annex.getAnnexNumber()).contains("HD202401010001-P");
         assertThat(annex.getExtensionDays()).isEqualTo(3);
@@ -95,14 +99,14 @@ class ContractExtensionAnnexServiceImplTest {
 
     @Test
     void createAnnexThrowsWhenMissingData() {
-        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, originalOrder, extensionOrder, 1L));
+        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, rentalOrderExtension, 1L));
     }
 
     @Test
     void createAnnexIncrementsSequenceNumber() {
         when(annexRepository.countByContract_ContractId(contract.getContractId())).thenReturn(2L); // existing 2 annexes
 
-        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, originalOrder, extensionOrder, 50L);
+        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, rentalOrderExtension, 50L);
 
         assertThat(annex.getAnnexNumber()).endsWith("-PL-03");
         verify(annexRepository).save(any(ContractExtensionAnnex.class));
@@ -114,7 +118,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(5L)
                 .annexNumber("HD-PL-01")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -143,7 +147,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(9L)
                 .annexNumber("HD-PL-02")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_ADMIN_SIGNATURE) // wrong status
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -165,7 +169,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(10L)
                 .annexNumber("HD-PL-03")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(null) // admin not signed
                 .annexContent("content")
@@ -187,7 +191,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(11L)
                 .annexNumber("HD-PL-04")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -209,7 +213,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(12L)
                 .annexNumber("HD-PL-05")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -232,7 +236,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(13L)
                 .annexNumber("HD-PL-06")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -270,7 +274,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .contract(contract)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
         when(emailService.sendOTP(any(), any())).thenReturn(true);
@@ -288,7 +292,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .contract(contract)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
 
@@ -303,7 +307,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .contract(contract)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
         when(emailService.sendOTP(any(), any())).thenReturn(false);
@@ -320,7 +324,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .contract(otherContract) // mismatched contract
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
         when(emailService.sendOTP(any(), any())).thenReturn(true);
