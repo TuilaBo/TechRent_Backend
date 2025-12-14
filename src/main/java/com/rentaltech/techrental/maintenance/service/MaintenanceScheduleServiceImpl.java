@@ -6,11 +6,9 @@ import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
-import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
 import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
 import com.rentaltech.techrental.maintenance.model.dto.*;
-import com.rentaltech.techrental.maintenance.repository.MaintenancePlanRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleCustomRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepository;
 import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
@@ -36,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,7 +44,6 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
     private final MaintenanceScheduleRepository scheduleRepository;
     private final MaintenanceScheduleCustomRepository scheduleCustomRepository;
-    private final MaintenancePlanRepository planRepository;
     private final DeviceRepository deviceRepository;
     private final DeviceCategoryRepository deviceCategoryRepository;
     private final BookingCalendarRepository bookingCalendarRepository;
@@ -74,7 +70,6 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         MaintenanceScheduleStatus scheduleStatus = status != null ? status : MaintenanceScheduleStatus.STARTED;
         MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                 .device(device)
-                .maintenancePlan(null)
                 .startDate(startDate)
                 .endDate(endDate)
                 .status(scheduleStatus.name())
@@ -170,7 +165,6 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                     .device(device)
-                    .maintenancePlan(null)
                     .startDate(request.getStartDate())
                     .endDate(endDate)
                     .status(scheduleStatus.name())
@@ -257,7 +251,6 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
             MaintenanceSchedule schedule = MaintenanceSchedule.builder()
                     .device(device)
-                    .maintenancePlan(null)
                     .startDate(request.getStartDate())
                     .endDate(endDate)
                     .status(scheduleStatus.name())
@@ -293,32 +286,10 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 .filter(schedule -> schedule.getDevice() != null && schedule.getDevice().getDeviceId() != null)
                 .collect(Collectors.groupingBy(schedule -> schedule.getDevice().getDeviceId()));
 
-        // Query usage plans với filter (chỉ active ByUsage plans)
-        List<MaintenancePlan> usagePlans = planRepository.findByRuleTypeAndActive(
-                com.rentaltech.techrental.maintenance.model.MaintenanceRuleType.ByUsage, 
-                Boolean.TRUE
-        );
-        
-        // Lấy min ruleValue từ plans để query devices
-        Integer minUsageThreshold = usagePlans.stream()
-                .filter(plan -> plan.getRuleValue() != null)
-                .map(MaintenancePlan::getRuleValue)
-                .min(Integer::compareTo)
-                .orElse(null);
-
         // Collect device IDs từ các nguồn
         Set<Long> relevantDeviceIds = new HashSet<>();
         relevantDeviceIds.addAll(bookingsByDevice.keySet());
         relevantDeviceIds.addAll(schedulesByDevice.keySet());
-        
-        // Query devices có usageCount >= threshold (nếu có plans)
-        if (minUsageThreshold != null) {
-            List<Device> devicesByUsage = deviceRepository.findByUsageCountGreaterThanEqual(minUsageThreshold);
-            relevantDeviceIds.addAll(devicesByUsage.stream()
-                    .map(Device::getDeviceId)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet()));
-        }
 
         // Load chỉ những devices cần thiết
         List<Device> devices = relevantDeviceIds.isEmpty() 
@@ -347,17 +318,6 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
                 priorityDevices.add(buildPriorityDeviceDto(device, nextSchedule, "SCHEDULED_MAINTENANCE",
                         null, null));
                 continue;
-            }
-
-            // Check usage threshold
-            for (MaintenancePlan plan : usagePlans) {
-                if (plan.getRuleValue() != null
-                        && device.getUsageCount() != null
-                        && device.getUsageCount() >= plan.getRuleValue()) {
-                    priorityDevices.add(buildPriorityDeviceDto(device, null, "USAGE_THRESHOLD",
-                            null, plan.getRuleValue()));
-                    break;
-                }
             }
         }
 
