@@ -747,12 +747,12 @@ public class PaymentServiceImpl implements PaymentService {
         }
         contractExtensionAnnexRepository.findByInvoice(invoice)
                 .ifPresent(annex -> {
-                    RentalOrder extensionOrder = annex.getExtensionOrder();
-                    if (extensionOrder == null || extensionOrder.getOrderId() == null) {
+                    RentalOrder originalOrder = annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getRentalOrder() : null;
+                    if (originalOrder == null || originalOrder.getOrderId() == null) {
                         return;
                     }
-                    bookingCalendarService.clearBookingsForOrder(extensionOrder.getOrderId());
-                    createBookingsForOrder(extensionOrder);
+                    bookingCalendarService.clearBookingsForOrder(originalOrder.getOrderId());
+                    createBookingsForOrder(originalOrder);
                 });
     }
 
@@ -761,7 +761,7 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         if (isExtensionOrder(rentalOrder)) {
-            contractExtensionAnnexRepository.findFirstByExtensionOrder_OrderId(rentalOrder.getOrderId())
+            contractExtensionAnnexRepository.findFirstByRentalOrderExtension_RentalOrder_OrderId(rentalOrder.getOrderId())
                     .ifPresent(annex -> {
                         annex.setStatus(ContractStatus.ACTIVE);
                         contractExtensionAnnexRepository.save(annex);
@@ -780,6 +780,6 @@ public class PaymentServiceImpl implements PaymentService {
         if (rentalOrder == null || rentalOrder.getOrderId() == null) {
             return false;
         }
-        return contractExtensionAnnexRepository.findFirstByExtensionOrder_OrderId(rentalOrder.getOrderId()).isPresent();
+        return contractExtensionAnnexRepository.findFirstByRentalOrderExtension_RentalOrder_OrderId(rentalOrder.getOrderId()).isPresent();
     }
 }

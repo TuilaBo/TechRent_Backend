@@ -132,6 +132,26 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void sendEmailPinStoresPinInRedisOnSuccess() {
+        when(emailService.sendOTP(anyString(), anyString())).thenReturn(true);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        ResponseEntity<?> response = contractService.sendEmailPIN(22L, "user@test.com");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(valueOperations).set(startsWith("contract_pin_"), anyString(), eq(300L), eq(TimeUnit.SECONDS));
+    }
+
+    @Test
+    void sendEmailPinReturnsErrorWhenExceptionOccurs() {
+        when(emailService.sendOTP(anyString(), anyString())).thenThrow(new RuntimeException("boom"));
+
+        ResponseEntity<?> response = contractService.sendEmailPIN(33L, "user@test.com");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
     void signContractPersistsCustomerSignature() {
         long contractId = 5L;
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -163,6 +183,112 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void signContractThrowsWhenPinInvalid() {
+        long contractId = 6L;
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // Mismatch PIN
+        when(valueOperations.get("contract_pin_" + contractId)).thenReturn("000000");
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .contractId(contractId)
+                .pinCode("123456")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContract(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("PIN code");
+    }
+
+    @Test
+    void signContractThrowsWhenContractNotFound() {
+        long contractId = 7L;
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("contract_pin_" + contractId)).thenReturn("123456");
+        when(contractRepository.findById(contractId)).thenReturn(Optional.empty());
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .contractId(contractId)
+                .pinCode("123456")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContract(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không tìm thấy hợp đồng");
+    }
+
+    @Test
+    void signContractThrowsWhenStatusNotPendingSignature() {
+        long contractId = 8L;
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("contract_pin_" + contractId)).thenReturn("123456");
+        Contract contract = baseContract(ContractStatus.DRAFT);
+        contract.setContractId(contractId);
+        // Admin đã ký nhưng trạng thái không đúng
+        contract.setAdminSignedAt(LocalDateTime.now());
+        contract.setAdminSignedBy(1L);
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(contract));
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .contractId(contractId)
+                .pinCode("123456")
+                .digitalSignature("c2ln")
+                .signatureMethod("SMS_OTP")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContract(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("chưa sẵn sàng");
+    }
+
+    @Test
+    void signContractThrowsWhenAdminNotSigned() {
+        long contractId = 9L;
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("contract_pin_" + contractId)).thenReturn("123456");
+        Contract contract = baseContract(ContractStatus.PENDING_SIGNATURE);
+        contract.setContractId(contractId);
+        // Admin chưa ký
+        contract.setAdminSignedAt(null);
+        contract.setAdminSignedBy(null);
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(contract));
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .contractId(contractId)
+                .pinCode("123456")
+                .digitalSignature("c2ln")
+                .signatureMethod("SMS_OTP")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContract(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Admin chưa ký");
+    }
+
+    @Test
+    void signContractThrowsWhenSignatureInvalid() {
+        long contractId = 10L;
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("contract_pin_" + contractId)).thenReturn("123456");
+        Contract contract = baseContract(ContractStatus.PENDING_SIGNATURE);
+        contract.setContractId(contractId);
+        contract.setAdminSignedAt(LocalDateTime.now());
+        contract.setAdminSignedBy(1L);
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(contract));
+        when(digitalSignatureService.verifySignature(anyString(), anyString(), anyString())).thenReturn(false);
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .contractId(contractId)
+                .pinCode("123456")
+                .digitalSignature("c2ln")
+                .signatureMethod("SMS_OTP")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContract(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("không hợp lệ");
+    }
+
+    @Test
     void signContractByAdminMovesContractToPendingCustomerSignature() {
         long contractId = 2L;
         Contract contract = baseContract(ContractStatus.PENDING_ADMIN_SIGNATURE);
@@ -183,6 +309,55 @@ class ContractServiceImplTest {
         assertThat(contract.getStatus()).isEqualTo(ContractStatus.PENDING_SIGNATURE);
         assertThat(contract.getAdminSignedBy()).isEqualTo(100L);
         verify(contractRepository).save(contract);
+    }
+
+    @Test
+    void signContractByAdminThrowsWhenContractNotFound() {
+        long contractId = 404L;
+        when(contractRepository.findById(contractId)).thenReturn(Optional.empty());
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .digitalSignature("c2ln")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContractByAdmin(contractId, 100L, request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không tìm thấy hợp đồng");
+    }
+
+    @Test
+    void signContractByAdminThrowsWhenWrongStatus() {
+        long contractId = 3L;
+        Contract contract = baseContract(ContractStatus.DRAFT);
+        contract.setContractId(contractId);
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(contract));
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .digitalSignature("c2ln")
+                .signatureMethod("ADMIN")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContractByAdmin(contractId, 100L, request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("không ở trạng thái chờ admin ký");
+    }
+
+    @Test
+    void signContractByAdminThrowsWhenSignatureInvalid() {
+        long contractId = 12L;
+        Contract contract = baseContract(ContractStatus.PENDING_ADMIN_SIGNATURE);
+        contract.setContractId(contractId);
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(contract));
+        when(digitalSignatureService.verifySignature(anyString(), anyString(), anyString())).thenReturn(false);
+
+        DigitalSignatureRequestDto request = DigitalSignatureRequestDto.builder()
+                .digitalSignature("c2ln")
+                .signatureMethod("ADMIN")
+                .build();
+
+        assertThatThrownBy(() -> contractService.signContractByAdmin(contractId, 100L, request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("không hợp lệ");
     }
 
     @Test
@@ -228,6 +403,66 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void createContractWithoutOrderIdSavesWithoutEnrichment() {
+        ContractCreateRequestDto request = buildCreateRequest();
+        request.setOrderId(null);
+
+        contractService.createContract(request, 77L);
+
+        ArgumentCaptor<Contract> captor = ArgumentCaptor.forClass(Contract.class);
+        verify(contractRepository).save(captor.capture());
+        Contract saved = captor.getValue();
+        assertThat(saved.getOrderId()).isNull();
+        assertThat(saved.getCreatedBy()).isEqualTo(77L);
+        // No order lookups when orderId is null
+        verify(rentalOrderRepository, never()).findById(anyLong());
+        verify(orderDetailRepository, never()).findByRentalOrder_OrderId(anyLong());
+        verify(deviceContractTermService, never()).findApplicableTerms(any(), any());
+    }
+
+    @Test
+    void createContractIgnoresMissingOrder() {
+        ContractCreateRequestDto request = buildCreateRequest();
+        // OrderId provided but not found
+        when(rentalOrderRepository.findById(request.getOrderId())).thenReturn(Optional.empty());
+
+        contractService.createContract(request, 11L);
+
+        verify(contractRepository).save(any(Contract.class));
+        verify(orderDetailRepository, never()).findByRentalOrder_OrderId(anyLong());
+        verify(deviceContractTermService, never()).findApplicableTerms(any(), any());
+    }
+
+    @Test
+    void createContractEnrichesTermsWhenOrderExists() {
+        ContractCreateRequestDto request = buildCreateRequest();
+        RentalOrder order = sampleOrder();
+        order.setOrderId(request.getOrderId());
+        when(rentalOrderRepository.findById(request.getOrderId())).thenReturn(Optional.of(order));
+        List<OrderDetail> details = sampleOrderDetails(order);
+        when(orderDetailRepository.findByRentalOrder_OrderId(request.getOrderId())).thenReturn(details);
+        // Return empty list to keep content simple but verify method call
+        when(deviceContractTermService.findApplicableTerms(order, details)).thenReturn(Collections.emptyList());
+
+        contractService.createContract(request, 22L);
+
+        verify(orderDetailRepository).findByRentalOrder_OrderId(request.getOrderId());
+        verify(deviceContractTermService).findApplicableTerms(order, details);
+        verify(contractRepository).save(any(Contract.class));
+    }
+
+    @Test
+    void createContractThrowsWhenSaveFails() {
+        ContractCreateRequestDto request = buildCreateRequest();
+        request.setOrderId(null); // avoid order lookups
+        when(contractRepository.save(any(Contract.class))).thenThrow(new RuntimeException("db down"));
+
+        assertThatThrownBy(() -> contractService.createContract(request, 33L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể tạo hợp đồng");
+    }
+
+    @Test
     void updateContractCurrentlyReturnsNull() {
         assertNull(contractService.updateContract(1L, buildCreateRequest(), 2L));
     }
@@ -247,6 +482,59 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void createContractFromOrderInvokesTermEnrichment() {
+        long orderId = 55L;
+        RentalOrder order = sampleOrder();
+        order.setOrderId(orderId);
+        when(rentalOrderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        List<OrderDetail> details = sampleOrderDetails(order);
+        when(orderDetailRepository.findByRentalOrder_OrderId(orderId)).thenReturn(details);
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        contractService.createContractFromOrder(orderId, 77L);
+
+        verify(deviceContractTermService).findApplicableTerms(order, details);
+    }
+
+    @Test
+    void createContractFromOrderHandlesEmptyOrderDetails() {
+        long orderId = 66L;
+        RentalOrder order = sampleOrder();
+        order.setOrderId(orderId);
+        when(rentalOrderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(orderDetailRepository.findByRentalOrder_OrderId(orderId)).thenReturn(Collections.emptyList());
+        when(contractRepository.save(any(Contract.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Contract created = contractService.createContractFromOrder(orderId, 88L);
+
+        assertThat(created.getOrderId()).isEqualTo(orderId);
+        assertThat(created.getStatus()).isEqualTo(ContractStatus.DRAFT);
+    }
+
+    @Test
+    void createContractFromOrderThrowsWhenOrderMissing() {
+        when(rentalOrderRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> contractService.createContractFromOrder(999L, 1L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể tạo hợp đồng từ đơn thuê");
+    }
+
+    @Test
+    void createContractFromOrderThrowsWhenSaveFails() {
+        long orderId = 77L;
+        RentalOrder order = sampleOrder();
+        order.setOrderId(orderId);
+        when(rentalOrderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(orderDetailRepository.findByRentalOrder_OrderId(orderId)).thenReturn(sampleOrderDetails(order));
+        when(contractRepository.save(any(Contract.class))).thenThrow(new RuntimeException("db error"));
+
+        assertThatThrownBy(() -> contractService.createContractFromOrder(orderId, 1L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể tạo hợp đồng từ đơn thuê");
+    }
+
+    @Test
     void deleteContractDoesNothingForNow() {
         contractService.deleteContract(99L);
     }
@@ -261,6 +549,26 @@ class ContractServiceImplTest {
 
         assertThat(updated.getStatus()).isEqualTo(ContractStatus.ACTIVE);
         verify(contractRepository).save(contract);
+    }
+
+    @Test
+    void updateContractStatusThrowsWhenNotFound() {
+        when(contractRepository.findById(123L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> contractService.updateContractStatus(123L, ContractStatus.ACTIVE))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể cập nhật trạng thái hợp đồng");
+    }
+
+    @Test
+    void updateContractStatusThrowsWhenSaveFails() {
+        Contract contract = baseContract(ContractStatus.DRAFT);
+        when(contractRepository.findById(2L)).thenReturn(Optional.of(contract));
+        when(contractRepository.save(contract)).thenThrow(new RuntimeException("db error"));
+
+        assertThatThrownBy(() -> contractService.updateContractStatus(2L, ContractStatus.CANCELLED))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể cập nhật trạng thái hợp đồng");
     }
 
     @Test
@@ -283,6 +591,26 @@ class ContractServiceImplTest {
         assertThatThrownBy(() -> contractService.sendForSignature(1L, 200L))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("DRAFT");
+    }
+
+    @Test
+    void sendForSignatureThrowsWhenContractNotFound() {
+        when(contractRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> contractService.sendForSignature(404L, 200L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể gửi hợp đồng để ký");
+    }
+
+    @Test
+    void sendForSignatureThrowsWhenSaveFails() {
+        Contract contract = baseContract(ContractStatus.DRAFT);
+        when(contractRepository.findById(2L)).thenReturn(Optional.of(contract));
+        when(contractRepository.save(contract)).thenThrow(new RuntimeException("db error"));
+
+        assertThatThrownBy(() -> contractService.sendForSignature(2L, 200L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Không thể gửi hợp đồng để ký");
     }
 
     @Test
@@ -326,6 +654,36 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void validateContractForSignatureReturnsFalseWhenWrongStatus() {
+        Contract contract = baseContract(ContractStatus.DRAFT);
+        contract.setAdminSignedAt(LocalDateTime.now());
+        contract.setAdminSignedBy(10L);
+        contract.setContractContent("content");
+        when(contractRepository.findById(2L)).thenReturn(Optional.of(contract));
+
+        assertThat(contractService.validateContractForSignature(2L)).isFalse();
+    }
+
+    @Test
+    void validateContractForSignatureReturnsFalseWhenExpired() {
+        Contract contract = baseContract(ContractStatus.PENDING_SIGNATURE);
+        contract.setAdminSignedAt(LocalDateTime.now());
+        contract.setAdminSignedBy(10L);
+        contract.setContractContent("content");
+        contract.setExpiresAt(LocalDateTime.now().minusDays(1));
+        when(contractRepository.findById(3L)).thenReturn(Optional.of(contract));
+
+        assertThat(contractService.validateContractForSignature(3L)).isFalse();
+    }
+
+    @Test
+    void validateContractForSignatureReturnsFalseWhenNotFound() {
+        when(contractRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThat(contractService.validateContractForSignature(404L)).isFalse();
+    }
+
+    @Test
     void validateSignatureDataChecksRequiredFields() {
         DigitalSignatureRequestDto valid = DigitalSignatureRequestDto.builder()
                 .contractId(1L)
@@ -341,12 +699,71 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void validateSignatureDataRejectsNullContractId() {
+        DigitalSignatureRequestDto req = DigitalSignatureRequestDto.builder()
+                .contractId(null)
+                .digitalSignature("abc")
+                .pinCode("123456")
+                .signatureMethod("SMS_OTP")
+                .build();
+
+        assertThat(contractService.validateSignatureData(req)).isFalse();
+    }
+
+    @Test
+    void validateSignatureDataRejectsEmptySignature() {
+        DigitalSignatureRequestDto req = DigitalSignatureRequestDto.builder()
+                .contractId(1L)
+                .digitalSignature(" ")
+                .pinCode("123456")
+                .signatureMethod("SMS_OTP")
+                .build();
+
+        assertThat(contractService.validateSignatureData(req)).isFalse();
+    }
+
+    @Test
+    void validateSignatureDataRejectsUnsupportedMethod() {
+        DigitalSignatureRequestDto req = DigitalSignatureRequestDto.builder()
+                .contractId(1L)
+                .digitalSignature("abc")
+                .pinCode("123456")
+                .signatureMethod("UNSUPPORTED")
+                .build();
+
+        assertThat(contractService.validateSignatureData(req)).isFalse();
+    }
+
+    @Test
     void generateContractNumberUsesDailySequence() {
         when(contractRepository.findByContractNumberStartingWith(anyString())).thenReturn(List.of(baseContract(ContractStatus.DRAFT)));
 
         String number = contractService.generateContractNumber();
 
         assertThat(number).matches("HD\\d{8}\\d{4}");
+    }
+
+    @Test
+    void generateContractNumberStartsAt0001WhenNoExisting() {
+        when(contractRepository.findByContractNumberStartingWith(anyString())).thenReturn(List.of());
+
+        String number = contractService.generateContractNumber();
+
+        String datePrefix = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        assertThat(number).isEqualTo("HD" + datePrefix + "0001");
+    }
+
+    @Test
+    void generateContractNumberIncrementsByExistingCount() {
+        // Simulate 5 contracts already today -> next should be 0006
+        when(contractRepository.findByContractNumberStartingWith(anyString())).thenReturn(
+                java.util.Arrays.asList(new Contract(), new Contract(), new Contract(), new Contract(), new Contract())
+        );
+
+        String number = contractService.generateContractNumber();
+
+        String datePrefix = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        assertThat(number).isEqualTo("HD" + datePrefix + "0006");
     }
 
     @Test

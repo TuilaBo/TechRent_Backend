@@ -829,7 +829,6 @@ public class ContractServiceImpl implements ContractService {
             return true;
             
         } catch (Exception e) {
-            System.err.println("Lỗi kiểm tra hợp đồng trước khi ký: " + e.getMessage());
             return false;
         }
     }

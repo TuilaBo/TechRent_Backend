@@ -20,7 +20,9 @@ public interface ContractExtensionAnnexRepository extends JpaRepository<Contract
 
     List<ContractExtensionAnnex> findByContract_ContractIdAndStatus(Long contractId, ContractStatus status);
 
-    Optional<ContractExtensionAnnex> findFirstByExtensionOrder_OrderId(Long orderId);
+    Optional<ContractExtensionAnnex> findFirstByRentalOrderExtension_RentalOrder_OrderId(Long orderId);
+
+    Optional<ContractExtensionAnnex> findFirstByRentalOrderExtension_ExtensionId(Long extensionId);
 
     Optional<ContractExtensionAnnex> findByInvoice(Invoice invoice);
 }

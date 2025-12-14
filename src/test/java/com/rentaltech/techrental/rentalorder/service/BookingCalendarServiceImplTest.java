@@ -72,6 +72,47 @@ class BookingCalendarServiceImplTest {
     }
 
     @Test
+    void createBookingsForAllocationsNoopsOnNullOrEmptyInput() {
+        service.createBookingsForAllocations(null);
+        service.createBookingsForAllocations(List.of());
+        verify(bookingCalendarRepository, org.mockito.Mockito.never()).saveAll(anyList());
+    }
+
+    @Test
+    void createBookingsForAllocationsSkipsWhenAllocationMissingDevice() {
+        RentalOrder order = RentalOrder.builder()
+                .orderId(1L)
+                .startDate(LocalDateTime.now())
+                .endDate(LocalDateTime.now().plusDays(1))
+                .build();
+        Allocation allocation = Allocation.builder()
+                .device(null) // missing device
+                .orderDetail(OrderDetail.builder().rentalOrder(order).build())
+                .build();
+
+        service.createBookingsForAllocations(List.of(allocation));
+
+        verify(bookingCalendarRepository, org.mockito.Mockito.never()).saveAll(anyList());
+    }
+
+    @Test
+    void createBookingsForAllocationsSkipsWhenOrderDatesMissing() {
+        RentalOrder orderMissingDates = RentalOrder.builder()
+                .orderId(1L)
+                .startDate(null)
+                .endDate(null)
+                .build();
+        Allocation allocation = Allocation.builder()
+                .device(Device.builder().deviceId(10L).build())
+                .orderDetail(OrderDetail.builder().rentalOrder(orderMissingDates).build())
+                .build();
+
+        service.createBookingsForAllocations(List.of(allocation));
+
+        verify(bookingCalendarRepository, org.mockito.Mockito.never()).saveAll(anyList());
+    }
+
+    @Test
     void getAvailableCountByModelExcludesBusyDamagedAndReserved() {
         Device available = Device.builder()
                 .deviceId(1L)
@@ -111,6 +152,24 @@ class BookingCalendarServiceImplTest {
         );
 
         long count = service.getAvailableCountByModel(7L,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusDays(1));
+
+        assertThat(count).isZero();
+    }
+
+    @Test
+    void getAvailableCountByModelReturnsZeroWhenInvalidRange() {
+        long count = service.getAvailableCountByModel(5L,
+                LocalDateTime.now(),
+                LocalDateTime.now().minusDays(1));
+
+        assertThat(count).isZero();
+    }
+
+    @Test
+    void getAvailableCountByModelReturnsZeroWhenModelIdNull() {
+        long count = service.getAvailableCountByModel(null,
                 LocalDateTime.now(),
                 LocalDateTime.now().plusDays(1));
 

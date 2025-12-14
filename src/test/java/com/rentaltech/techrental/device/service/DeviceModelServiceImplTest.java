@@ -87,6 +87,76 @@ class DeviceModelServiceImplTest {
     }
 
     @Test
+    void createSkipsUploadWhenImageNull() {
+        when(deviceModelRepository.save(any(DeviceModel.class))).thenAnswer(inv -> {
+            DeviceModel model = inv.getArgument(0);
+            model.setDeviceModelId(6L);
+            return model;
+        });
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.builder().brandId(1L).brandName("Brand").build()));
+        when(deviceCategoryRepository.findById(2L)).thenReturn(Optional.of(DeviceCategory.builder().deviceCategoryId(2L).deviceCategoryName("Cat").build()));
+
+        DeviceModelResponseDto response = service.create(baseRequest, null);
+
+        assertThat(response.getDeviceModelId()).isEqualTo(6L);
+        verify(imageStorageService, never()).uploadDeviceModelImage(any(), any(), any());
+    }
+
+    @Test
+    void createSkipsUploadWhenImageEmpty() {
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(true);
+        when(deviceModelRepository.save(any(DeviceModel.class))).thenAnswer(inv -> {
+            DeviceModel model = inv.getArgument(0);
+            model.setDeviceModelId(7L);
+            return model;
+        });
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.builder().brandId(1L).brandName("Brand").build()));
+        when(deviceCategoryRepository.findById(2L)).thenReturn(Optional.of(DeviceCategory.builder().deviceCategoryId(2L).deviceCategoryName("Cat").build()));
+
+        DeviceModelResponseDto response = service.create(baseRequest, file);
+
+        assertThat(response.getDeviceModelId()).isEqualTo(7L);
+        verify(imageStorageService, never()).uploadDeviceModelImage(any(), any(), any());
+    }
+
+    @Test
+    void createThrowsWhenBrandIdNull() {
+        DeviceModelRequestDto req = DeviceModelRequestDto.builder()
+                .deviceName("Laptop X")
+                .brandId(null)
+                .deviceCategoryId(2L)
+                .description("High-end")
+                .specifications("Specs")
+                .deviceValue(java.math.BigDecimal.valueOf(1000))
+                .pricePerDay(java.math.BigDecimal.valueOf(100))
+                .depositPercent(java.math.BigDecimal.valueOf(10))
+                .isActive(true)
+                .build();
+
+        assertThatThrownBy(() -> service.create(req, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void createThrowsWhenCategoryIdNull() {
+        DeviceModelRequestDto req = DeviceModelRequestDto.builder()
+                .deviceName("Laptop X")
+                .brandId(1L)
+                .deviceCategoryId(null)
+                .description("High-end")
+                .specifications("Specs")
+                .deviceValue(java.math.BigDecimal.valueOf(1000))
+                .pricePerDay(java.math.BigDecimal.valueOf(100))
+                .depositPercent(java.math.BigDecimal.valueOf(10))
+                .isActive(true)
+                .build();
+
+        assertThatThrownBy(() -> service.create(req, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void findByDeviceCategoryThrowsWhenMissing() {
         when(deviceCategoryRepository.existsById(2L)).thenReturn(false);
 
@@ -111,6 +181,59 @@ class DeviceModelServiceImplTest {
         assertThat(response.getDeviceModelId()).isEqualTo(7L);
         assertThat(existing.getAmountAvailable()).isEqualTo(4L);
         verify(imageStorageService, never()).uploadDeviceModelImage(any(), any(), any());
+    }
+
+    @Test
+    void updateUploadsImageWhenProvided() {
+        DeviceModel existing = DeviceModel.builder()
+                .deviceModelId(8L)
+                .amountAvailable(0L)
+                .build();
+        when(deviceModelRepository.findById(8L)).thenReturn(Optional.of(existing));
+        when(deviceRepository.countByDeviceModel_DeviceModelId(8L)).thenReturn(0L);
+        when(brandRepository.findById(1L)).thenReturn(Optional.of(Brand.builder().brandId(1L).brandName("Brand").build()));
+        when(deviceCategoryRepository.findById(2L)).thenReturn(Optional.of(DeviceCategory.builder().deviceCategoryId(2L).deviceCategoryName("Cat").build()));
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(imageStorageService.uploadDeviceModelImage(file, 1L, "Laptop X")).thenReturn("https://img");
+        when(deviceModelRepository.save(any(DeviceModel.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DeviceModelResponseDto response = service.update(8L, baseRequest, file);
+
+        assertThat(response.getDeviceModelId()).isEqualTo(8L);
+        verify(imageStorageService).uploadDeviceModelImage(file, 1L, "Laptop X");
+    }
+
+    @Test
+    void updateThrowsWhenBrandIdNull() {
+        DeviceModel existing = DeviceModel.builder().deviceModelId(9L).build();
+        when(deviceModelRepository.findById(9L)).thenReturn(Optional.of(existing));
+
+        DeviceModelRequestDto req = DeviceModelRequestDto.builder()
+                .deviceName("Model")
+                .brandId(null)
+                .deviceCategoryId(2L)
+                .isActive(true)
+                .build();
+
+        assertThatThrownBy(() -> service.update(9L, req, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void updateThrowsWhenCategoryIdNull() {
+        DeviceModel existing = DeviceModel.builder().deviceModelId(10L).build();
+        when(deviceModelRepository.findById(10L)).thenReturn(Optional.of(existing));
+
+        DeviceModelRequestDto req = DeviceModelRequestDto.builder()
+                .deviceName("Model")
+                .brandId(1L)
+                .deviceCategoryId(null)
+                .isActive(true)
+                .build();
+
+        assertThatThrownBy(() -> service.update(10L, req, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

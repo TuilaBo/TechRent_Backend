@@ -8,6 +8,9 @@ import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.model.dto.*;
 import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
+import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexResponseDto;
+import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepository;
+import com.rentaltech.techrental.contract.repository.ContractRepository;
 import com.rentaltech.techrental.contract.service.ContractService;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
@@ -52,6 +55,15 @@ public class ContractController {
 
     @Autowired
     private ContractExtensionAnnexService contractExtensionAnnexService;
+
+    @Autowired
+    private ContractRepository contractRepository;
+
+    @Autowired
+    private ContractExtensionAnnexRepository contractExtensionAnnexRepository;
+
+    @Autowired
+    private com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository rentalOrderExtensionRepository;
 
     // ========== HELPER METHODS ==========
     
@@ -478,6 +490,71 @@ public class ContractController {
     }
 
     // ========== CONTRACT EXTENSION ANNEX ==========
+
+    @PostMapping("/{contractId}/annexes/from-extension/{extensionId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Tạo phụ lục từ gia hạn", description = "Khởi tạo phụ lục gia hạn dựa trên bản ghi RentalOrderExtension")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Tạo phụ lục thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc phụ lục đã tồn tại"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy hợp đồng hoặc bản ghi gia hạn")
+    })
+    public ResponseEntity<?> createAnnexFromExtension(@PathVariable Long contractId,
+                                                      @PathVariable Long extensionId,
+                                                      @AuthenticationPrincipal UserDetails principal) {
+        try {
+            Long createdBy = getAccountIdFromPrincipal(principal);
+
+            var contract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng: " + contractId));
+
+            var extension = rentalOrderExtensionRepository.findById(extensionId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bản ghi gia hạn: " + extensionId));
+
+            // Tránh tạo trùng
+            boolean exists = contractExtensionAnnexRepository
+                    .findFirstByRentalOrderExtension_ExtensionId(extensionId)
+                    .isPresent();
+            if (exists) {
+                return ResponseUtil.createErrorResponse(
+                        "ANNEX_ALREADY_EXISTS",
+                        "Phụ lục cho bản gia hạn đã tồn tại",
+                        "Đã có phụ lục gắn với extensionId=" + extensionId,
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+
+            // Kiểm tra ràng buộc hợp đồng - đơn gốc
+            if (contract.getOrderId() != null && extension.getRentalOrder() != null) {
+                Long contractOrderId = contract.getOrderId();
+                Long extensionOrderId = extension.getRentalOrder().getOrderId();
+                if (!contractOrderId.equals(extensionOrderId)) {
+                    return ResponseUtil.createErrorResponse(
+                            "CONTRACT_ORDER_MISMATCH",
+                            "Phụ lục không thuộc hợp đồng này",
+                            "Contract.orderId=" + contractOrderId + ", extension.orderId=" + extensionOrderId,
+                            HttpStatus.BAD_REQUEST
+                    );
+                }
+            }
+
+            var annex = contractExtensionAnnexService.createAnnexForExtension(contract, extension, createdBy);
+            ContractExtensionAnnexResponseDto dto = ContractExtensionAnnexResponseDto.from(annex);
+            return ResponseUtil.createSuccessResponse(
+                    "Tạo phụ lục thành công",
+                    "Phụ lục gia hạn đã được khởi tạo",
+                    dto,
+                    HttpStatus.CREATED
+            );
+        } catch (Exception e) {
+            return ResponseUtil.createErrorResponse(
+                    "CREATE_ANNEX_FAILED",
+                    "Không thể tạo phụ lục từ bản gia hạn",
+                    e.getMessage(),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
 
     @GetMapping("/{contractId}/annexes")
     @Operation(summary = "Danh sách phụ lục", description = "Liệt kê toàn bộ phụ lục gia hạn gắn với một hợp đồng")

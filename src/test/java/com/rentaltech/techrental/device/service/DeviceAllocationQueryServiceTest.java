@@ -43,4 +43,27 @@ class DeviceAllocationQueryServiceTest {
 
         assertThat(devices).containsExactly(device);
     }
+
+    @Test
+    void returnsEmptyListWhenNoAllocationsFound() {
+        when(allocationRepository.findByOrderDetail_RentalOrder_OrderId(9L))
+                .thenReturn(List.of());
+
+        List<Device> devices = service.getAllocatedDevicesForOrder(9L);
+
+        assertThat(devices).isEmpty();
+    }
+
+    @Test
+    void filtersOutNullDevicesFromAllocations() {
+        Device device = Device.builder().deviceId(2L).build();
+        Allocation a1 = Allocation.builder().device(device).build();
+        Allocation a2 = Allocation.builder().device(null).build();
+        when(allocationRepository.findByOrderDetail_RentalOrder_OrderId(6L))
+                .thenReturn(List.of(a1, a2));
+
+        List<Device> devices = service.getAllocatedDevicesForOrder(6L);
+
+        assertThat(devices).containsExactly(device);
+    }
 }

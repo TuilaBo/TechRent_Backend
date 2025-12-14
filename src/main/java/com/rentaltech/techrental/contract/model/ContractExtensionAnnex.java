@@ -3,6 +3,7 @@ package com.rentaltech.techrental.contract.model;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -49,8 +50,8 @@ public class ContractExtensionAnnex {
     private Contract contract;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "extension_order_id", nullable = false)
-    private RentalOrder extensionOrder;
+    @JoinColumn(name = "rental_order_extension_id", nullable = false)
+    private RentalOrderExtension rentalOrderExtension;
 
     @Column(name = "original_order_id", nullable = false)
     private Long originalOrderId;
