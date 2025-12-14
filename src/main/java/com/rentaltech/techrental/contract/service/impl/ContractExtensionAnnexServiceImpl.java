@@ -80,14 +80,11 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .title("Phụ lục gia hạn hợp đồng " + contract.getContractNumber())
                 .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + rentalOrderExtension.getExtensionEnd())
                 .legalReference("Căn cứ Bộ luật Dân sự 2015 và Luật Thương mại 2005")
-                .extensionReason("Nhu cầu tiếp tục sử dụng thiết bị của khách hàng")
                 .previousEndDate(originalOrder.getEffectiveEndDate())
                 .extensionStartDate(rentalOrderExtension.getExtensionStart())
                 .extensionEndDate(rentalOrderExtension.getExtensionEnd())
                 .extensionDays(extensionDays)
                 .extensionFee(extensionFee)
-                .vatRate(vatRate)
-                .vatAmount(vatAmount)
                 .totalPayable(totalPayable)
                 .depositAdjustment(BigDecimal.ZERO)
                 .annexContent(annexContent)
@@ -271,7 +268,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
     private Invoice createInvoiceForAnnex(ContractExtensionAnnex annex) {
         RentalOrder originalOrder = annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getRentalOrder() : null;
         BigDecimal subTotal = defaultZero(annex.getExtensionFee());
-        BigDecimal taxAmount = defaultZero(annex.getVatAmount());
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal depositApplied = defaultZero(annex.getDepositAdjustment());
         BigDecimal totalAmount = defaultZero(annex.getTotalPayable());
@@ -282,7 +278,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .paymentMethod(PaymentMethod.PAYOS)
                 .paymentDate(null)
                 .subTotal(subTotal)
-                .taxAmount(taxAmount)
+                .taxAmount(BigDecimal.ZERO)
                 .discountAmount(discountAmount)
                 .totalAmount(totalAmount)
                 .depositApplied(depositApplied)

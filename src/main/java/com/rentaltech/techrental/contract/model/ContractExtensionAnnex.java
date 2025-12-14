@@ -45,9 +45,6 @@ public class ContractExtensionAnnex {
     @Column(name = "legal_reference", columnDefinition = "text")
     private String legalReference;
 
-    @Column(name = "extension_reason", columnDefinition = "text")
-    private String extensionReason;
-
     @Column(name = "previous_end_date")
     private LocalDateTime previousEndDate;
 
@@ -63,21 +60,11 @@ public class ContractExtensionAnnex {
     @Column(name = "extension_fee", precision = 15, scale = 2)
     private BigDecimal extensionFee;
 
-    @Column(name = "vat_rate", precision = 5, scale = 2)
-    private BigDecimal vatRate;
-
-    @Column(name = "vat_amount", precision = 15, scale = 2)
-    private BigDecimal vatAmount;
-
     @Column(name = "total_payable", precision = 15, scale = 2)
     private BigDecimal totalPayable;
 
     @Column(name = "deposit_adjustment", precision = 15, scale = 2)
     private BigDecimal depositAdjustment;
-
-    @Column(name = "currency", length = 10)
-    @Builder.Default
-    private String currency = "VND";
 
     @Column(name = "annex_content", columnDefinition = "text")
     private String annexContent;
