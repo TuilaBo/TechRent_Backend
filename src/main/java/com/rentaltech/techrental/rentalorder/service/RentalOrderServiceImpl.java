@@ -1,39 +1,24 @@
 package com.rentaltech.techrental.rentalorder.service;
 
-import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
-import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
-import com.rentaltech.techrental.device.model.AllocationSnapshotType;
-import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.DeviceModel;
-import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.*;
 import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.device.service.DeviceAllocationQueryService;
-import com.rentaltech.techrental.rentalorder.model.BookingStatus;
-import com.rentaltech.techrental.rentalorder.model.OrderDetail;
-import com.rentaltech.techrental.rentalorder.model.OrderStatus;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
-import com.rentaltech.techrental.rentalorder.model.dto.OrderDetailRequestDto;
-import com.rentaltech.techrental.rentalorder.model.dto.OrderDetailResponseDto;
-import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtendRequestDto;
-import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderRequestDto;
-import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderResponseDto;
-import com.rentaltech.techrental.rentalorder.model.dto.RentalOrderExtensionResponseDto;
+import com.rentaltech.techrental.rentalorder.model.*;
+import com.rentaltech.techrental.rentalorder.model.dto.*;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
-import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.StaffRole;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
@@ -59,11 +44,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import java.util.*;
 
 @Service
 @Transactional

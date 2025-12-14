@@ -1,10 +1,11 @@
 package com.rentaltech.techrental.webapi.customer.model.dto;
 
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
+
 import java.util.List;
 
 

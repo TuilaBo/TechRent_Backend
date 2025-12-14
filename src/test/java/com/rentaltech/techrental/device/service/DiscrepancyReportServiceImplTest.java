@@ -1,10 +1,6 @@
 package com.rentaltech.techrental.device.service;
 
-import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
-import com.rentaltech.techrental.device.model.DiscrepancyReport;
-import com.rentaltech.techrental.device.model.DiscrepancyType;
+import com.rentaltech.techrental.device.model.*;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
@@ -22,9 +18,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class DiscrepancyReportServiceImplTest {

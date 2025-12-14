@@ -1,8 +1,8 @@
 package com.rentaltech.techrental.rentalorder.model.dto;
 
 import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;

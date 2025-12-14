@@ -2,13 +2,7 @@ package com.rentaltech.techrental.maintenance.service;
 
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
-import com.rentaltech.techrental.maintenance.model.MaintenancePlan;
-import com.rentaltech.techrental.maintenance.model.MaintenancePlanDevice;
-import com.rentaltech.techrental.maintenance.model.MaintenancePlanDeviceId;
-import com.rentaltech.techrental.maintenance.model.MaintenancePlanScopeType;
-import com.rentaltech.techrental.maintenance.model.MaintenanceRuleType;
-import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
-import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
+import com.rentaltech.techrental.maintenance.model.*;
 import com.rentaltech.techrental.maintenance.repository.MaintenancePlanDeviceRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenancePlanRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepository;

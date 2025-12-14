@@ -1,15 +1,12 @@
 package com.rentaltech.techrental.rentalorder.service;
 
-import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceModel;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
-import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.model.ReservationStatus;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +19,6 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 

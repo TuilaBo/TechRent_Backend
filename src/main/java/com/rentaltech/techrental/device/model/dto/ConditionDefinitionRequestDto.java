@@ -1,8 +1,11 @@
 package com.rentaltech.techrental.device.model.dto;
 
-import com.rentaltech.techrental.device.model.ConditionType;
 import com.rentaltech.techrental.device.model.ConditionSeverity;
-import jakarta.validation.constraints.*;
+import com.rentaltech.techrental.device.model.ConditionType;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

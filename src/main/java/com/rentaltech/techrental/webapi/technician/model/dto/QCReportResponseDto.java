@@ -1,20 +1,16 @@
 package com.rentaltech.techrental.webapi.technician.model.dto;
 
 import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.dto.DeviceResponseDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
-import com.rentaltech.techrental.webapi.technician.model.QCPhase;
-import com.rentaltech.techrental.webapi.technician.model.QCReport;
-import com.rentaltech.techrental.webapi.technician.model.QCResult;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.staff.model.Task;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.rentaltech.techrental.webapi.technician.model.QCPhase;
+import com.rentaltech.techrental.webapi.technician.model.QCReport;
+import com.rentaltech.techrental.webapi.technician.model.QCResult;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;

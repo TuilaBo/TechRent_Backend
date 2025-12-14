@@ -7,8 +7,8 @@ import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexRespon
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexSignRequestDto;
 import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepository;
 import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
-import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.DigitalSignatureService;
+import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.model.InvoiceStatus;
 import com.rentaltech.techrental.finance.model.InvoiceType;
@@ -19,15 +19,14 @@ import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;

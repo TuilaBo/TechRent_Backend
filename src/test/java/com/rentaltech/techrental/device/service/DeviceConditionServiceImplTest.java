@@ -1,11 +1,6 @@
 package com.rentaltech.techrental.device.service;
 
-import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.ConditionSeverity;
-import com.rentaltech.techrental.device.model.ConditionType;
-import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.DeviceCondition;
-import com.rentaltech.techrental.device.model.DeviceStatus;
+import com.rentaltech.techrental.device.model.*;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionRequestDto;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
@@ -28,9 +23,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceConditionServiceImplTest {

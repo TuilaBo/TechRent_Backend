@@ -7,7 +7,6 @@ import com.rentaltech.techrental.webapi.customer.model.dto.ShippingAddressRespon
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.repository.ShippingAddressRepository;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,9 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ShippingAddressServiceImplTest {

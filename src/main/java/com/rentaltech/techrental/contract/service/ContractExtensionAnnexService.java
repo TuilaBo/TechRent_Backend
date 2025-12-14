@@ -4,7 +4,6 @@ import com.rentaltech.techrental.contract.model.Contract;
 import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexResponseDto;
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexSignRequestDto;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 
 import java.util.List;
 

@@ -2,7 +2,9 @@ package com.rentaltech.techrental.webapi.customer.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
-import com.rentaltech.techrental.webapi.customer.model.dto.*;
+import com.rentaltech.techrental.webapi.customer.model.dto.CustomerResponseDto;
+import com.rentaltech.techrental.webapi.customer.model.dto.CustomerUpdateRequestDto;
+import com.rentaltech.techrental.webapi.customer.model.dto.SaveFcmTokenRequestDto;
 import com.rentaltech.techrental.webapi.customer.service.CustomerService;
 import com.rentaltech.techrental.webapi.operator.service.KYCService;
 import io.swagger.v3.oas.annotations.Operation;
