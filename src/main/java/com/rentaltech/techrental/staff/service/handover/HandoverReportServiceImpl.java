@@ -1,25 +1,14 @@
 package com.rentaltech.techrental.staff.service.handover;
 
+import com.rentaltech.techrental.authentication.model.Account;
+import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.SMSService;
-import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.AllocationConditionDetail;
-import com.rentaltech.techrental.device.model.AllocationConditionSnapshot;
-import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
-import com.rentaltech.techrental.device.model.AllocationSnapshotType;
-import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.Device;
-import com.rentaltech.techrental.device.model.DeviceStatus;
-import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
-import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.model.*;
 import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyInlineRequestDto;
 import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
-import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
-import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
-import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
-import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.device.repository.*;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
 import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
@@ -28,18 +17,10 @@ import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
-import com.rentaltech.techrental.authentication.model.Account;
-import com.rentaltech.techrental.authentication.service.AccountService;
-import com.rentaltech.techrental.staff.model.HandoverReport;
-import com.rentaltech.techrental.staff.model.HandoverReportItem;
-import com.rentaltech.techrental.staff.model.HandoverReportStatus;
-import com.rentaltech.techrental.staff.model.HandoverType;
-import com.rentaltech.techrental.staff.model.Staff;
-import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.*;
-import com.rentaltech.techrental.staff.repository.HandoverReportRepository;
 import com.rentaltech.techrental.staff.repository.HandoverReportItemRepository;
+import com.rentaltech.techrental.staff.repository.HandoverReportRepository;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.settlementservice.SettlementService;
@@ -562,7 +543,8 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         HandoverReport saved = handoverReportRepository.save(report);
 //        deletePinCode(key);
 
-        // Update order status to IN_USE when both signed
+        // Update order timeline & status
+        updateOrderTimelineAfterSign(saved);
         checkAndUpdateOrderStatusIfBothSigned(saved);
         createSettlementAfterCustomerSigned(saved);
 
@@ -586,6 +568,42 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 markDevicesAsRenting(order.getOrderId());
                 incrementDeviceUsageCount(order.getOrderId());
             }
+        }
+    }
+
+    private void updateOrderTimelineAfterSign(HandoverReport report) {
+        if (report == null) {
+            return;
+        }
+        RentalOrder order = report.getRentalOrder();
+        if (order == null) {
+            return;
+        }
+        LocalDateTime signatureMoment = report.getCustomerSignedAt() != null
+                ? report.getCustomerSignedAt()
+                : report.getStaffSignedAt();
+        if (signatureMoment == null) {
+            return;
+        }
+        boolean updated = false;
+        if (report.getHandoverType() == HandoverType.CHECKOUT) {
+            if (order.getStartDate() == null) {
+                order.setStartDate(signatureMoment);
+                updated = true;
+            }
+            if (order.getDurationDays() != null) {
+                LocalDateTime recalculatedPlanEnd = signatureMoment.plusDays(order.getDurationDays());
+                if (!recalculatedPlanEnd.equals(order.getPlanEndDate())) {
+                    order.setPlanEndDate(recalculatedPlanEnd);
+                    updated = true;
+                }
+            }
+        } else if (report.getHandoverType() == HandoverType.CHECKIN) {
+            order.setEndDate(signatureMoment);
+            updated = true;
+        }
+        if (updated) {
+            rentalOrderRepository.save(order);
         }
     }
 

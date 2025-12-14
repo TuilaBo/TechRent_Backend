@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.rentalorder.service;
 
+import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceModelRepository;
@@ -14,7 +15,6 @@ import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.PreRentalQcTaskCreator;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
-import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.KYCStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
@@ -32,15 +32,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class RentalOrderServiceImplTest {

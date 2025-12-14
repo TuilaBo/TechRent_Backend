@@ -1,10 +1,6 @@
 package com.rentaltech.techrental.webapi.technician.service;
 
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalCreateRequestDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalCreateRequestDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportResponseDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPostRentalUpdateRequestDto;
-import com.rentaltech.techrental.webapi.technician.model.dto.QCReportPreRentalUpdateRequestDto;
+import com.rentaltech.techrental.webapi.technician.model.dto.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

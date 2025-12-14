@@ -6,6 +6,7 @@ import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.model.Reservation;
 import com.rentaltech.techrental.rentalorder.model.ReservationStatus;
 import com.rentaltech.techrental.rentalorder.repository.ReservationRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +14,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.util.EnumSet;
@@ -37,6 +40,7 @@ class ReservationServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         order = RentalOrder.builder()
                 .orderId(1L)
                 .startDate(LocalDateTime.now())
@@ -50,6 +54,11 @@ class ReservationServiceImplTest {
                 .build();
     }
 
+    @AfterEach
+    void tearDownContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void createPendingReservationsPersistsValidDetails() {
         service.createPendingReservations(order, List.of(detail));
@@ -58,6 +67,27 @@ class ReservationServiceImplTest {
         verify(reservationRepository).saveAll(captor.capture());
         assertThat(captor.getValue()).hasSize(1);
         assertThat(captor.getValue().get(0).getStatus()).isEqualTo(ReservationStatus.PENDING_REVIEW);
+    }
+
+    @Test
+    void createPendingReservationsNoopsWhenOrderNullOrDetailsEmpty() {
+        service.createPendingReservations(null, List.of(detail));
+        service.createPendingReservations(order, List.of());
+        verify(reservationRepository, org.mockito.Mockito.never()).saveAll(anyList());
+    }
+
+    @Test
+    void createPendingReservationsSkipsInvalidDetails() {
+        OrderDetail invalid = OrderDetail.builder()
+                .orderDetailId(4L)
+                .deviceModel(null)
+                .quantity(-1L)
+                .rentalOrder(order)
+                .build();
+
+        service.createPendingReservations(order, List.of(invalid));
+
+        verify(reservationRepository, org.mockito.Mockito.never()).saveAll(anyList());
     }
 
     @Test
@@ -88,6 +118,22 @@ class ReservationServiceImplTest {
     }
 
     @Test
+    void cancelReservationsNoopsWhenOrderIdNull() {
+        service.cancelReservations(null);
+
+        verify(reservationRepository, never()).overrideStatusForOrder(anyLong(), any(), any());
+    }
+
+    @Test
+    void cancelReservationsCanBeInvokedMultipleTimes() {
+        service.cancelReservations(9L);
+        service.cancelReservations(10L);
+
+        verify(reservationRepository).overrideStatusForOrder(eq(9L), eq(ReservationStatus.CANCELLED), isNull());
+        verify(reservationRepository).overrideStatusForOrder(eq(10L), eq(ReservationStatus.CANCELLED), isNull());
+    }
+
+    @Test
     void expireReservationsDelegatesToRepository() {
         service.expireReservations();
 
@@ -105,6 +151,33 @@ class ReservationServiceImplTest {
                 LocalDateTime.now().plusDays(1));
 
         assertThat(result).isEqualTo(5L);
+    }
+
+    @Test
+    void countActiveReservedQuantityReturnsZeroWhenInvalidInput() {
+        long resultNullId = service.countActiveReservedQuantity(null, LocalDateTime.now(), LocalDateTime.now().plusDays(1));
+        long resultInvalidRange = service.countActiveReservedQuantity(1L, LocalDateTime.now(), LocalDateTime.now().minusDays(1));
+
+        assertThat(resultNullId).isZero();
+        assertThat(resultInvalidRange).isZero();
+        verify(reservationRepository, never()).sumReservedQuantity(anyLong(), any(), any(), anySet(), any());
+    }
+
+    @Test
+    void countActiveReservedQuantityUsesTechnicianStatuses() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken("tech", "pass", "ROLE_TECHNICIAN")
+        );
+        when(reservationRepository.sumReservedQuantity(anyLong(), any(), any(), anySet(), any())).thenReturn(3L);
+
+        long result = service.countActiveReservedQuantity(2L,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusDays(1));
+
+        assertThat(result).isEqualTo(3L);
+        ArgumentCaptor<Set<ReservationStatus>> captor = ArgumentCaptor.forClass(Set.class);
+        verify(reservationRepository).sumReservedQuantity(eq(2L), any(), any(), captor.capture(), any());
+        assertThat(captor.getValue()).containsExactlyInAnyOrder(ReservationStatus.UNDER_REVIEW);
     }
 
     @Test

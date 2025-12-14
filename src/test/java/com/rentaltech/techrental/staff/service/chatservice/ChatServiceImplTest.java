@@ -1,11 +1,7 @@
 package com.rentaltech.techrental.staff.service.chatservice;
 
 import com.rentaltech.techrental.authentication.model.Account;
-import com.rentaltech.techrental.staff.model.ChatMessage;
-import com.rentaltech.techrental.staff.model.ChatMessageSenderType;
-import com.rentaltech.techrental.staff.model.Conversation;
-import com.rentaltech.techrental.staff.model.Staff;
-import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.ChatMessageCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.ChatMessageRepository;
 import com.rentaltech.techrental.staff.repository.ConversationRepository;
@@ -24,9 +20,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceImplTest {

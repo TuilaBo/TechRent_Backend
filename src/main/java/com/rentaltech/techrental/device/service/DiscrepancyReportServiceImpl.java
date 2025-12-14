@@ -81,6 +81,18 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<DiscrepancyReportResponseDto> getByOrderId(Long orderId) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId must not be null");
+        }
+        return discrepancyReportRepository.findByAllocation_OrderDetail_RentalOrder_OrderId(orderId)
+                .stream()
+                .map(DiscrepancyReportResponseDto::from)
+                .toList();
+    }
+
     private ConditionDefinition resolveCondition(Long conditionDefinitionId) {
         if (conditionDefinitionId == null) {
             return null;

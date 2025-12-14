@@ -1,7 +1,7 @@
 package com.rentaltech.techrental.staff.model.dto;
 
-import com.rentaltech.techrental.staff.model.TaskRule;
 import com.rentaltech.techrental.staff.model.StaffRole;
+import com.rentaltech.techrental.staff.model.TaskRule;
 import lombok.Builder;
 import lombok.Value;
 

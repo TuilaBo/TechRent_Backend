@@ -1,14 +1,6 @@
 package com.rentaltech.techrental.staff.service.handover;
 
-import com.rentaltech.techrental.staff.model.dto.HandoverPinDeliveryDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportCreateInRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportCreateOutRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportCustomerSignRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportItemResponseDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportResponseDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportStaffSignRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportUpdateInRequestDto;
-import com.rentaltech.techrental.staff.model.dto.HandoverReportUpdateOutRequestDto;
+import com.rentaltech.techrental.staff.model.dto.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

@@ -2,6 +2,7 @@ package com.rentaltech.techrental.contract.repository;
 
 import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.ContractStatus;
+import com.rentaltech.techrental.finance.model.Invoice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,5 +20,9 @@ public interface ContractExtensionAnnexRepository extends JpaRepository<Contract
 
     List<ContractExtensionAnnex> findByContract_ContractIdAndStatus(Long contractId, ContractStatus status);
 
-    Optional<ContractExtensionAnnex> findFirstByExtensionOrder_OrderId(Long orderId);
+    Optional<ContractExtensionAnnex> findFirstByRentalOrderExtension_RentalOrder_OrderId(Long orderId);
+
+    Optional<ContractExtensionAnnex> findFirstByRentalOrderExtension_ExtensionId(Long extensionId);
+
+    Optional<ContractExtensionAnnex> findByInvoice(Invoice invoice);
 }

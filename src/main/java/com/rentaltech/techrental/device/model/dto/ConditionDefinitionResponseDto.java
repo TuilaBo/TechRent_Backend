@@ -1,8 +1,8 @@
 package com.rentaltech.techrental.device.model.dto;
 
 import com.rentaltech.techrental.device.model.ConditionDefinition;
-import com.rentaltech.techrental.device.model.ConditionType;
 import com.rentaltech.techrental.device.model.ConditionSeverity;
+import com.rentaltech.techrental.device.model.ConditionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

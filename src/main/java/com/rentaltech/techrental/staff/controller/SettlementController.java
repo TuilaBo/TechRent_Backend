@@ -3,9 +3,8 @@ package com.rentaltech.techrental.staff.controller;
 import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.staff.model.Settlement;
-import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
-import com.rentaltech.techrental.staff.model.dto.SettlementResponseDto;
-import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
+import com.rentaltech.techrental.staff.model.dto.*;
+import com.rentaltech.techrental.staff.service.latefee.LateFeeConfigService;
 import com.rentaltech.techrental.staff.service.settlementservice.SettlementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -28,6 +27,7 @@ import java.util.List;
 public class SettlementController {
 
     private final SettlementService settlementService;
+    private final LateFeeConfigService lateFeeConfigService;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
@@ -128,5 +128,39 @@ public class SettlementController {
         );
     }
 
+    @GetMapping("/late-fee-config")
+    @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Lấy cấu hình phí trả trễ", description = "Trả về mức phí trả trễ hiện tại dùng để tính toán settlement")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về cấu hình phí trả trễ"),
+            @ApiResponse(responseCode = "500", description = "Không thể truy vấn cấu hình")
+    })
+    public ResponseEntity<?> getLateFeeConfig() {
+        LateFeeConfigResponseDto config = lateFeeConfigService.getConfig();
+        return ResponseUtil.createSuccessResponse(
+                "Cấu hình phí trả trễ hiện tại",
+                "Sử dụng cho việc tính phí trả trễ đơn thuê",
+                config,
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping("/late-fee-config")
+    @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
+    @Operation(summary = "Cập nhật phí trả trễ", description = "Điều chỉnh mức phí trả trễ tính theo giờ và lưu vào cơ sở dữ liệu")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cập nhật cấu hình phí trả trễ thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu cập nhật không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể cập nhật cấu hình")
+    })
+    public ResponseEntity<?> updateLateFeeConfig(@Valid @RequestBody LateFeeConfigRequestDto request) {
+        LateFeeConfigResponseDto config = lateFeeConfigService.updateConfig(request);
+        return ResponseUtil.createSuccessResponse(
+                "Cập nhật phí trả trễ thành công",
+                "Mức phí trả trễ mới đã được áp dụng",
+                config,
+                HttpStatus.OK
+        );
+    }
 }
 

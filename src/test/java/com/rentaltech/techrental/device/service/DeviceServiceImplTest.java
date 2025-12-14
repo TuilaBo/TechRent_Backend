@@ -27,7 +27,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,6 +91,30 @@ class DeviceServiceImplTest {
     }
 
     @Test
+    void createDoesNotIncrementWhenStatusNotAvailable() {
+        DeviceRequestDto req = DeviceRequestDto.builder()
+                .serialNumber("SN-2")
+                .status(DeviceStatus.DAMAGED)
+                .deviceModelId(1L)
+                .build();
+
+        when(repository.findBySerialNumber("SN-2")).thenReturn(Optional.empty());
+        when(deviceModelRepository.findById(1L)).thenReturn(Optional.of(model));
+        when(repository.save(any(Device.class))).thenAnswer(inv -> {
+            Device d = inv.getArgument(0);
+            d.setDeviceId(6L);
+            d.setDeviceModel(model);
+            return d;
+        });
+
+        DeviceResponseDto response = service.create(req);
+
+        assertThat(response.getDeviceId()).isEqualTo(6L);
+        // Model amountAvailable should remain unchanged for non-AVAILABLE status
+        assertThat(model.getAmountAvailable()).isEqualTo(0L);
+    }
+
+    @Test
     void findAvailableByModelFiltersBusyDevices() {
         Device available = Device.builder().deviceId(1L).deviceModel(model).status(DeviceStatus.AVAILABLE).build();
         Device damaged = Device.builder().deviceId(2L).deviceModel(model).status(DeviceStatus.DAMAGED).build();
@@ -108,6 +131,66 @@ class DeviceServiceImplTest {
                 LocalDateTime.now().plusDays(1));
 
         assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void findAvailableByModelReturnsEmptyForInvalidRange() {
+        List<DeviceResponseDto> result = service.findAvailableByModelWithinRange(
+                1L,
+                LocalDateTime.now(),
+                LocalDateTime.now().minusDays(1));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findAvailableByModelReturnsEmptyWhenModelIdNull() {
+        List<DeviceResponseDto> result = service.findAvailableByModelWithinRange(
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusDays(1));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findAvailableByModelRespectsReservedQuantity() {
+        Device d1 = Device.builder().deviceId(1L).deviceModel(model).status(DeviceStatus.AVAILABLE).build();
+        Device d2 = Device.builder().deviceId(2L).deviceModel(model).status(DeviceStatus.AVAILABLE).build();
+        when(repository.findByDeviceModel_DeviceModelId(1L)).thenReturn(List.of(d1, d2));
+        when(bookingCalendarRepository.findBusyDeviceIdsByModelAndRange(eq(1L), any(), any(), any()))
+                .thenReturn(Set.of());
+        // Reserve 2 items => total free 2 - reserved 2 = 0 => empty result
+        when(reservationService.countActiveReservedQuantity(eq(1L), any(), any())).thenReturn(2L);
+        when(deviceConditionService.getByDeviceIds(any())).thenReturn(Map.of());
+
+        List<DeviceResponseDto> result = service.findAvailableByModelWithinRange(
+                1L,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusDays(1));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findAvailableByModelExcludesDamagedAndLostDevices() {
+        Device good = Device.builder().deviceId(1L).deviceModel(model).status(DeviceStatus.AVAILABLE).build();
+        Device damaged = Device.builder().deviceId(2L).deviceModel(model).status(DeviceStatus.DAMAGED).build();
+        Device lost = Device.builder().deviceId(3L).deviceModel(model).status(DeviceStatus.LOST).build();
+        when(repository.findByDeviceModel_DeviceModelId(1L)).thenReturn(List.of(good, damaged, lost));
+        when(bookingCalendarRepository.findBusyDeviceIdsByModelAndRange(eq(1L), any(), any(), any()))
+                .thenReturn(Set.of());
+        when(reservationService.countActiveReservedQuantity(eq(1L), any(), any())).thenReturn(0L);
+        when(deviceConditionService.getByDeviceIds(any()))
+                .thenReturn(Map.of(1L, List.of(DeviceConditionResponseDto.builder().deviceId(1L).build())));
+
+        List<DeviceResponseDto> result = service.findAvailableByModelWithinRange(
+                1L,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusDays(1));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getDeviceId()).isEqualTo(1L);
     }
 
     @Test
@@ -136,5 +219,81 @@ class DeviceServiceImplTest {
         assertThat(otherModel.getAmountAvailable()).isEqualTo(1L);
         verify(deviceModelRepository).save(model);
         verify(deviceModelRepository).save(otherModel);
+    }
+
+    @Test
+    void updateRejectsDuplicateSerialFromAnotherDevice() {
+        Device entity = Device.builder()
+                .deviceId(10L)
+                .serialNumber("SN-OLD")
+                .status(DeviceStatus.AVAILABLE)
+                .deviceModel(model)
+                .build();
+        when(repository.findById(10L)).thenReturn(Optional.of(entity));
+        // Duplicate serial belongs to different device id
+        when(repository.findBySerialNumber("SN-DUP"))
+                .thenReturn(Optional.of(Device.builder().deviceId(999L).build()));
+        when(deviceModelRepository.findById(1L)).thenReturn(Optional.of(model));
+
+        DeviceRequestDto request = DeviceRequestDto.builder()
+                .serialNumber("SN-DUP")
+                .status(DeviceStatus.AVAILABLE)
+                .deviceModelId(1L)
+                .build();
+
+        assertThatThrownBy(() -> service.update(10L, request))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void updateDecrementsAvailabilityWhenStatusBecomesDamaged() {
+        model.setAmountAvailable(1L);
+        Device entity = Device.builder()
+                .deviceId(10L)
+                .serialNumber("SN-1")
+                .status(DeviceStatus.AVAILABLE)
+                .deviceModel(model)
+                .build();
+        when(repository.findById(10L)).thenReturn(Optional.of(entity));
+        when(repository.findBySerialNumber("SN-1")).thenReturn(Optional.of(entity));
+        when(deviceModelRepository.findById(1L)).thenReturn(Optional.of(model));
+        when(repository.save(entity)).thenAnswer(inv -> entity);
+
+        DeviceRequestDto request = DeviceRequestDto.builder()
+                .serialNumber("SN-1")
+                .status(DeviceStatus.DAMAGED) // change from AVAILABLE -> DAMAGED
+                .deviceModelId(1L)
+                .build();
+
+        service.update(10L, request);
+
+        assertThat(model.getAmountAvailable()).isZero();
+        verify(deviceModelRepository).save(model);
+    }
+
+    @Test
+    void updateIncrementsAvailabilityWhenStatusBecomesAvailable() {
+        model.setAmountAvailable(0L);
+        Device entity = Device.builder()
+                .deviceId(10L)
+                .serialNumber("SN-1")
+                .status(DeviceStatus.DAMAGED)
+                .deviceModel(model)
+                .build();
+        when(repository.findById(10L)).thenReturn(Optional.of(entity));
+        when(repository.findBySerialNumber("SN-1")).thenReturn(Optional.of(entity));
+        when(deviceModelRepository.findById(1L)).thenReturn(Optional.of(model));
+        when(repository.save(entity)).thenAnswer(inv -> entity);
+
+        DeviceRequestDto request = DeviceRequestDto.builder()
+                .serialNumber("SN-1")
+                .status(DeviceStatus.AVAILABLE) // DAMAGED -> AVAILABLE
+                .deviceModelId(1L)
+                .build();
+
+        service.update(10L, request);
+
+        assertThat(model.getAmountAvailable()).isEqualTo(1L);
+        verify(deviceModelRepository).save(model);
     }
 }

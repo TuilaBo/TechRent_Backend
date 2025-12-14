@@ -7,7 +7,6 @@ import com.rentaltech.techrental.security.JwtTokenProvider;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.CustomerStatus;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,10 +22,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AccountServiceImplTest {
@@ -137,6 +133,42 @@ class AccountServiceImplTest {
         assertThatThrownBy(() -> accountService.forgotPassword("inactive@example.com"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("chưa được kích hoạt");
+    }
+
+    @Test
+    void forgotPasswordSendsEmailWhenAccountActive() {
+        // given
+        Account account = Account.builder()
+                .accountId(11L)
+                .email("active@example.com")
+                .isActive(true)
+                .build();
+        when(accountRepository.findByEmail("active@example.com")).thenReturn(account);
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        accountService.forgotPassword("active@example.com");
+
+        // then
+        ArgumentCaptor<Account> captor = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(captor.capture());
+        Account saved = captor.getValue();
+        assertThat(saved.getResetPasswordCode()).isNotNull();
+        assertThat(saved.getResetPasswordExpiry()).isNotNull();
+        verify(verificationEmailService).sendResetPasswordEmail("active@example.com", any());
+    }
+
+    @Test
+    void forgotPasswordNoOpWhenEmailUnknown() {
+        // given
+        when(accountRepository.findByEmail("unknown@example.com")).thenReturn(null);
+
+        // when
+        accountService.forgotPassword("unknown@example.com");
+
+        // then
+        verify(accountRepository, never()).save(any());
+        verify(verificationEmailService, never()).sendResetPasswordEmail(any(), any());
     }
 
     @Test

@@ -15,7 +15,6 @@ import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepositor
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -147,8 +146,14 @@ public class DeviceServiceImpl implements DeviceService {
                                           String brand,
                                           String deviceName,
                                           Pageable pageable) {
-        Specification<Device> spec = buildSpecification(serialNumber, shelfCode, status, deviceModelId, brand, deviceName);
-        Page<Device> page = repository.findAll(spec, pageable);
+        DeviceStatus statusFilter = parseStatus(status);
+        Page<Device> page = repository.searchDevices(
+                normalize(serialNumber),
+                statusFilter,
+                deviceModelId,
+                normalize(brand),
+                normalize(deviceName),
+                pageable);
         Map<Long, List<DeviceConditionResponseDto>> conditionMap = deviceConditionService.getByDeviceIds(
                 page.getContent().stream()
                         .map(Device::getDeviceId)
@@ -252,36 +257,18 @@ public class DeviceServiceImpl implements DeviceService {
         repository.save(entity);
     }
 
-    private Specification<Device> buildSpecification(String serialNumber,
-                                                     String shelfCode,
-                                                     String status,
-                                                     Long deviceModelId,
-                                                     String brand,
-                                                     String deviceName) {
-        return (root, query, cb) -> {
-            var predicate = cb.conjunction();
-            if (serialNumber != null && !serialNumber.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("serialNumber")), "%" + serialNumber.toLowerCase() + "%"));
-            }
-            if (shelfCode != null && !shelfCode.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.get("shelfCode")), "%" + shelfCode.toLowerCase() + "%"));
-            }
-            if (status != null && !status.isBlank()) {
-                try {
-                    DeviceStatus st = DeviceStatus.valueOf(status.toUpperCase());
-                    predicate.getExpressions().add(cb.equal(root.get("status"), st));
-                } catch (IllegalArgumentException ignored) {}
-            }
-            if (deviceModelId != null) {
-                predicate.getExpressions().add(cb.equal(root.join("deviceModel").get("deviceModelId"), deviceModelId));
-            }
-            if (brand != null && !brand.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.join("deviceModel").get("brand")), "%" + brand.toLowerCase() + "%"));
-            }
-            if (deviceName != null && !deviceName.isBlank()) {
-                predicate.getExpressions().add(cb.like(cb.lower(root.join("deviceModel").get("deviceName")), "%" + deviceName.toLowerCase() + "%"));
-            }
-            return predicate;
-        };
+    private DeviceStatus parseStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        try {
+            return DeviceStatus.valueOf(status.trim().toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private String normalize(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 }

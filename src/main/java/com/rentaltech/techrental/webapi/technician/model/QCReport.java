@@ -1,6 +1,5 @@
 package com.rentaltech.techrental.webapi.technician.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.staff.model.Task;

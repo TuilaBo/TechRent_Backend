@@ -44,6 +44,18 @@ class SMSServiceTest {
     }
 
     @Test
+    void sendOtpReturnsFalseWhenGatewayRespondsWithoutSuccessFlag() {
+        // API returns 200 but body does not contain "success"
+        stubWebClient(ClientResponse.create(HttpStatus.OK)
+                .body("{\"ok\":true}")
+                .build());
+
+        boolean result = smsService.sendOTP("0901234567", "123456");
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
     void sendOtpViaTwilioStubReturnsTrue() {
         assertThat(smsService.sendOTPViaTwilio("0901234567", "123456")).isTrue();
     }

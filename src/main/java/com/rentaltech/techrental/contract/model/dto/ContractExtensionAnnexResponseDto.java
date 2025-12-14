@@ -5,11 +5,7 @@ import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.model.InvoiceStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -34,8 +30,8 @@ public class ContractExtensionAnnexResponseDto {
     @Schema(description = "Số hợp đồng gốc")
     private String contractNumber;
 
-    @Schema(description = "ID đơn gia hạn")
-    private Long extensionOrderId;
+    @Schema(description = "ID bản ghi gia hạn (RentalOrderExtension)")
+    private Long extensionId;
 
     @Schema(description = "ID đơn thuê ban đầu")
     private Long originalOrderId;
@@ -128,7 +124,7 @@ public class ContractExtensionAnnexResponseDto {
                 .annexNumber(annex.getAnnexNumber())
                 .contractId(annex.getContract() != null ? annex.getContract().getContractId() : null)
                 .contractNumber(annex.getContract() != null ? annex.getContract().getContractNumber() : null)
-                .extensionOrderId(annex.getExtensionOrder() != null ? annex.getExtensionOrder().getOrderId() : null)
+                .extensionId(annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getExtensionId() : null)
                 .originalOrderId(annex.getOriginalOrderId())
                 .title(annex.getTitle())
                 .description(annex.getDescription())

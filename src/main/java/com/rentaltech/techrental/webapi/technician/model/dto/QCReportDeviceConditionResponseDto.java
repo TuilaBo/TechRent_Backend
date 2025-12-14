@@ -1,8 +1,8 @@
 package com.rentaltech.techrental.webapi.technician.model.dto;
 
 import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
+import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.staff.model.dto.DeviceConditionSnapshotDto;
 import lombok.Builder;
 import lombok.Data;
