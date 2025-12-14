@@ -246,16 +246,12 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Tìm hoặc tạo TaskCategory "Device Replacement"
         TaskCategory replacementCategory = taskCategoryRepository.findByNameIgnoreCase("Device Replacement")
                 .orElseGet(() -> {
-                    // Nếu không có "Device Replacement", thử tìm "Delivery"
-                    return taskCategoryRepository.findByNameIgnoreCase("Delivery")
-                            .orElseGet(() -> {
-                                // Nếu không có cả 2, tự động tạo category "Device Replacement"
-                                TaskCategory newCategory = TaskCategory.builder()
-                                        .name("Device Replacement")
-                                        .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
-                                        .build();
-                                return taskCategoryRepository.save(newCategory);
-                            });
+                    // Nếu không có, tự động tạo category "Device Replacement"
+                    TaskCategory newCategory = TaskCategory.builder()
+                            .name("Device Replacement")
+                            .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
+                            .build();
+                    return taskCategoryRepository.save(newCategory);
                 });
 
         // Tìm task pending của order (cùng category "Device Replacement")
