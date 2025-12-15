@@ -402,15 +402,10 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .durationDays(Math.toIntExact(extensionDays))
                 .pricePerDay(totalPerDay)
                 .additionalPrice(extensionTotal)
+                .status(RentalOrderExtensionStatus.DRAFT)
                 .build();
         rentalOrderExtensionRepository.save(extension);
-
-        original.setPlanEndDate(extensionEnd);
-        int currentDuration = original.getDurationDays() != null ? original.getDurationDays() : 0;
-        original.setDurationDays(currentDuration + Math.toIntExact(extensionDays));
-        BigDecimal currentTotal = original.getTotalPrice() != null ? original.getTotalPrice() : BigDecimal.ZERO;
-        original.setTotalPrice(currentTotal.add(extensionTotal));
-        rentalOrderRepository.save(original);
+        // Không cập nhật đơn gốc cho tới khi phụ lục được xử lý xong
         return buildOrderResponseWithExtensions(original);
     }
 

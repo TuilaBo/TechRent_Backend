@@ -63,12 +63,6 @@ public class ContractExtensionAnnexResponseDto {
     @Schema(description = "Phí gia hạn")
     private BigDecimal extensionFee;
 
-    @Schema(description = "Tổng tiền khách hàng phải thanh toán")
-    private BigDecimal totalPayable;
-
-    @Schema(description = "Mức điều chỉnh tiền cọc")
-    private BigDecimal depositAdjustment;
-
     @Schema(description = "Nội dung chi tiết của phụ lục")
     private String annexContent;
 
@@ -125,8 +119,6 @@ public class ContractExtensionAnnexResponseDto {
                 .extensionEndDate(annex.getExtensionEndDate())
                 .extensionDays(annex.getExtensionDays())
                 .extensionFee(annex.getExtensionFee())
-                .totalPayable(annex.getTotalPayable())
-                .depositAdjustment(annex.getDepositAdjustment())
                 .annexContent(annex.getAnnexContent())
                 .status(annex.getStatus())
                 .adminSignedAt(annex.getAdminSignedAt())

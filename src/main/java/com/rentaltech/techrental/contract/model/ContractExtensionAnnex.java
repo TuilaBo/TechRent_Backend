@@ -60,12 +60,6 @@ public class ContractExtensionAnnex {
     @Column(name = "extension_fee", precision = 15, scale = 2)
     private BigDecimal extensionFee;
 
-    @Column(name = "total_payable", precision = 15, scale = 2)
-    private BigDecimal totalPayable;
-
-    @Column(name = "deposit_adjustment", precision = 15, scale = 2)
-    private BigDecimal depositAdjustment;
-
     @Column(name = "annex_content", columnDefinition = "text")
     private String annexContent;
 

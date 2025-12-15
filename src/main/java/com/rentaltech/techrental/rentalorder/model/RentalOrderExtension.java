@@ -44,4 +44,9 @@ public class RentalOrderExtension {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    @Builder.Default
+    private RentalOrderExtensionStatus status = RentalOrderExtensionStatus.DRAFT;
 }

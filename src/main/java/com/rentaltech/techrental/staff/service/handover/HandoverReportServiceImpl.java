@@ -15,7 +15,10 @@ import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.*;
@@ -71,6 +74,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final AllocationSnapshotService allocationSnapshotService;
     private final DeviceConditionService deviceConditionService;
     private final SettlementService settlementService;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -568,6 +572,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 markDevicesAsRenting(order.getOrderId());
                 incrementDeviceUsageCount(order.getOrderId());
             }
+            completeExtensionsIfOrderCompleted(order);
         }
     }
 
@@ -605,6 +610,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         if (updated) {
             rentalOrderRepository.save(order);
         }
+        completeExtensionsIfOrderCompleted(order);
     }
 
     private void createSettlementAfterCustomerSigned(HandoverReport report) {
@@ -620,6 +626,22 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         } catch (Exception ex) {
             log.warn("Không thể tạo settlement cho order {} sau khi khách ký handover: {}", orderId, ex.getMessage());
         }
+    }
+
+    private void completeExtensionsIfOrderCompleted(RentalOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        if (order.getOrderStatus() != OrderStatus.COMPLETED) {
+            return;
+        }
+        List<RentalOrderExtension> extensions = rentalOrderExtensionRepository
+                .findByRentalOrder_OrderIdAndStatus(order.getOrderId(), RentalOrderExtensionStatus.IN_USE);
+        if (extensions.isEmpty()) {
+            return;
+        }
+        extensions.forEach(extension -> extension.setStatus(RentalOrderExtensionStatus.COMPLETED));
+        rentalOrderExtensionRepository.saveAll(extensions);
     }
 
     private void incrementDeviceUsageCount(Long orderId) {

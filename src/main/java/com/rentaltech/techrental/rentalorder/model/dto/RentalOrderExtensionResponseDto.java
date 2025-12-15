@@ -1,6 +1,7 @@
 package com.rentaltech.techrental.rentalorder.model.dto;
 
 import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,7 @@ public class RentalOrderExtensionResponseDto {
     private BigDecimal pricePerDay;
     private BigDecimal additionalPrice;
     private LocalDateTime createdAt;
+    private RentalOrderExtensionStatus status;
 
     public static RentalOrderExtensionResponseDto from(RentalOrderExtension extension) {
         if (extension == null) {
@@ -34,6 +36,7 @@ public class RentalOrderExtensionResponseDto {
                 .pricePerDay(extension.getPricePerDay())
                 .additionalPrice(extension.getAdditionalPrice())
                 .createdAt(extension.getCreatedAt())
+                .status(extension.getStatus())
                 .build();
     }
 }

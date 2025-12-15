@@ -24,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/payments")
 @Tag(name = "Quản lý thanh toán", description = "Các API tạo giao dịch, xem hóa đơn và xử lý hoàn cọc")
-public class PaymentController {
+public class    PaymentController {
 
     private final PaymentService paymentService;
 

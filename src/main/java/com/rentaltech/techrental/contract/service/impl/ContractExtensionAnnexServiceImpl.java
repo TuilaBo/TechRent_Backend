@@ -9,15 +9,12 @@ import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepos
 import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
 import com.rentaltech.techrental.contract.service.DigitalSignatureService;
 import com.rentaltech.techrental.contract.service.EmailService;
-import com.rentaltech.techrental.finance.model.Invoice;
-import com.rentaltech.techrental.finance.model.InvoiceStatus;
-import com.rentaltech.techrental.finance.model.InvoiceType;
-import com.rentaltech.techrental.finance.model.PaymentMethod;
-import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,8 +41,8 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
     private final ContractExtensionAnnexRepository annexRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final DigitalSignatureService digitalSignatureService;
-    private final InvoiceRepository invoiceRepository;
     private final EmailService emailService;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
 
     private final ConcurrentHashMap<Long, PinCacheEntry> pinCache = new ConcurrentHashMap<>();
 
@@ -68,9 +65,8 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         BigDecimal extensionFee = defaultZero(rentalOrderExtension.getAdditionalPrice());
         BigDecimal vatRate = BigDecimal.ZERO;
         BigDecimal vatAmount = extensionFee.multiply(vatRate);
-        BigDecimal totalPayable = extensionFee.add(vatAmount);
 
-        String annexContent = buildAnnexContent(contract, originalOrder, rentalOrderExtension, extensionDetails, extensionDays, extensionFee, vatAmount, totalPayable);
+        String annexContent = buildAnnexContent(contract, originalOrder, rentalOrderExtension, extensionDetails, extensionDays, extensionFee);
 
         ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
                 .annexNumber(annexNumber)
@@ -85,8 +81,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .extensionEndDate(rentalOrderExtension.getExtensionEnd())
                 .extensionDays(extensionDays)
                 .extensionFee(extensionFee)
-                .totalPayable(totalPayable)
-                .depositAdjustment(BigDecimal.ZERO)
                 .annexContent(annexContent)
                 .status(ContractStatus.PENDING_ADMIN_SIGNATURE)
                 .issuedAt(LocalDateTime.now())
@@ -94,7 +88,9 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .createdBy(createdBy)
                 .build();
 
-        return annexRepository.save(annex);
+        ContractExtensionAnnex saved = annexRepository.save(annex);
+        updateExtensionStatus(rentalOrderExtension, RentalOrderExtensionStatus.PROCESSING);
+        return saved;
     }
 
     @Override
@@ -161,11 +157,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         annex.setStatus(ContractStatus.ACTIVE);
         annex.setUpdatedBy(customerAccountId);
 
-        if (annex.getInvoice() == null) {
-            Invoice invoice = createInvoiceForAnnex(annex);
-            annex.setInvoice(invoice);
-        }
-
         ContractExtensionAnnex saved = annexRepository.save(annex);
         clearPin(annex.getAnnexId());
         return ContractExtensionAnnexResponseDto.from(saved);
@@ -203,9 +194,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                                      RentalOrderExtension rentalOrderExtension,
                                      List<OrderDetail> details,
                                      int extensionDays,
-                                     BigDecimal extensionFee,
-                                     BigDecimal vatAmount,
-                                     BigDecimal total) {
+                                     BigDecimal extensionFee) {
         StringBuilder builder = new StringBuilder();
         builder.append("PHỤ LỤC GIA HẠN HỢP ĐỒNG THUÊ THIẾT BỊ\n");
         builder.append("Số phụ lục: ").append(contract.getContractNumber()).append("\n\n");
@@ -213,8 +202,7 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
                 .append(contract.getStartDate()).append("; hai bên thống nhất gia hạn như sau:\n");
         builder.append("- Thời hạn gia hạn: từ ").append(rentalOrderExtension.getExtensionStart()).append(" đến ")
                 .append(rentalOrderExtension.getExtensionEnd()).append(" (" + extensionDays + " ngày).\n");
-        builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND, thuế VAT: ")
-                .append(vatAmount).append(" VND, tổng thanh toán: ").append(total).append(" VND.\n");
+        builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND.\n");
         builder.append("- Thiết bị áp dụng: \n");
         for (OrderDetail detail : details) {
             builder.append("  + ")
@@ -265,35 +253,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         }
     }
 
-    private Invoice createInvoiceForAnnex(ContractExtensionAnnex annex) {
-        RentalOrder originalOrder = annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getRentalOrder() : null;
-        BigDecimal subTotal = defaultZero(annex.getExtensionFee());
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        BigDecimal depositApplied = defaultZero(annex.getDepositAdjustment());
-        BigDecimal totalAmount = defaultZero(annex.getTotalPayable());
-
-        Invoice invoice = Invoice.builder()
-                .rentalOrder(originalOrder)
-                .invoiceType(InvoiceType.RENT_PAYMENT)
-                .paymentMethod(PaymentMethod.PAYOS)
-                .paymentDate(null)
-                .subTotal(subTotal)
-                .taxAmount(BigDecimal.ZERO)
-                .discountAmount(discountAmount)
-                .totalAmount(totalAmount)
-                .depositApplied(depositApplied)
-                .dueDate(LocalDateTime.now().plusDays(3))
-                .invoiceStatus(InvoiceStatus.PROCESSING)
-                .proofUrl(null)
-                .issueDate(LocalDateTime.now())
-                .build();
-        return invoiceRepository.save(invoice);
-    }
-
-    private BigDecimal defaultZero(BigDecimal value) {
-        return value != null ? value : BigDecimal.ZERO;
-    }
-
     private String generatePin() {
         Random random = new Random();
         int pin = 100000 + random.nextInt(900000);
@@ -319,6 +278,18 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
 
     private void clearPin(Long annexId) {
         pinCache.remove(annexId);
+    }
+
+    private BigDecimal defaultZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private void updateExtensionStatus(RentalOrderExtension extension, RentalOrderExtensionStatus status) {
+        if (extension == null || extension.getExtensionId() == null || status == null) {
+            return;
+        }
+        extension.setStatus(status);
+        rentalOrderExtensionRepository.save(extension);
     }
 
     private static class PinCacheEntry {
