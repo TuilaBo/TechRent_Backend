@@ -24,6 +24,7 @@ public class PolicyServiceImpl implements PolicyService {
     private final PolicyRepository policyRepository;
     private final ImageStorageService imageStorageService;
     private final AccountService accountService;
+    private final DocxToPdfConverter docxToPdfConverter;
 
     @Override
     @Transactional
@@ -40,25 +41,35 @@ public class PolicyServiceImpl implements PolicyService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        Policy saved = policyRepository.save(policy);
+
+        // Nếu có file Word, lưu cả bản gốc và convert sang PDF cho end-user xem
         if (file != null && !file.isEmpty()) {
             String fileName = file.getOriginalFilename();
             String fileType = extractFileType(fileName);
-            String fileUrl = imageStorageService.uploadPolicyFile(file, null, fileName);
-            policy.setFileUrl(fileUrl);
-            policy.setFileName(fileName);
-            policy.setFileType(fileType);
-        }
+            // Lưu file gốc (DOC/DOCX)
+            String originalUrl = imageStorageService.uploadPolicyFile(file, saved.getPolicyId(), fileName);
+            saved.setOriginalFileUrl(originalUrl);
 
-        Policy saved = policyRepository.save(policy);
-        
-        // Update file URL with policy ID if needed
-        if (saved.getFileUrl() == null && file != null && !file.isEmpty()) {
-            String fileName = file.getOriginalFilename();
-            String fileType = extractFileType(fileName);
-            String fileUrl = imageStorageService.uploadPolicyFile(file, saved.getPolicyId(), fileName);
-            saved.setFileUrl(fileUrl);
-            saved.setFileName(fileName);
-            saved.setFileType(fileType);
+            // Nếu là DOC/DOCX thì convert sang PDF, upload và set fileUrl = PDF
+            if ("DOC".equalsIgnoreCase(fileType) || "DOCX".equalsIgnoreCase(fileType)) {
+                org.springframework.web.multipart.MultipartFile pdfFile = docxToPdfConverter.convertToPdf(file);
+                String pdfUrl = imageStorageService.uploadPolicyPdf(pdfFile, saved.getPolicyId(), fileName + ".pdf");
+                saved.setFileUrl(pdfUrl);
+                saved.setFileName(pdfFile.getOriginalFilename());
+                saved.setFileType("PDF");
+            } else if ("PDF".equalsIgnoreCase(fileType)) {
+                // Trường hợp upload trực tiếp PDF
+                saved.setFileUrl(originalUrl);
+                saved.setFileName(fileName);
+                saved.setFileType("PDF");
+            } else {
+                // Các loại khác: chỉ lưu original, không convert
+                saved.setFileUrl(originalUrl);
+                saved.setFileName(fileName);
+                saved.setFileType(fileType);
+            }
+
             saved = policyRepository.save(saved);
         }
 
@@ -84,10 +95,25 @@ public class PolicyServiceImpl implements PolicyService {
             validateFile(file);
             String fileName = file.getOriginalFilename();
             String fileType = extractFileType(fileName);
-            String fileUrl = imageStorageService.uploadPolicyFile(file, policyId, fileName);
-            existing.setFileUrl(fileUrl);
-            existing.setFileName(fileName);
-            existing.setFileType(fileType);
+            // Cập nhật file gốc
+            String originalUrl = imageStorageService.uploadPolicyFile(file, policyId, fileName);
+            existing.setOriginalFileUrl(originalUrl);
+
+            if ("DOC".equalsIgnoreCase(fileType) || "DOCX".equalsIgnoreCase(fileType)) {
+                org.springframework.web.multipart.MultipartFile pdfFile = docxToPdfConverter.convertToPdf(file);
+                String pdfUrl = imageStorageService.uploadPolicyPdf(pdfFile, policyId, fileName + ".pdf");
+                existing.setFileUrl(pdfUrl);
+                existing.setFileName(pdfFile.getOriginalFilename());
+                existing.setFileType("PDF");
+            } else if ("PDF".equalsIgnoreCase(fileType)) {
+                existing.setFileUrl(originalUrl);
+                existing.setFileName(fileName);
+                existing.setFileType("PDF");
+            } else {
+                existing.setFileUrl(originalUrl);
+                existing.setFileName(fileName);
+                existing.setFileType(fileType);
+            }
         }
 
         Policy saved = policyRepository.save(existing);

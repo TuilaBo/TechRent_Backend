@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,4 +42,15 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
                                @Param("brand") String brand,
                                @Param("deviceName") String deviceName,
                                Pageable pageable);
+
+    @Query("""
+            SELECT c.deviceCategoryId, c.deviceCategoryName, COUNT(d)
+            FROM Device d
+                JOIN d.deviceModel m
+                JOIN m.deviceCategory c
+            WHERE d.acquireAt BETWEEN :start AND :end
+            GROUP BY c.deviceCategoryId, c.deviceCategoryName
+            """)
+    List<Object[]> countImportsByCategoryBetween(@Param("start") LocalDateTime start,
+                                                 @Param("end") LocalDateTime end);
 }

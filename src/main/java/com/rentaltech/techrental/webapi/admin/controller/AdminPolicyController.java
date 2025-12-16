@@ -6,7 +6,6 @@ import com.rentaltech.techrental.policy.model.dto.PolicyResponseDto;
 import com.rentaltech.techrental.policy.service.PolicyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,7 +29,7 @@ public class AdminPolicyController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Tạo policy mới", description = "Admin có thể tạo policy mới với file PDF hoặc Word")
     public ResponseEntity<?> create(
-            @RequestPart("request") @Valid PolicyRequestDto request,
+            @RequestPart("request") PolicyRequestDto request,
             @RequestPart(value = "file", required = false) MultipartFile file,
             Authentication authentication) {
         PolicyResponseDto response = policyService.create(
@@ -51,7 +50,7 @@ public class AdminPolicyController {
     @Operation(summary = "Cập nhật policy", description = "Admin có thể cập nhật thông tin policy và file")
     public ResponseEntity<?> update(
             @PathVariable Long policyId,
-            @RequestPart("request") @Valid PolicyRequestDto request,
+            @RequestPart("request") PolicyRequestDto request,
             @RequestPart(value = "file", required = false) MultipartFile file,
             Authentication authentication) {
         PolicyResponseDto response = policyService.update(

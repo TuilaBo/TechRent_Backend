@@ -165,13 +165,16 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             createSnapshotsFromDeviceConditions(saved, deviceConditions, createdByStaff);
         }
 
-        // Send PIN to staff email
+        // Send PIN to staff email (phân biệt theo loại biên bản)
         String pinCode = generatePinCode();
         String staffEmail = staffAccount.getEmail();
         if (!StringUtils.hasText(staffEmail)) {
             throw new IllegalStateException("Staff account does not have email to receive PIN");
         }
-        boolean emailSent = emailService.sendOTP(staffEmail, pinCode);
+        boolean emailSent = switch (handoverType) {
+            case CHECKOUT -> emailService.sendHandoverCheckoutOTP(staffEmail, pinCode);
+            case CHECKIN -> emailService.sendHandoverCheckinOTP(staffEmail, pinCode);
+        };
         if (!emailSent) {
             throw new IllegalStateException("Unable to send PIN to staff email: " + staffEmail);
         }
@@ -335,7 +338,8 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             smsSent = smsService.sendOTP(phone, pinCode);
         }
         if (StringUtils.hasText(email)) {
-            emailSent = emailService.sendOTP(email, pinCode);
+            // Đây là PIN để khách ký biên bản bàn giao (mặc định là checkout)
+            emailSent = emailService.sendHandoverCheckoutOTP(email, pinCode);
         }
 
         if (!smsSent && !emailSent) {
@@ -426,7 +430,10 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
 
         String pinCode = generatePinCode();
-        boolean emailSent = emailService.sendOTP(email, pinCode);
+        // Staff ký biên bản bàn giao (dựa theo loại report)
+        boolean emailSent = report.getHandoverType() == HandoverType.CHECKOUT
+                ? emailService.sendHandoverCheckoutOTP(email, pinCode)
+                : emailService.sendHandoverCheckinOTP(email, pinCode);
         if (!emailSent) {
             throw new IllegalStateException("Unable to send PIN to staff email: " + email);
         }
@@ -495,7 +502,10 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
 
         String pinCode = generatePinCode();
-        boolean emailSent = emailService.sendOTP(email, pinCode);
+        // Customer ký biên bản bàn giao (dựa theo loại report)
+        boolean emailSent = report.getHandoverType() == HandoverType.CHECKOUT
+                ? emailService.sendHandoverCheckoutOTP(email, pinCode)
+                : emailService.sendHandoverCheckinOTP(email, pinCode);
         if (!emailSent) {
             throw new IllegalStateException("Unable to send PIN to email: " + email);
         }
