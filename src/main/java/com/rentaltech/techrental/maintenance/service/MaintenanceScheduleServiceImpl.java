@@ -8,7 +8,9 @@ import com.rentaltech.techrental.device.repository.DeviceCategoryRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.maintenance.model.MaintenanceSchedule;
 import com.rentaltech.techrental.maintenance.model.MaintenanceScheduleStatus;
-import com.rentaltech.techrental.maintenance.model.dto.*;
+import com.rentaltech.techrental.maintenance.model.dto.MaintenanceScheduleByCategoryRequestDto;
+import com.rentaltech.techrental.maintenance.model.dto.MaintenanceScheduleByUsageRequestDto;
+import com.rentaltech.techrental.maintenance.model.dto.PriorityMaintenanceDeviceDto;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleCustomRepository;
 import com.rentaltech.techrental.maintenance.repository.MaintenanceScheduleRepository;
 import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
@@ -27,15 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
