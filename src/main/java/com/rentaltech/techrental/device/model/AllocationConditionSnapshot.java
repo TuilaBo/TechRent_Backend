@@ -4,12 +4,7 @@ import com.rentaltech.techrental.common.converter.AllocationConditionDetailListC
 import com.rentaltech.techrental.common.converter.StringListJsonConverter;
 import com.rentaltech.techrental.staff.model.Staff;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

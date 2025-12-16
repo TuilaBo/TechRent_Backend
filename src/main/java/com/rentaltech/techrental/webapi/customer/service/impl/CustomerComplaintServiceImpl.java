@@ -7,25 +7,23 @@ import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
-import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
-import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.staff.model.Staff;
 import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskCategory;
+import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.model.dto.TaskCreateRequestDto;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
-import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
-import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
-import org.springframework.web.multipart.MultipartFile;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintRequestDto;
@@ -34,17 +32,15 @@ import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintCus
 import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.service.CustomerComplaintService;
+import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -214,8 +210,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Cần check từ startDate đến endDate để đảm bảo device không bị booking bởi order khác
         Device replacementDevice = findReplacementDevice(
                 orderDetail.getDeviceModel().getDeviceModelId(),
-                order.getStartDate(),  // Check từ startDate của order
-                order.getEndDate()     // Đến endDate của order
+                order.getEffectiveStartDate(),
+                order.getEffectiveEndDate()
         );
 
         if (replacementDevice == null) {
@@ -246,16 +242,12 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         // Tìm hoặc tạo TaskCategory "Device Replacement"
         TaskCategory replacementCategory = taskCategoryRepository.findByNameIgnoreCase("Device Replacement")
                 .orElseGet(() -> {
-                    // Nếu không có "Device Replacement", thử tìm "Delivery"
-                    return taskCategoryRepository.findByNameIgnoreCase("Delivery")
-                            .orElseGet(() -> {
-                                // Nếu không có cả 2, tự động tạo category "Device Replacement"
-                                TaskCategory newCategory = TaskCategory.builder()
-                                        .name("Device Replacement")
-                                        .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
-                                        .build();
-                                return taskCategoryRepository.save(newCategory);
-                            });
+                    // Nếu không có, tự động tạo category "Device Replacement"
+                    TaskCategory newCategory = TaskCategory.builder()
+                            .name("Device Replacement")
+                            .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
+                            .build();
+                    return taskCategoryRepository.save(newCategory);
                 });
 
         // Tìm task pending của order (cùng category "Device Replacement")
@@ -318,10 +310,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         complaint.setReplacementAllocation(savedAllocation);
         complaint.setProcessedAt(LocalDateTime.now());
 
-        // Nếu lỗi do khách: ghi nhận các condition hư hỏng để tính phí sau này
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        // Ghi nhận condition hiện tại của thiết bị để cập nhật trạng thái
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 
@@ -368,9 +358,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             complaint.setStaffNote(staffNote);
         }
 
-        if (complaint.getFaultSource() == com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.CUSTOMER
-                && conditionDefinitionIds != null
-                && !conditionDefinitionIds.isEmpty()) {
+        if (conditionDefinitionIds != null && !conditionDefinitionIds.isEmpty()) {
             addDamageConditions(brokenDevice.getDeviceId(), conditionDefinitionIds, damageNote, staff.getStaffId());
         }
 

@@ -1,11 +1,7 @@
 package com.rentaltech.techrental.webapi.technician.service;
 
 import com.rentaltech.techrental.authentication.service.AccountService;
-import com.rentaltech.techrental.device.repository.AllocationConditionSnapshotRepository;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
-import com.rentaltech.techrental.device.repository.ConditionDefinitionRepository;
-import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
-import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.device.repository.*;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
 import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
@@ -36,9 +32,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class QCReportServiceImplTest {

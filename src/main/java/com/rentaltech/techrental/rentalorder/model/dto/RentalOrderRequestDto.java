@@ -17,10 +17,10 @@ import java.util.List;
 @AllArgsConstructor
 public class RentalOrderRequestDto {
     @NotNull
-    private LocalDateTime startDate;
+    private LocalDateTime planStartDate;
 
     @NotNull
-    private LocalDateTime endDate;
+    private LocalDateTime planEndDate;
 
     @NotNull
     private String shippingAddress;

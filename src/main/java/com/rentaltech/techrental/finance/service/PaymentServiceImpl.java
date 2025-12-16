@@ -3,10 +3,12 @@ package com.rentaltech.techrental.finance.service;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.model.Role;
 import com.rentaltech.techrental.authentication.repository.AccountRepository;
-import com.rentaltech.techrental.contract.model.Contract;
+import com.rentaltech.techrental.contract.model.ContractExtensionAnnex;
 import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepository;
 import com.rentaltech.techrental.contract.repository.ContractRepository;
+import com.rentaltech.techrental.device.model.Allocation;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.finance.config.VnpayConfig;
 import com.rentaltech.techrental.finance.model.*;
 import com.rentaltech.techrental.finance.model.dto.CreatePaymentRequest;
@@ -16,17 +18,18 @@ import com.rentaltech.techrental.finance.model.dto.TransactionResponseDto;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.finance.repository.TransactionRepository;
 import com.rentaltech.techrental.finance.util.VnpayUtil;
-import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.service.BookingCalendarService;
 import com.rentaltech.techrental.rentalorder.service.ReservationService;
 import com.rentaltech.techrental.staff.model.*;
+import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
-import com.rentaltech.techrental.staff.repository.SettlementRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
@@ -34,8 +37,8 @@ import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -67,6 +70,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final RentalOrderRepository rentalOrderRepository;
     private final ContractRepository contractRepository;
     private final ContractExtensionAnnexRepository contractExtensionAnnexRepository;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
     private final NotificationService notificationService;
     private final TaskRepository taskRepository;
     private final TaskCategoryRepository taskCategoryRepository;
@@ -107,9 +111,34 @@ public class PaymentServiceImpl implements PaymentService {
         RentalOrder rentalOrder = rentalOrderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn thuê: " + request.getOrderId()));
 
-        BigDecimal expectedSubTotal = safeSum(rentalOrder.getDepositAmount(), rentalOrder.getTotalPrice());
+        RentalOrderExtension extension = null;
+        ContractExtensionAnnex annex = null;
+        Invoice existingAnnexInvoice = null;
+        if (request.getExtensionId() != null) {
+            extension = rentalOrderExtensionRepository.findById(request.getExtensionId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bản gia hạn: " + request.getExtensionId()));
+            if (extension.getRentalOrder() == null
+                    || extension.getRentalOrder().getOrderId() == null
+                    || !extension.getRentalOrder().getOrderId().equals(rentalOrder.getOrderId())) {
+                throw new IllegalArgumentException("Bản gia hạn không thuộc đơn thuê " + request.getOrderId());
+            }
+            Long extensionId = extension.getExtensionId();
+            annex = contractExtensionAnnexRepository.findFirstByRentalOrderExtension_ExtensionId(extensionId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phụ lục gia hạn cho extension " + extensionId));
+            existingAnnexInvoice = annex.getInvoice();
+            if (existingAnnexInvoice != null && existingAnnexInvoice.getInvoiceStatus() == InvoiceStatus.SUCCEEDED) {
+                throw new IllegalStateException("Phụ lục gia hạn đã được thanh toán");
+            }
+        }
+
+        BigDecimal expectedSubTotal = extension != null
+                ? defaultZero(extension.getAdditionalPrice())
+                : safeSum(rentalOrder.getDepositAmount(), rentalOrder.getTotalPrice());
         if (request.getAmount() == null || request.getAmount().compareTo(expectedSubTotal) != 0) {
-            throw new IllegalArgumentException("Số tiền không khớp với tiền cọc + tổng chi phí của đơn thuê " + request.getOrderId());
+            throw new IllegalArgumentException("Số tiền thanh toán không khớp với giá trị yêu cầu");
+        }
+        if (expectedSubTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Giá trị thanh toán không hợp lệ");
         }
 
         BigDecimal taxAmount = BigDecimal.ZERO;
@@ -117,17 +146,29 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal depositApplied = BigDecimal.ZERO;
         BigDecimal totalAmount = expectedSubTotal.add(taxAmount).subtract(discountAmount);
 
+        boolean reuseExistingInvoice = existingAnnexInvoice != null;
         Invoice invoice;
         if (paymentMethod == PaymentMethod.VNPAY) {
             String vnpayTransactionId = generateVnpayTransactionId();
-            invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
-                            taxAmount, discountAmount, depositApplied, totalAmount)
-                    .vnpayTransactionId(vnpayTransactionId)
-                    .frontendSuccessUrl(request.getFrontendSuccessUrl())
-                    .frontendFailureUrl(request.getFrontendFailureUrl())
-                    .build();
+            if (reuseExistingInvoice) {
+                invoice = resetInvoiceForPayment(existingAnnexInvoice, paymentMethod, expectedSubTotal,
+                        taxAmount, discountAmount, depositApplied, totalAmount,
+                        request.getFrontendSuccessUrl(), request.getFrontendFailureUrl());
+                invoice.setVnpayTransactionId(vnpayTransactionId);
+                invoice.setPayosOrderCode(null);
+            } else {
+                invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
+                                taxAmount, discountAmount, depositApplied, totalAmount)
+                        .vnpayTransactionId(vnpayTransactionId)
+                        .frontendSuccessUrl(request.getFrontendSuccessUrl())
+                        .frontendFailureUrl(request.getFrontendFailureUrl())
+                        .build();
+            }
             invoice = invoiceRepository.save(invoice);
             invoiceRepository.flush();
+            if (extension != null && !reuseExistingInvoice) {
+                attachInvoiceToAnnex(extension, invoice);
+            }
             String paymentUrl = buildVnpayPaymentUrl(request, invoice);
             return CreatePaymentResponse.builder()
                     .checkoutUrl(paymentUrl)
@@ -136,14 +177,25 @@ public class PaymentServiceImpl implements PaymentService {
                     .build();
         } else {
             long payosOrderCode = generateUniquePayosOrderCode();
-            invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
-                            taxAmount, discountAmount, depositApplied, totalAmount)
-                    .payosOrderCode(payosOrderCode)
-                    .frontendSuccessUrl(request.getFrontendSuccessUrl())
-                    .frontendFailureUrl(request.getFrontendFailureUrl())
-                    .build();
+            if (reuseExistingInvoice) {
+                invoice = resetInvoiceForPayment(existingAnnexInvoice, paymentMethod, expectedSubTotal,
+                        taxAmount, discountAmount, depositApplied, totalAmount,
+                        request.getFrontendSuccessUrl(), request.getFrontendFailureUrl());
+                invoice.setPayosOrderCode(payosOrderCode);
+                invoice.setVnpayTransactionId(null);
+            } else {
+                invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
+                                taxAmount, discountAmount, depositApplied, totalAmount)
+                        .payosOrderCode(payosOrderCode)
+                        .frontendSuccessUrl(request.getFrontendSuccessUrl())
+                        .frontendFailureUrl(request.getFrontendFailureUrl())
+                        .build();
+            }
             invoice = invoiceRepository.save(invoice);
             invoiceRepository.flush();
+            if (extension != null && !reuseExistingInvoice) {
+                attachInvoiceToAnnex(extension, invoice);
+            }
 
             CreatePaymentLinkRequest paymentLinkRequest = buildCreatePaymentRequest(request, invoice);
             try {
@@ -205,7 +257,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (success) {
             invoice.setPaymentDate(LocalDateTime.now());
 
-            boolean extensionOrder = isExtensionOrder(rentalOrder);
+            boolean extensionOrder = rentalOrder != null && rentalOrder.getOrderStatus() == OrderStatus.IN_USE;
             if (rentalOrder != null) {
                 log.info("Updating rental order status for order {}", rentalOrder.getOrderId());
                 rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
@@ -213,7 +265,9 @@ public class PaymentServiceImpl implements PaymentService {
                 rentalOrderRepository.flush();
                 reservationService.markConfirmed(rentalOrder.getOrderId());
                 createBookingsForOrder(rentalOrder);
+                syncAnnexBookings(invoice);
                 updateContractStatusAfterPayment(rentalOrder);
+                updateExtensionStatusAfterPayment(invoice);
             }
 
             boolean transactionCreated = false;
@@ -290,16 +344,6 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         bookingCalendarService.createBookingsForAllocations(allocations);
-    }
-
-    private boolean isExtensionOrder(RentalOrder rentalOrder) {
-        if (rentalOrder == null) {
-            return false;
-        }
-        if (rentalOrder.getParentOrder() != null) {
-            return true;
-        }
-        return rentalOrder.isExtended();
     }
 
     private CreatePaymentLinkRequest buildCreatePaymentRequest(CreatePaymentRequest request, Invoice invoice) {
@@ -554,11 +598,8 @@ public class PaymentServiceImpl implements PaymentService {
         // Đơn đã hoàn trả cọc => chuyển trạng thái đơn sang COMPLETED (bao gồm các đơn extend)
         order.setOrderStatus(OrderStatus.COMPLETED);
         rentalOrderRepository.save(order);
-        List<RentalOrder> extensionOrders = rentalOrderRepository.findByParentOrder(order);
-        if (!extensionOrders.isEmpty()) {
-            extensionOrders.forEach(ext -> ext.setOrderStatus(OrderStatus.COMPLETED));
-            rentalOrderRepository.saveAll(extensionOrders);
-        }
+        completeExtensionsForOrder(order);
+        // Không còn đơn gia hạn riêng biệt; chỉ cập nhật trạng thái của đơn gốc
 
         settlement.setState(SettlementState.Closed);
         if (settlement.getIssuedAt() == null) {
@@ -638,7 +679,7 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setPaymentDate(LocalDateTime.now());
 
             RentalOrder rentalOrder = invoice.getRentalOrder();
-            boolean extensionOrder = isExtensionOrder(rentalOrder);
+            boolean extensionOrder = rentalOrder != null && rentalOrder.getOrderStatus() == OrderStatus.IN_USE;
             if (rentalOrder != null) {
                 log.info("VNPAY payment succeeded for order {} - updating status", rentalOrder.getOrderId());
                 rentalOrder.setOrderStatus(extensionOrder ? OrderStatus.IN_USE : OrderStatus.DELIVERY_CONFIRMED);
@@ -659,9 +700,19 @@ public class PaymentServiceImpl implements PaymentService {
                     log.error("Failed to create bookings for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
                 }
                 try {
+                    syncAnnexBookings(invoice);
+                } catch (Exception e) {
+                    log.error("Failed to sync booking calendar for annex invoice {}: {}", invoice.getInvoiceId(), e.getMessage(), e);
+                }
+                try {
                     updateContractStatusAfterPayment(rentalOrder);
                 } catch (Exception e) {
                     log.error("Failed to update contract status for order {}: {}", rentalOrder.getOrderId(), e.getMessage(), e);
+                }
+                try {
+                    updateExtensionStatusAfterPayment(invoice);
+                } catch (Exception e) {
+                    log.error("Failed to update extension status for invoice {}: {}", invoice.getInvoiceId(), e.getMessage(), e);
                 }
             } else {
                 log.warn("VNPAY payment succeeded but rentalOrder is null for invoice {}", invoice.getInvoiceId());
@@ -748,12 +799,124 @@ public class PaymentServiceImpl implements PaymentService {
         return value != null ? value : BigDecimal.ZERO;
     }
 
+    private void attachInvoiceToAnnex(RentalOrderExtension extension, Invoice invoice) {
+        if (extension == null || invoice == null || extension.getExtensionId() == null) {
+            return;
+        }
+        ContractExtensionAnnex annex = contractExtensionAnnexRepository
+                .findFirstByRentalOrderExtension_ExtensionId(extension.getExtensionId())
+                .orElseThrow(() -> new IllegalStateException("Không tìm thấy phụ lục gia hạn cho extension " + extension.getExtensionId()));
+        Invoice existingInvoice = annex.getInvoice();
+        if (existingInvoice != null && existingInvoice.getInvoiceId() != null
+                && !Objects.equals(existingInvoice.getInvoiceId(), invoice.getInvoiceId())) {
+            if (existingInvoice.getInvoiceStatus() == InvoiceStatus.PROCESSING) {
+                throw new IllegalStateException("Phụ lục gia hạn đang có hóa đơn chờ thanh toán");
+            }
+        }
+        annex.setInvoice(invoice);
+        contractExtensionAnnexRepository.save(annex);
+    }
+
+    private Invoice resetInvoiceForPayment(Invoice invoice,
+                                           PaymentMethod paymentMethod,
+                                           BigDecimal subTotal,
+                                           BigDecimal taxAmount,
+                                           BigDecimal discountAmount,
+                                           BigDecimal depositApplied,
+                                           BigDecimal totalAmount,
+                                           String successUrl,
+                                           String failureUrl) {
+        invoice.setPaymentMethod(paymentMethod);
+        invoice.setInvoiceStatus(InvoiceStatus.PROCESSING);
+        invoice.setPaymentDate(null);
+        invoice.setProofUrl(null);
+        invoice.setSubTotal(subTotal);
+        invoice.setTaxAmount(taxAmount);
+        invoice.setDiscountAmount(discountAmount);
+        invoice.setTotalAmount(totalAmount);
+        invoice.setDepositApplied(depositApplied);
+        invoice.setDueDate(LocalDateTime.now().plusDays(3));
+        invoice.setIssueDate(null);
+        invoice.setFrontendSuccessUrl(successUrl);
+        invoice.setFrontendFailureUrl(failureUrl);
+        return invoice;
+    }
+
+    private void syncAnnexBookings(Invoice invoice) {
+        if (invoice == null) {
+            return;
+        }
+        contractExtensionAnnexRepository.findByInvoice(invoice)
+                .ifPresent(annex -> {
+                    RentalOrder originalOrder = annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getRentalOrder() : null;
+                    if (originalOrder == null || originalOrder.getOrderId() == null) {
+                        return;
+                    }
+                    bookingCalendarService.clearBookingsForOrder(originalOrder.getOrderId());
+                    createBookingsForOrder(originalOrder);
+                });
+    }
+
+    private void updateExtensionStatusAfterPayment(Invoice invoice) {
+        if (invoice == null) {
+            return;
+        }
+        contractExtensionAnnexRepository.findByInvoice(invoice)
+                .map(ContractExtensionAnnex::getRentalOrderExtension)
+                .map(this::ensureExtensionLoaded)
+                .filter(Objects::nonNull)
+                .ifPresent(extension -> {
+                    extension.setStatus(RentalOrderExtensionStatus.IN_USE);
+                    rentalOrderExtensionRepository.save(extension);
+                    updateOriginalOrderAfterExtensionPaid(extension);
+                });
+    }
+
+    private RentalOrderExtension ensureExtensionLoaded(RentalOrderExtension extension) {
+        if (extension == null || extension.getExtensionId() == null) {
+            return null;
+        }
+        return rentalOrderExtensionRepository.findById(extension.getExtensionId())
+                .orElse(null);
+    }
+
+    private void completeExtensionsForOrder(RentalOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        List<RentalOrderExtension> inUseExtensions = rentalOrderExtensionRepository
+                .findByRentalOrder_OrderIdAndStatus(order.getOrderId(), RentalOrderExtensionStatus.IN_USE);
+        if (inUseExtensions.isEmpty()) {
+            return;
+        }
+        inUseExtensions.forEach(extension -> extension.setStatus(RentalOrderExtensionStatus.COMPLETED));
+        rentalOrderExtensionRepository.saveAll(inUseExtensions);
+    }
+
+    private void updateOriginalOrderAfterExtensionPaid(RentalOrderExtension extension) {
+        if (extension == null) {
+            return;
+        }
+        RentalOrder order = extension.getRentalOrder();
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        order.setPlanEndDate(extension.getExtensionEnd());
+        int currentDuration = order.getDurationDays() != null ? order.getDurationDays() : 0;
+        int addedDuration = extension.getDurationDays() != null ? extension.getDurationDays() : 0;
+        order.setDurationDays(currentDuration + addedDuration);
+        BigDecimal currentTotal = Optional.ofNullable(order.getTotalPrice()).orElse(BigDecimal.ZERO);
+        BigDecimal extensionTotal = Optional.ofNullable(extension.getAdditionalPrice()).orElse(BigDecimal.ZERO);
+        order.setTotalPrice(currentTotal.add(extensionTotal));
+        rentalOrderRepository.save(order);
+    }
+
     private void updateContractStatusAfterPayment(RentalOrder rentalOrder) {
         if (rentalOrder == null || rentalOrder.getOrderId() == null) {
             return;
         }
         if (isExtensionOrder(rentalOrder)) {
-            contractExtensionAnnexRepository.findFirstByExtensionOrder_OrderId(rentalOrder.getOrderId())
+            contractExtensionAnnexRepository.findFirstByRentalOrderExtension_RentalOrder_OrderId(rentalOrder.getOrderId())
                     .ifPresent(annex -> {
                         annex.setStatus(ContractStatus.ACTIVE);
                         contractExtensionAnnexRepository.save(annex);
@@ -766,5 +929,12 @@ public class PaymentServiceImpl implements PaymentService {
                         contractRepository.save(contract);
                     });
         }
+    }
+
+    private boolean isExtensionOrder(RentalOrder rentalOrder) {
+        if (rentalOrder == null || rentalOrder.getOrderId() == null) {
+            return false;
+        }
+        return contractExtensionAnnexRepository.findFirstByRentalOrderExtension_RentalOrder_OrderId(rentalOrder.getOrderId()).isPresent();
     }
 }

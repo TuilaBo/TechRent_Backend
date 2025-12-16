@@ -9,18 +9,14 @@ import com.rentaltech.techrental.rentalorder.model.BookingCalendar;
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.model.ReservationStatus;
 import com.rentaltech.techrental.rentalorder.repository.BookingCalendarRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -39,12 +35,14 @@ public class BookingCalendarServiceImpl implements BookingCalendarService {
         allocations.forEach(allocation -> {
             if (allocation == null || allocation.getDevice() == null || allocation.getOrderDetail() == null) return;
             var order = allocation.getOrderDetail().getRentalOrder();
-            if (order == null || order.getStartDate() == null || order.getEndDate() == null) return;
+            LocalDateTime start = order != null ? order.getEffectiveStartDate() : null;
+            LocalDateTime end = order != null ? order.getEffectiveEndDate() : null;
+            if (order == null || start == null || end == null) return;
             items.add(BookingCalendar.builder()
                     .device(allocation.getDevice())
                     .rentalOrder(order)
-                    .startTime(order.getStartDate())
-                    .endTime(order.getEndDate())
+                    .startTime(start)
+                    .endTime(end)
                     .status(BookingStatus.BOOKED)
                     .build());
         });

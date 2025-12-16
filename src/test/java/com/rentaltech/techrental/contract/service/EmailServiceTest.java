@@ -38,6 +38,14 @@ class EmailServiceTest {
     }
 
     @Test
+    void sendOtpReturnsTrueEvenWithBlankEmailWhenSenderSucceeds() {
+        // EmailService does not validate the email; it forwards to JavaMailSender
+        doNothing().when(mailSender).send(any(SimpleMailMessage.class));
+
+        assertThat(emailService.sendOTP(" ", "123456")).isTrue();
+    }
+
+    @Test
     void sendContractSignedNotificationHandlesSuccessAndFailure() {
         doNothing().when(mailSender).send(any(SimpleMailMessage.class));
         assertThat(emailService.sendContractSignedNotification("user@test.com", "HD01")).isTrue();

@@ -1,11 +1,12 @@
 package com.rentaltech.techrental.config;
 
+import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
-import com.rentaltech.techrental.contract.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RentalOrderNotificationScheduler {
 
     private final RentalOrderRepository rentalOrderRepository;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
     private static final ScheduledExecutorService EMAIL_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
@@ -38,7 +40,7 @@ public class RentalOrderNotificationScheduler {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime threshold = now.plusDays(1);
         try {
-            List<RentalOrder> orders = rentalOrderRepository.findByOrderStatusAndEndDateBetween(
+            List<RentalOrder> orders = rentalOrderRepository.findByOrderStatusAndPlanEndDateBetween(
                     OrderStatus.IN_USE, now, threshold);
             orders.forEach(this::notifyCustomerNearDue);
         } catch (Exception ex) {
@@ -50,8 +52,8 @@ public class RentalOrderNotificationScheduler {
         if (order == null || order.getCustomer() == null || order.getCustomer().getCustomerId() == null) {
             return;
         }
-        if (rentalOrderRepository.existsByParentOrder(order)) {
-            log.debug("Bỏ qua gửi near-due cho đơn {} vì đã có đơn gia hạn", order.getOrderId());
+        if (rentalOrderExtensionRepository.existsByRentalOrder(order)) {
+            log.debug("Bỏ qua gửi near-due cho đơn {} vì đã có gia hạn", order.getOrderId());
             return;
         }
         if (order.getLastDueNotificationSentAt() != null) {
@@ -62,7 +64,7 @@ public class RentalOrderNotificationScheduler {
         String message = String.format(
                 "Đơn thuê #%d sẽ hết hạn vào %s. Vui lòng xác nhận gia hạn hoặc ngày trả hàng.",
                 order.getOrderId(),
-                order.getEndDate() != null ? order.getEndDate() : "thời gian đã đặt"
+                order.getPlanEndDate() != null ? order.getPlanEndDate() : "thời gian đã đặt"
         );
         try {
             notificationService.notifyAccount(

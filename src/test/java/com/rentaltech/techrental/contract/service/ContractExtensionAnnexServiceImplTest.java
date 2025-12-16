@@ -12,6 +12,7 @@ import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,9 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ContractExtensionAnnexServiceImplTest {
@@ -53,7 +52,7 @@ class ContractExtensionAnnexServiceImplTest {
 
     private Contract contract;
     private RentalOrder originalOrder;
-    private RentalOrder extensionOrder;
+    private RentalOrderExtension rentalOrderExtension;
 
     @BeforeEach
     void setUp() {
@@ -67,15 +66,18 @@ class ContractExtensionAnnexServiceImplTest {
                 .startDate(LocalDateTime.now().minusDays(5))
                 .endDate(LocalDateTime.now())
                 .build();
-        extensionOrder = RentalOrder.builder()
-                .orderId(11L)
-                .startDate(LocalDateTime.now())
-                .endDate(LocalDateTime.now().plusDays(3))
-                .totalPrice(java.math.BigDecimal.valueOf(1000))
+        rentalOrderExtension = RentalOrderExtension.builder()
+                .extensionId(100L)
+                .rentalOrder(originalOrder)
+                .extensionStart(LocalDateTime.now())
+                .extensionEnd(LocalDateTime.now().plusDays(3))
+                .durationDays(3)
+                .pricePerDay(java.math.BigDecimal.valueOf(333))
+                .additionalPrice(java.math.BigDecimal.valueOf(1000))
                 .build();
-        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId()))
+        lenient().when(orderDetailRepository.findByRentalOrder_OrderId(originalOrder.getOrderId()))
                 .thenReturn(List.of(OrderDetail.builder()
-                        .rentalOrder(extensionOrder)
+                        .rentalOrder(originalOrder)
                         .deviceModel(DeviceModel.builder().deviceName("Device X").build())
                         .quantity(1L)
                         .build()));
@@ -88,7 +90,7 @@ class ContractExtensionAnnexServiceImplTest {
     void createAnnexForExtensionBuildsAnnexWithNumberAndContent() {
         when(annexRepository.countByContract_ContractId(contract.getContractId())).thenReturn(0L);
 
-        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, originalOrder, extensionOrder, 99L);
+        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, rentalOrderExtension, 99L);
 
         assertThat(annex.getAnnexNumber()).contains("HD202401010001-P");
         assertThat(annex.getExtensionDays()).isEqualTo(3);
@@ -97,7 +99,17 @@ class ContractExtensionAnnexServiceImplTest {
 
     @Test
     void createAnnexThrowsWhenMissingData() {
-        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, originalOrder, extensionOrder, 1L));
+        assertThrows(IllegalArgumentException.class, () -> service.createAnnexForExtension(null, rentalOrderExtension, 1L));
+    }
+
+    @Test
+    void createAnnexIncrementsSequenceNumber() {
+        when(annexRepository.countByContract_ContractId(contract.getContractId())).thenReturn(2L); // existing 2 annexes
+
+        ContractExtensionAnnex annex = service.createAnnexForExtension(contract, rentalOrderExtension, 50L);
+
+        assertThat(annex.getAnnexNumber()).endsWith("-PL-03");
+        verify(annexRepository).save(any(ContractExtensionAnnex.class));
     }
 
     @Test
@@ -106,7 +118,7 @@ class ContractExtensionAnnexServiceImplTest {
                 .annexId(5L)
                 .annexNumber("HD-PL-01")
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .adminSignedAt(LocalDateTime.now())
                 .annexContent("content")
@@ -130,13 +142,139 @@ class ContractExtensionAnnexServiceImplTest {
     }
 
     @Test
+    void signAsCustomerThrowsWhenStatusNotPendingSignature() throws Exception {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(9L)
+                .annexNumber("HD-PL-02")
+                .contract(contract)
+                .rentalOrderExtension(rentalOrderExtension)
+                .status(ContractStatus.PENDING_ADMIN_SIGNATURE) // wrong status
+                .adminSignedAt(LocalDateTime.now())
+                .annexContent("content")
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode("654321");
+
+        assertThrows(IllegalStateException.class,
+                () -> service.signAsCustomer(contract.getContractId(), annex.getAnnexId(), 200L, request));
+    }
+
+    @Test
+    void signAsCustomerThrowsWhenAdminNotSigned() throws Exception {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(10L)
+                .annexNumber("HD-PL-03")
+                .contract(contract)
+                .rentalOrderExtension(rentalOrderExtension)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .adminSignedAt(null) // admin not signed
+                .annexContent("content")
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode("654321");
+
+        assertThrows(IllegalStateException.class,
+                () -> service.signAsCustomer(contract.getContractId(), annex.getAnnexId(), 200L, request));
+    }
+
+    @Test
+    void signAsCustomerThrowsWhenPinMissing() throws Exception {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(11L)
+                .annexNumber("HD-PL-04")
+                .contract(contract)
+                .rentalOrderExtension(rentalOrderExtension)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .adminSignedAt(LocalDateTime.now())
+                .annexContent("content")
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode(" "); // missing
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.signAsCustomer(contract.getContractId(), annex.getAnnexId(), 200L, request));
+    }
+
+    @Test
+    void signAsCustomerThrowsWhenPinInvalid() throws Exception {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(12L)
+                .annexNumber("HD-PL-05")
+                .contract(contract)
+                .rentalOrderExtension(rentalOrderExtension)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .adminSignedAt(LocalDateTime.now())
+                .annexContent("content")
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+        // Do not seed the PIN cache so validation fails
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode("654321");
+
+        assertThrows(IllegalStateException.class,
+                () -> service.signAsCustomer(contract.getContractId(), annex.getAnnexId(), 200L, request));
+    }
+
+    @Test
+    void signAsCustomerThrowsWhenSignatureInvalid() throws Exception {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(13L)
+                .annexNumber("HD-PL-06")
+                .contract(contract)
+                .rentalOrderExtension(rentalOrderExtension)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .adminSignedAt(LocalDateTime.now())
+                .annexContent("content")
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+        when(digitalSignatureService.verifySignature(any(), any(), any())).thenReturn(false);
+        seedPinCache(annex.getAnnexId(), "654321");
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode("654321");
+
+        assertThrows(IllegalStateException.class,
+                () -> service.signAsCustomer(contract.getContractId(), annex.getAnnexId(), 200L, request));
+    }
+
+    @Test
+    void signAsCustomerThrowsWhenAnnexNotFound() {
+        when(annexRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ContractExtensionAnnexSignRequestDto request = new ContractExtensionAnnexSignRequestDto();
+        request.setDigitalSignature("c2ln");
+        request.setSignatureMethod("SMS_OTP");
+        request.setPinCode("654321");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.signAsCustomer(contract.getContractId(), 999L, 200L, request));
+    }
+
+    @Test
     void sendSignaturePinByEmailStoresPin() {
         ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
                 .annexId(7L)
                 .contract(contract)
                 .status(ContractStatus.PENDING_SIGNATURE)
                 .annexContent("content")
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .build();
         when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
         when(emailService.sendOTP(any(), any())).thenReturn(true);
@@ -145,6 +283,54 @@ class ContractExtensionAnnexServiceImplTest {
 
         ConcurrentHashMap<Long, ?> cache = getPinCache();
         assertThat(cache).containsKey(annex.getAnnexId());
+    }
+
+    @Test
+    void sendSignaturePinByEmailRejectsBlankEmail() {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(8L)
+                .contract(contract)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .annexContent("content")
+                .rentalOrderExtension(rentalOrderExtension)
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.sendSignaturePinByEmail(contract.getContractId(), annex.getAnnexId(), " "));
+    }
+
+    @Test
+    void sendSignaturePinByEmailThrowsWhenEmailSendFails() {
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(14L)
+                .contract(contract)
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .annexContent("content")
+                .rentalOrderExtension(rentalOrderExtension)
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+        when(emailService.sendOTP(any(), any())).thenReturn(false);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.sendSignaturePinByEmail(contract.getContractId(), annex.getAnnexId(), "user@test.com"));
+    }
+
+    @Test
+    void sendSignaturePinByEmailThrowsWhenAnnexDoesNotBelongToContract() {
+        Contract otherContract = Contract.builder().contractId(99L).contractNumber("HD-OTHER").build();
+        ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
+                .annexId(15L)
+                .contract(otherContract) // mismatched contract
+                .status(ContractStatus.PENDING_SIGNATURE)
+                .annexContent("content")
+                .rentalOrderExtension(rentalOrderExtension)
+                .build();
+        when(annexRepository.findById(annex.getAnnexId())).thenReturn(Optional.of(annex));
+        when(emailService.sendOTP(any(), any())).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.sendSignaturePinByEmail(contract.getContractId(), annex.getAnnexId(), "user@test.com"));
     }
 
     private void seedPinCache(Long annexId, String pin) throws Exception {

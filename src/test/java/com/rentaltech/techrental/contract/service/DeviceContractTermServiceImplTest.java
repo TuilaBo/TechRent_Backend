@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,6 +77,60 @@ class DeviceContractTermServiceImplTest {
     }
 
     @Test
+    void createWithCategoryPersistsNewTerm() {
+        DeviceContractTermRequestDto request = new DeviceContractTermRequestDto();
+        request.setTitle("Warranty");
+        request.setContent("Content");
+        request.setDeviceCategoryId(category.getDeviceCategoryId());
+        request.setActive(true);
+
+        when(deviceCategoryRepository.findById(category.getDeviceCategoryId())).thenReturn(Optional.of(category));
+        DeviceContractTerm saved = DeviceContractTerm.builder()
+                .deviceContractTermId(11L)
+                .title(request.getTitle())
+                .content(request.getContent())
+                .deviceCategory(category)
+                .active(true)
+                .build();
+        when(termRepository.save(any(DeviceContractTerm.class))).thenReturn(saved);
+
+        DeviceContractTermResponseDto response = service.create(request, 42L);
+
+        assertThat(response.getDeviceContractTermId()).isEqualTo(11L);
+        verify(termRepository).save(any(DeviceContractTerm.class));
+    }
+
+    @Test
+    void createThrowsWhenModelNotFound() {
+        DeviceContractTermRequestDto request = new DeviceContractTermRequestDto();
+        request.setTitle("Warranty");
+        request.setContent("Content");
+        request.setDeviceModelId(999L); // non-existing
+        request.setActive(true);
+
+        when(deviceModelRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không tìm thấy model thiết bị");
+    }
+
+    @Test
+    void createThrowsWhenCategoryNotFound() {
+        DeviceContractTermRequestDto request = new DeviceContractTermRequestDto();
+        request.setTitle("Warranty");
+        request.setContent("Content");
+        request.setDeviceCategoryId(888L); // non-existing
+        request.setActive(true);
+
+        when(deviceCategoryRepository.findById(888L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không tìm thấy loại thiết bị");
+    }
+
+    @Test
     void updateEditsExistingTerm() {
         DeviceContractTerm existing = DeviceContractTerm.builder()
                 .deviceContractTermId(10L)
@@ -97,6 +150,115 @@ class DeviceContractTermServiceImplTest {
 
         assertThat(response.getTitle()).isEqualTo("New");
         assertThat(existing.getUpdatedBy()).isEqualTo(77L);
+    }
+
+    @Test
+    void updateWithCategoryEditsExistingTerm() {
+        DeviceContractTerm existing = DeviceContractTerm.builder()
+                .deviceContractTermId(20L)
+                .title("Old")
+                .content("Old content")
+                .active(true)
+                .build();
+        when(termRepository.findById(20L)).thenReturn(Optional.of(existing));
+        when(deviceCategoryRepository.findById(category.getDeviceCategoryId())).thenReturn(Optional.of(category));
+        when(termRepository.save(existing)).thenReturn(existing);
+
+        DeviceContractTermRequestDto request = new DeviceContractTermRequestDto();
+        request.setTitle("NewCat");
+        request.setContent("New content cat");
+        request.setDeviceCategoryId(category.getDeviceCategoryId());
+        request.setActive(true);
+
+        DeviceContractTermResponseDto response = service.update(20L, request, 88L);
+
+        assertThat(response.getTitle()).isEqualTo("NewCat");
+        assertThat(existing.getDeviceCategory().getDeviceCategoryId()).isEqualTo(category.getDeviceCategoryId());
+        assertThat(existing.getUpdatedBy()).isEqualTo(88L);
+    }
+
+    @Test
+    void updateThrowsWhenScopeMissing() {
+        DeviceContractTerm existing = DeviceContractTerm.builder()
+                .deviceContractTermId(21L)
+                .title("Old")
+                .content("Old content")
+                .active(true)
+                .build();
+        when(termRepository.findById(21L)).thenReturn(Optional.of(existing));
+
+        DeviceContractTermRequestDto invalid = new DeviceContractTermRequestDto();
+        invalid.setTitle("x");
+        invalid.setContent("y");
+        invalid.setActive(true);
+
+        assertThatThrownBy(() -> service.update(21L, invalid, 1L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void updateThrowsWhenBothScopesProvided() {
+        DeviceContractTerm existing = DeviceContractTerm.builder()
+                .deviceContractTermId(22L)
+                .title("Old")
+                .content("Old content")
+                .active(true)
+                .build();
+        when(termRepository.findById(22L)).thenReturn(Optional.of(existing));
+
+        DeviceContractTermRequestDto invalid = new DeviceContractTermRequestDto();
+        invalid.setTitle("x");
+        invalid.setContent("y");
+        invalid.setActive(true);
+        invalid.setDeviceModelId(1L);
+        invalid.setDeviceCategoryId(2L);
+
+        assertThatThrownBy(() -> service.update(22L, invalid, 1L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void updateThrowsWhenModelNotFound() {
+        DeviceContractTerm existing = DeviceContractTerm.builder()
+                .deviceContractTermId(23L)
+                .title("Old")
+                .content("Old content")
+                .active(true)
+                .build();
+        when(termRepository.findById(23L)).thenReturn(Optional.of(existing));
+        when(deviceModelRepository.findById(999L)).thenReturn(Optional.empty());
+
+        DeviceContractTermRequestDto req = new DeviceContractTermRequestDto();
+        req.setTitle("x");
+        req.setContent("y");
+        req.setActive(true);
+        req.setDeviceModelId(999L);
+
+        assertThatThrownBy(() -> service.update(23L, req, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không tìm thấy model thiết bị");
+    }
+
+    @Test
+    void updateThrowsWhenCategoryNotFound() {
+        DeviceContractTerm existing = DeviceContractTerm.builder()
+                .deviceContractTermId(24L)
+                .title("Old")
+                .content("Old content")
+                .active(true)
+                .build();
+        when(termRepository.findById(24L)).thenReturn(Optional.of(existing));
+        when(deviceCategoryRepository.findById(888L)).thenReturn(Optional.empty());
+
+        DeviceContractTermRequestDto req = new DeviceContractTermRequestDto();
+        req.setTitle("x");
+        req.setContent("y");
+        req.setActive(true);
+        req.setDeviceCategoryId(888L);
+
+        assertThatThrownBy(() -> service.update(24L, req, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Không tìm thấy loại thiết bị");
     }
 
     @Test
@@ -166,6 +328,53 @@ class DeviceContractTermServiceImplTest {
         List<DeviceContractTerm> result = service.findApplicableTerms(order, List.of(detail));
 
         assertThat(result).hasSize(3);
+    }
+
+    @Test
+    void findApplicableTermsReturnsEmptyWhenOrderOrDetailsNull() {
+        assertThat(service.findApplicableTerms(null, List.of())).isEmpty();
+        assertThat(service.findApplicableTerms(RentalOrder.builder().orderId(1L).build(), null)).isEmpty();
+    }
+
+    @Test
+    void findApplicableTermsInfersCategoryFromModelsWhenMissingOnDetails() {
+        // Given orderDetails contain models without category populated
+        DeviceModel modelNoCat = DeviceModel.builder().deviceModelId(5L).deviceName("M5").build();
+        RentalOrder order = RentalOrder.builder().orderId(2L).build();
+        OrderDetail detail = OrderDetail.builder().deviceModel(modelNoCat).build();
+
+        // When categoryIds are empty, service loads models to infer categories
+        when(deviceModelRepository.findAllById(anyCollection()))
+                .thenReturn(List.of(DeviceModel.builder().deviceModelId(5L).deviceCategory(category).build()));
+        when(termRepository.findByDeviceCategory_DeviceCategoryIdInAndActiveIsTrue(anyCollection()))
+                .thenReturn(List.of(DeviceContractTerm.builder().deviceContractTermId(20L).deviceCategory(category).build()));
+        when(termRepository.findByDeviceModelIsNullAndDeviceCategoryIsNullAndActiveIsTrue())
+                .thenReturn(List.of(DeviceContractTerm.builder().deviceContractTermId(21L).build()));
+
+        List<DeviceContractTerm> result = service.findApplicableTerms(order, List.of(detail));
+
+        assertThat(result).extracting(DeviceContractTerm::getDeviceContractTermId)
+                .containsExactlyInAnyOrder(20L, 21L);
+    }
+
+    @Test
+    void findApplicableTermsDeduplicatesOverlappingTerms() {
+        RentalOrder order = RentalOrder.builder().orderId(3L).build();
+        OrderDetail detail = OrderDetail.builder().deviceModel(model).build();
+
+        DeviceContractTerm duplicated = DeviceContractTerm.builder().deviceContractTermId(30L).build();
+        when(termRepository.findByDeviceModel_DeviceModelIdInAndActiveIsTrue(anyCollection()))
+                .thenReturn(List.of(duplicated));
+        when(termRepository.findByDeviceCategory_DeviceCategoryIdInAndActiveIsTrue(anyCollection()))
+                .thenReturn(List.of(duplicated));
+        when(termRepository.findByDeviceModelIsNullAndDeviceCategoryIsNullAndActiveIsTrue())
+                .thenReturn(List.of(DeviceContractTerm.builder().deviceContractTermId(31L).build()));
+
+        List<DeviceContractTerm> result = service.findApplicableTerms(order, List.of(detail));
+
+        // Expect de-duplication by id => only two terms remain (30, 31)
+        assertThat(result).extracting(DeviceContractTerm::getDeviceContractTermId)
+                .containsExactlyInAnyOrder(30L, 31L);
     }
 
     @Test

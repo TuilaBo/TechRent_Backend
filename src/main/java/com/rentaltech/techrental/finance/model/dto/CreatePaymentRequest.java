@@ -15,6 +15,11 @@ public class CreatePaymentRequest {
     @NotNull
     private Long orderId;
 
+    /**
+     * Optional: nếu thanh toán cho gia hạn thì truyền extensionId tương ứng.
+     */
+    private Long extensionId;
+
     @NotNull
     private InvoiceType invoiceType;
 

@@ -1,28 +1,9 @@
 package com.rentaltech.techrental.contract.model;
 
-import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.finance.model.Invoice;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -49,8 +30,8 @@ public class ContractExtensionAnnex {
     private Contract contract;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "extension_order_id", nullable = false)
-    private RentalOrder extensionOrder;
+    @JoinColumn(name = "rental_order_extension_id", nullable = false)
+    private RentalOrderExtension rentalOrderExtension;
 
     @Column(name = "original_order_id", nullable = false)
     private Long originalOrderId;
@@ -63,9 +44,6 @@ public class ContractExtensionAnnex {
 
     @Column(name = "legal_reference", columnDefinition = "text")
     private String legalReference;
-
-    @Column(name = "extension_reason", columnDefinition = "text")
-    private String extensionReason;
 
     @Column(name = "previous_end_date")
     private LocalDateTime previousEndDate;
@@ -81,22 +59,6 @@ public class ContractExtensionAnnex {
 
     @Column(name = "extension_fee", precision = 15, scale = 2)
     private BigDecimal extensionFee;
-
-    @Column(name = "vat_rate", precision = 5, scale = 2)
-    private BigDecimal vatRate;
-
-    @Column(name = "vat_amount", precision = 15, scale = 2)
-    private BigDecimal vatAmount;
-
-    @Column(name = "total_payable", precision = 15, scale = 2)
-    private BigDecimal totalPayable;
-
-    @Column(name = "deposit_adjustment", precision = 15, scale = 2)
-    private BigDecimal depositAdjustment;
-
-    @Column(name = "currency", length = 10)
-    @Builder.Default
-    private String currency = "VND";
 
     @Column(name = "annex_content", columnDefinition = "text")
     private String annexContent;

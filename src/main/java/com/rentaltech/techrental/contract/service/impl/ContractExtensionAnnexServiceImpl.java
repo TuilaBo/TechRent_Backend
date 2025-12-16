@@ -7,26 +7,23 @@ import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexRespon
 import com.rentaltech.techrental.contract.model.dto.ContractExtensionAnnexSignRequestDto;
 import com.rentaltech.techrental.contract.repository.ContractExtensionAnnexRepository;
 import com.rentaltech.techrental.contract.service.ContractExtensionAnnexService;
-import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.contract.service.DigitalSignatureService;
-import com.rentaltech.techrental.finance.model.Invoice;
-import com.rentaltech.techrental.finance.model.InvoiceStatus;
-import com.rentaltech.techrental.finance.model.InvoiceType;
-import com.rentaltech.techrental.finance.model.PaymentMethod;
-import com.rentaltech.techrental.finance.repository.InvoiceRepository;
+import com.rentaltech.techrental.contract.service.EmailService;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
+import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -44,58 +41,56 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
     private final ContractExtensionAnnexRepository annexRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final DigitalSignatureService digitalSignatureService;
-    private final InvoiceRepository invoiceRepository;
     private final EmailService emailService;
+    private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
 
     private final ConcurrentHashMap<Long, PinCacheEntry> pinCache = new ConcurrentHashMap<>();
 
     @Override
     public ContractExtensionAnnex createAnnexForExtension(Contract contract,
-                                                          RentalOrder originalOrder,
-                                                          RentalOrder extensionOrder,
+                                                          RentalOrderExtension rentalOrderExtension,
                                                           Long createdBy) {
-        if (contract == null || extensionOrder == null || originalOrder == null) {
+        if (contract == null || rentalOrderExtension == null) {
             throw new IllegalArgumentException("Thiếu dữ liệu để tạo phụ lục gia hạn");
         }
+        RentalOrder originalOrder = rentalOrderExtension.getRentalOrder();
 
         long annexCount = annexRepository.countByContract_ContractId(contract.getContractId());
         String annexNumber = buildAnnexNumber(contract.getContractNumber(), annexCount + 1);
-        List<OrderDetail> extensionDetails = orderDetailRepository.findByRentalOrder_OrderId(extensionOrder.getOrderId());
+        List<OrderDetail> extensionDetails = originalOrder != null
+                ? orderDetailRepository.findByRentalOrder_OrderId(originalOrder.getOrderId())
+                : List.of();
 
-        int extensionDays = (int) ChronoUnit.DAYS.between(extensionOrder.getStartDate(), extensionOrder.getEndDate());
-        BigDecimal extensionFee = defaultZero(extensionOrder.getTotalPrice());
+        int extensionDays = rentalOrderExtension.getDurationDays() != null ? rentalOrderExtension.getDurationDays() : 0;
+        BigDecimal extensionFee = defaultZero(rentalOrderExtension.getAdditionalPrice());
         BigDecimal vatRate = BigDecimal.ZERO;
         BigDecimal vatAmount = extensionFee.multiply(vatRate);
-        BigDecimal totalPayable = extensionFee.add(vatAmount);
 
-        String annexContent = buildAnnexContent(contract, originalOrder, extensionOrder, extensionDetails, extensionDays, extensionFee, vatAmount, totalPayable);
+        String annexContent = buildAnnexContent(contract, originalOrder, rentalOrderExtension, extensionDetails, extensionDays, extensionFee);
 
         ContractExtensionAnnex annex = ContractExtensionAnnex.builder()
                 .annexNumber(annexNumber)
                 .contract(contract)
-                .extensionOrder(extensionOrder)
+                .rentalOrderExtension(rentalOrderExtension)
                 .originalOrderId(originalOrder.getOrderId())
                 .title("Phụ lục gia hạn hợp đồng " + contract.getContractNumber())
-                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + extensionOrder.getEndDate())
+                .description("Gia hạn hợp đồng thuê thiết bị đến ngày " + rentalOrderExtension.getExtensionEnd())
                 .legalReference("Căn cứ Bộ luật Dân sự 2015 và Luật Thương mại 2005")
-                .extensionReason("Nhu cầu tiếp tục sử dụng thiết bị của khách hàng")
-                .previousEndDate(originalOrder.getEndDate())
-                .extensionStartDate(extensionOrder.getStartDate())
-                .extensionEndDate(extensionOrder.getEndDate())
+                .previousEndDate(originalOrder.getEffectiveEndDate())
+                .extensionStartDate(rentalOrderExtension.getExtensionStart())
+                .extensionEndDate(rentalOrderExtension.getExtensionEnd())
                 .extensionDays(extensionDays)
                 .extensionFee(extensionFee)
-                .vatRate(vatRate)
-                .vatAmount(vatAmount)
-                .totalPayable(totalPayable)
-                .depositAdjustment(BigDecimal.ZERO)
                 .annexContent(annexContent)
                 .status(ContractStatus.PENDING_ADMIN_SIGNATURE)
                 .issuedAt(LocalDateTime.now())
-                .effectiveDate(extensionOrder.getStartDate())
+                .effectiveDate(rentalOrderExtension.getExtensionStart())
                 .createdBy(createdBy)
                 .build();
 
-        return annexRepository.save(annex);
+        ContractExtensionAnnex saved = annexRepository.save(annex);
+        updateExtensionStatus(rentalOrderExtension, RentalOrderExtensionStatus.PROCESSING);
+        return saved;
     }
 
     @Override
@@ -162,11 +157,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         annex.setStatus(ContractStatus.ACTIVE);
         annex.setUpdatedBy(customerAccountId);
 
-        if (annex.getInvoice() == null) {
-            Invoice invoice = createInvoiceForAnnex(annex);
-            annex.setInvoice(invoice);
-        }
-
         ContractExtensionAnnex saved = annexRepository.save(annex);
         clearPin(annex.getAnnexId());
         return ContractExtensionAnnexResponseDto.from(saved);
@@ -201,21 +191,18 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
 
     private String buildAnnexContent(Contract contract,
                                      RentalOrder originalOrder,
-                                     RentalOrder extensionOrder,
+                                     RentalOrderExtension rentalOrderExtension,
                                      List<OrderDetail> details,
                                      int extensionDays,
-                                     BigDecimal extensionFee,
-                                     BigDecimal vatAmount,
-                                     BigDecimal total) {
+                                     BigDecimal extensionFee) {
         StringBuilder builder = new StringBuilder();
         builder.append("PHỤ LỤC GIA HẠN HỢP ĐỒNG THUÊ THIẾT BỊ\n");
         builder.append("Số phụ lục: ").append(contract.getContractNumber()).append("\n\n");
         builder.append("Căn cứ hợp đồng số: ").append(contract.getContractNumber()).append(" ký ngày ")
                 .append(contract.getStartDate()).append("; hai bên thống nhất gia hạn như sau:\n");
-        builder.append("- Thời hạn gia hạn: từ ").append(extensionOrder.getStartDate()).append(" đến ")
-                .append(extensionOrder.getEndDate()).append(" (" + extensionDays + " ngày).\n");
-        builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND, thuế VAT: ")
-                .append(vatAmount).append(" VND, tổng thanh toán: ").append(total).append(" VND.\n");
+        builder.append("- Thời hạn gia hạn: từ ").append(rentalOrderExtension.getExtensionStart()).append(" đến ")
+                .append(rentalOrderExtension.getExtensionEnd()).append(" (" + extensionDays + " ngày).\n");
+        builder.append("- Giá trị gia hạn: ").append(extensionFee).append(" VND.\n");
         builder.append("- Thiết bị áp dụng: \n");
         for (OrderDetail detail : details) {
             builder.append("  + ")
@@ -266,36 +253,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
         }
     }
 
-    private Invoice createInvoiceForAnnex(ContractExtensionAnnex annex) {
-        RentalOrder extensionOrder = annex.getExtensionOrder();
-        BigDecimal subTotal = defaultZero(annex.getExtensionFee());
-        BigDecimal taxAmount = defaultZero(annex.getVatAmount());
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        BigDecimal depositApplied = defaultZero(annex.getDepositAdjustment());
-        BigDecimal totalAmount = defaultZero(annex.getTotalPayable());
-
-        Invoice invoice = Invoice.builder()
-                .rentalOrder(extensionOrder)
-                .invoiceType(InvoiceType.RENT_PAYMENT)
-                .paymentMethod(PaymentMethod.PAYOS)
-                .paymentDate(null)
-                .subTotal(subTotal)
-                .taxAmount(taxAmount)
-                .discountAmount(discountAmount)
-                .totalAmount(totalAmount)
-                .depositApplied(depositApplied)
-                .dueDate(LocalDateTime.now().plusDays(3))
-                .invoiceStatus(InvoiceStatus.PROCESSING)
-                .proofUrl(null)
-                .issueDate(LocalDateTime.now())
-                .build();
-        return invoiceRepository.save(invoice);
-    }
-
-    private BigDecimal defaultZero(BigDecimal value) {
-        return value != null ? value : BigDecimal.ZERO;
-    }
-
     private String generatePin() {
         Random random = new Random();
         int pin = 100000 + random.nextInt(900000);
@@ -321,6 +278,18 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
 
     private void clearPin(Long annexId) {
         pinCache.remove(annexId);
+    }
+
+    private BigDecimal defaultZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private void updateExtensionStatus(RentalOrderExtension extension, RentalOrderExtensionStatus status) {
+        if (extension == null || extension.getExtensionId() == null || status == null) {
+            return;
+        }
+        extension.setStatus(status);
+        rentalOrderExtensionRepository.save(extension);
     }
 
     private static class PinCacheEntry {

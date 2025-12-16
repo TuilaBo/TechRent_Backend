@@ -39,6 +39,9 @@ public class KYCServiceImpl implements KYCService {
             Customer customer = customerRepository.findById(customerId)
                     .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
 
+            // Kiểm tra số lần reject KYC
+            validateKycRejectionLimit(customer);
+
             // Validate file
             if (file == null || file.isEmpty()) {
                 throw new RuntimeException("File không được để trống");
@@ -142,6 +145,9 @@ public class KYCServiceImpl implements KYCService {
             Customer customer = customerRepository.findById(customerId)
                     .orElseThrow(() -> new RuntimeException("Customer không tồn tại: " + customerId));
 
+            // Kiểm tra số lần reject KYC
+            validateKycRejectionLimit(customer);
+
             if ((front == null || front.isEmpty()) && (back == null || back.isEmpty()) && (selfie == null || selfie.isEmpty())) {
                 throw new RuntimeException("Ít nhất một ảnh phải được chọn");
             }
@@ -180,6 +186,12 @@ public class KYCServiceImpl implements KYCService {
 
             if (request.getStatus() == KYCStatus.REJECTED) {
                 customer.setKycRejectionReason(request.getRejectionReason());
+                // Tăng số lần reject
+                int currentCount = customer.getKycRejectionCount() != null ? customer.getKycRejectionCount() : 0;
+                customer.setKycRejectionCount(currentCount + 1);
+            } else if (request.getStatus() == KYCStatus.VERIFIED) {
+                // Reset counter khi verify thành công
+                customer.setKycRejectionCount(0);
             }
 
             Customer saved = customerRepository.save(customer);
@@ -295,6 +307,7 @@ public class KYCServiceImpl implements KYCService {
         map.put("verifiedAt", customer.getKycVerifiedAt());
         map.put("verifiedBy", customer.getKycVerifiedBy());
         map.put("rejectionReason", customer.getKycRejectionReason());
+        map.put("rejectionCount", customer.getKycRejectionCount() != null ? customer.getKycRejectionCount() : 0);
         return map;
     }
     
@@ -317,6 +330,20 @@ public class KYCServiceImpl implements KYCService {
             !documentType.equals("back_cccd") && 
             !documentType.equals("selfie")) {
             throw new IllegalArgumentException("Loại giấy tờ không hợp lệ. Hợp lệ: front_cccd, back_cccd, selfie");
+        }
+    }
+
+    /**
+     * Kiểm tra số lần reject KYC - tối đa 3 lần
+     * @param customer Customer cần kiểm tra
+     * @throws RuntimeException nếu đã reject 3 lần
+     */
+    private void validateKycRejectionLimit(Customer customer) {
+        int rejectionCount = customer.getKycRejectionCount() != null ? customer.getKycRejectionCount() : 0;
+        if (rejectionCount >= 3) {
+            throw new RuntimeException(
+                "Bạn đã bị từ chối KYC 3 lần. Vui lòng liên hệ bộ phận hỗ trợ để được hướng dẫn."
+            );
         }
     }
 }

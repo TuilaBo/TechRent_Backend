@@ -1,27 +1,26 @@
 package com.rentaltech.techrental.staff.service.devicereplacement;
 
-import com.rentaltech.techrental.contract.service.EmailService;
-import com.rentaltech.techrental.contract.service.SMSService;
-import com.rentaltech.techrental.device.model.Allocation;
-import com.rentaltech.techrental.device.model.AllocationSnapshotSource;
-import com.rentaltech.techrental.device.model.AllocationSnapshotType;
-import com.rentaltech.techrental.device.repository.AllocationRepository;
-import com.rentaltech.techrental.device.service.AllocationSnapshotService;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
-import com.rentaltech.techrental.staff.model.DeviceReplacementReport;
-import com.rentaltech.techrental.staff.model.DeviceReplacementReportItem;
-import com.rentaltech.techrental.staff.model.DeviceReplacementReportStatus;
-import com.rentaltech.techrental.staff.model.Staff;
-import com.rentaltech.techrental.staff.model.Task;
+import com.rentaltech.techrental.contract.service.EmailService;
+import com.rentaltech.techrental.contract.service.SMSService;
+import com.rentaltech.techrental.device.model.*;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportRequestDto;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
+import com.rentaltech.techrental.device.repository.AllocationRepository;
+import com.rentaltech.techrental.device.service.AllocationSnapshotService;
+import com.rentaltech.techrental.device.service.DiscrepancyReportService;
+import com.rentaltech.techrental.rentalorder.model.RentalOrder;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.repository.DeviceReplacementReportItemRepository;
 import com.rentaltech.techrental.staff.repository.DeviceReplacementReportRepository;
 import com.rentaltech.techrental.staff.repository.StaffRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
+import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import jakarta.annotation.PostConstruct;
@@ -61,6 +60,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     private final StaffRepository staffRepository;
     private final AllocationSnapshotService allocationSnapshotService;
     private final CustomerComplaintRepository customerComplaintRepository;
+    private final DiscrepancyReportService discrepancyReportService;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -83,7 +83,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Override
     @Transactional
     public DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername) {
-        com.rentaltech.techrental.webapi.customer.model.CustomerComplaint complaint = 
+        CustomerComplaint complaint = 
                 customerComplaintRepository.findById(complaintId)
                 .orElseThrow(() -> new IllegalArgumentException("Customer complaint not found: " + complaintId));
 
@@ -184,6 +184,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
 
         DeviceReplacementReport saved = replacementReportRepository.save(report);
         replacementReportItemRepository.saveAll(List.of(oldItem, newItem));
+        createDiscrepancyForOldDevice(complaint, oldAllocation);
 
         // Tạo snapshots cho cả 2 devices
         // Device cũ: FINAL snapshot (trước khi đổi)
@@ -462,6 +463,48 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         DeviceReplacementReportItem saved = replacementReportItemRepository.save(item);
         return DeviceReplacementReportItemResponseDto.fromEntity(saved);
     }
+
+    private void createDiscrepancyForOldDevice(CustomerComplaint complaint, Allocation allocation) {
+        if (complaint == null || allocation == null) {
+            return;
+        }
+        if (complaint.getFaultSource() != ComplaintFaultSource.CUSTOMER) {
+            return;
+        }
+        Long complaintId = complaint.getComplaintId();
+        Long orderDetailId = allocation.getOrderDetail() != null
+                ? allocation.getOrderDetail().getOrderDetailId()
+                : null;
+        Long deviceId = allocation.getDevice() != null ? allocation.getDevice().getDeviceId() : null;
+
+        if (complaintId == null || orderDetailId == null || deviceId == null) {
+            log.warn("Bỏ qua tạo discrepancy cho complaint {} vì thiếu thông tin orderDetail/device", complaintId);
+            return;
+        }
+
+        List<DiscrepancyReportResponseDto> existingReports =
+                discrepancyReportService.getByReference(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT, complaintId);
+        boolean alreadyCreated = existingReports != null && existingReports.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(dto -> Objects.equals(dto.getDeviceId(), deviceId));
+        if (alreadyCreated) {
+            return;
+        }
+
+        String staffNote = StringUtils.hasText(complaint.getStaffNote())
+                ? complaint.getStaffNote()
+                : complaint.getCustomerDescription();
+
+        discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
+                .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
+                .refId(complaintId)
+                .discrepancyType(DiscrepancyType.DAMAGE)
+                .orderDetailId(orderDetailId)
+                .deviceId(deviceId)
+                .staffNote(staffNote)
+                .build());
+    }
+
 
     // PIN management methods
     private String generatePinCode() {

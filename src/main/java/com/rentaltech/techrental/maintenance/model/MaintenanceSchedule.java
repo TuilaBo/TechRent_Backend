@@ -26,10 +26,6 @@ public class MaintenanceSchedule {
     private Long maintenanceScheduleId;
 
     @ManyToOne
-    @JoinColumn(name = "maintenance_plan_id", referencedColumnName = "maintenance_plan_id")
-    private MaintenancePlan maintenancePlan;
-
-    @ManyToOne
     @JoinColumn(name = "device_id", referencedColumnName = "device_id")
     private Device device;
 

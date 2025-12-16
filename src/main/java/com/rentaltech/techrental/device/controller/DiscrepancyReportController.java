@@ -93,4 +93,15 @@ public class DiscrepancyReportController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/orders/{orderId}")
+    @Operation(summary = "Danh sách sai khác theo đơn thuê", description = "Liệt kê toàn bộ discrepancy của order")
+    public ResponseEntity<?> listByOrder(@PathVariable Long orderId) {
+        return ResponseUtil.createSuccessResponse(
+                "Danh sách báo cáo sai khác theo đơn",
+                "Các báo cáo sai khác gắn với order " + orderId,
+                discrepancyReportService.getByOrderId(orderId),
+                HttpStatus.OK
+        );
+    }
 }

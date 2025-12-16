@@ -5,11 +5,7 @@ import com.rentaltech.techrental.contract.model.ContractStatus;
 import com.rentaltech.techrental.finance.model.Invoice;
 import com.rentaltech.techrental.finance.model.InvoiceStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -34,8 +30,8 @@ public class ContractExtensionAnnexResponseDto {
     @Schema(description = "Số hợp đồng gốc")
     private String contractNumber;
 
-    @Schema(description = "ID đơn gia hạn")
-    private Long extensionOrderId;
+    @Schema(description = "ID bản ghi gia hạn (RentalOrderExtension)")
+    private Long extensionId;
 
     @Schema(description = "ID đơn thuê ban đầu")
     private Long originalOrderId;
@@ -66,21 +62,6 @@ public class ContractExtensionAnnexResponseDto {
 
     @Schema(description = "Phí gia hạn")
     private BigDecimal extensionFee;
-
-    @Schema(description = "Thuế suất VAT áp dụng", example = "10")
-    private BigDecimal vatRate;
-
-    @Schema(description = "Số tiền VAT phải nộp")
-    private BigDecimal vatAmount;
-
-    @Schema(description = "Tổng tiền khách hàng phải thanh toán")
-    private BigDecimal totalPayable;
-
-    @Schema(description = "Mức điều chỉnh tiền cọc")
-    private BigDecimal depositAdjustment;
-
-    @Schema(description = "Đơn vị tiền tệ", example = "VND")
-    private String currency;
 
     @Schema(description = "Nội dung chi tiết của phụ lục")
     private String annexContent;
@@ -128,22 +109,16 @@ public class ContractExtensionAnnexResponseDto {
                 .annexNumber(annex.getAnnexNumber())
                 .contractId(annex.getContract() != null ? annex.getContract().getContractId() : null)
                 .contractNumber(annex.getContract() != null ? annex.getContract().getContractNumber() : null)
-                .extensionOrderId(annex.getExtensionOrder() != null ? annex.getExtensionOrder().getOrderId() : null)
+                .extensionId(annex.getRentalOrderExtension() != null ? annex.getRentalOrderExtension().getExtensionId() : null)
                 .originalOrderId(annex.getOriginalOrderId())
                 .title(annex.getTitle())
                 .description(annex.getDescription())
                 .legalReference(annex.getLegalReference())
-                .extensionReason(annex.getExtensionReason())
                 .previousEndDate(annex.getPreviousEndDate())
                 .extensionStartDate(annex.getExtensionStartDate())
                 .extensionEndDate(annex.getExtensionEndDate())
                 .extensionDays(annex.getExtensionDays())
                 .extensionFee(annex.getExtensionFee())
-                .vatRate(annex.getVatRate())
-                .vatAmount(annex.getVatAmount())
-                .totalPayable(annex.getTotalPayable())
-                .depositAdjustment(annex.getDepositAdjustment())
-                .currency(annex.getCurrency())
                 .annexContent(annex.getAnnexContent())
                 .status(annex.getStatus())
                 .adminSignedAt(annex.getAdminSignedAt())

@@ -2,14 +2,10 @@ package com.rentaltech.techrental.staff.service.settlementservice;
 
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
+import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.staff.model.Settlement;
-import com.rentaltech.techrental.staff.model.SettlementState;
-import com.rentaltech.techrental.staff.model.Staff;
-import com.rentaltech.techrental.staff.model.StaffRole;
-import com.rentaltech.techrental.staff.model.Task;
-import com.rentaltech.techrental.staff.model.TaskCategory;
-import com.rentaltech.techrental.staff.model.TaskStatus;
+import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
+import com.rentaltech.techrental.staff.model.*;
 import com.rentaltech.techrental.staff.model.dto.SettlementCreateRequestDto;
 import com.rentaltech.techrental.staff.model.dto.SettlementUpdateRequestDto;
 import com.rentaltech.techrental.staff.repository.SettlementRepository;
@@ -33,17 +29,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
-import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementServiceImplTest {

@@ -12,4 +12,5 @@ public interface DiscrepancyReportService {
     DiscrepancyReportResponseDto getById(Long id);
     List<DiscrepancyReportResponseDto> getByReference(DiscrepancyCreatedFrom createdFrom, Long refId);
     List<DiscrepancyReportResponseDto> getAll();
+    List<DiscrepancyReportResponseDto> getByOrderId(Long orderId);
 }

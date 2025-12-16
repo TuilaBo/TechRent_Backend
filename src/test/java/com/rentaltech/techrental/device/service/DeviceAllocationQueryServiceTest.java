@@ -13,9 +13,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceAllocationQueryServiceTest {
@@ -40,6 +38,29 @@ class DeviceAllocationQueryServiceTest {
                 .thenReturn(List.of(allocation));
 
         List<Device> devices = service.getAllocatedDevicesForOrder(5L);
+
+        assertThat(devices).containsExactly(device);
+    }
+
+    @Test
+    void returnsEmptyListWhenNoAllocationsFound() {
+        when(allocationRepository.findByOrderDetail_RentalOrder_OrderId(9L))
+                .thenReturn(List.of());
+
+        List<Device> devices = service.getAllocatedDevicesForOrder(9L);
+
+        assertThat(devices).isEmpty();
+    }
+
+    @Test
+    void filtersOutNullDevicesFromAllocations() {
+        Device device = Device.builder().deviceId(2L).build();
+        Allocation a1 = Allocation.builder().device(device).build();
+        Allocation a2 = Allocation.builder().device(null).build();
+        when(allocationRepository.findByOrderDetail_RentalOrder_OrderId(6L))
+                .thenReturn(List.of(a1, a2));
+
+        List<Device> devices = service.getAllocatedDevicesForOrder(6L);
 
         assertThat(devices).containsExactly(device);
     }
