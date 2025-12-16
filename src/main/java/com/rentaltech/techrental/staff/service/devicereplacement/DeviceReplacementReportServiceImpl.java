@@ -209,7 +209,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
             if (!StringUtils.hasText(staffEmail)) {
                 throw new IllegalStateException("Staff account does not have email to receive PIN");
             }
-            boolean emailSent = emailService.sendOTP(staffEmail, pinCode);
+            boolean emailSent = emailService.sendDeviceReplacementOTP(staffEmail, pinCode);
             if (!emailSent) {
                 throw new IllegalStateException("Unable to send PIN to staff email: " + staffEmail);
             }
@@ -285,7 +285,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         }
 
         String pinCode = generatePinCode();
-        boolean emailSent = emailService.sendOTP(staffAccount.getEmail(), pinCode);
+        boolean emailSent = emailService.sendDeviceReplacementOTP(staffAccount.getEmail(), pinCode);
         if (!emailSent) {
             throw new IllegalStateException("Unable to send PIN to staff email: " + staffAccount.getEmail());
         }
@@ -361,7 +361,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
             smsSent = smsService.sendOTP(phone, pinCode);
         }
 
-        emailSent = emailService.sendOTP(customerEmail, pinCode);
+        emailSent = emailService.sendDeviceReplacementOTP(customerEmail, pinCode);
         if (!emailSent) {
             throw new IllegalStateException("Unable to send PIN to customer email: " + customerEmail);
         }
