@@ -75,7 +75,19 @@ public class CloudinaryImageStorageServiceImpl implements ImageStorageService {
                 : "techrental/policy";
         String safeName = slugify(fileName, "policy-file");
         Map<String, Object> options = buildOptions(folder, safeName);
-        // Allow PDF and Word documents
+        // Word documents - lưu dạng raw
+        options.put("resource_type", "raw");
+        return uploadFile(file, options);
+    }
+
+    @Override
+    public String uploadPolicyPdf(MultipartFile file, Long policyId, String fileName) {
+        String folder = policyId != null
+                ? String.format("techrental/policy/policy_%d", policyId)
+                : "techrental/policy";
+        String safeName = slugify(fileName, "policy-pdf");
+        Map<String, Object> options = buildOptions(folder, safeName);
+        // PDF cũng để ở resource_type=raw để tải trực tiếp
         options.put("resource_type", "raw");
         return uploadFile(file, options);
     }

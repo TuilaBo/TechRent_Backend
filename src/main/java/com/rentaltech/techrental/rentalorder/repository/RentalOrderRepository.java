@@ -20,6 +20,8 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     List<RentalOrder> findByOrderStatusAndEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
     List<RentalOrder> findByOrderStatusAndPlanEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
 
+    long countByOrderStatusAndPlanEndDateBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
+
     long countByOrderStatusAndCreatedAtBetween(OrderStatus orderStatus, LocalDateTime from, LocalDateTime to);
     @Query("""
             SELECT ro FROM RentalOrder ro

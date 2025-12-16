@@ -17,6 +17,8 @@ public interface ImageStorageService {
 
     String uploadPolicyFile(MultipartFile file, Long policyId, String fileName);
 
+    String uploadPolicyPdf(MultipartFile file, Long policyId, String fileName);
+
     String uploadComplaintEvidence(MultipartFile file, Long complaintId);
 }
 

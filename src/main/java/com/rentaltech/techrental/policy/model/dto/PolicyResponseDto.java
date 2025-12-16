@@ -20,6 +20,7 @@ public class PolicyResponseDto {
     private String fileUrl;
     private String fileName;
     private String fileType;
+    private String originalFileUrl;
     private LocalDate effectiveFrom;
     private LocalDate effectiveTo;
     private String createdBy;
@@ -40,6 +41,7 @@ public class PolicyResponseDto {
                 .fileUrl(policy.getFileUrl())
                 .fileName(policy.getFileName())
                 .fileType(policy.getFileType())
+                .originalFileUrl(policy.getOriginalFileUrl())
                 .effectiveFrom(policy.getEffectiveFrom())
                 .effectiveTo(policy.getEffectiveTo())
                 .createdBy(policy.getCreatedBy())

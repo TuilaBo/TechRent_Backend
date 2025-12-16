@@ -26,13 +26,16 @@ public class Policy {
     private String description;
 
     @Column(name = "file_url", length = 2048)
-    private String fileUrl;
+    private String fileUrl; // URL bản cho end-user xem (ưu tiên PDF)
 
     @Column(name = "file_name", length = 500)
     private String fileName;
 
     @Column(name = "file_type", length = 50)
     private String fileType; // PDF, DOC, DOCX
+
+    @Column(name = "original_file_url", length = 2048)
+    private String originalFileUrl; // URL file gốc (DOC/DOCX) cho admin tải về
 
     @Column(name = "effective_from")
     private LocalDate effectiveFrom;
