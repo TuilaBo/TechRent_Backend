@@ -67,7 +67,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     private final com.rentaltech.techrental.device.service.DeviceConditionService deviceConditionService;
 
     @Override
-    public CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, String username) {
+    public CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, MultipartFile evidenceImage, String username) {
         Customer customer = customerRepository.findByAccount_Username(username)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng"));
 
@@ -108,6 +108,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .build();
 
         CustomerComplaint saved = complaintRepository.save(complaint);
+
+        // Upload ảnh bằng chứng nếu có
+        if (evidenceImage != null && !evidenceImage.isEmpty()) {
+            String evidenceUrl = imageStorageService.uploadComplaintEvidence(evidenceImage, saved.getComplaintId());
+            saved.setEvidenceUrls(evidenceUrl);
+            saved = complaintRepository.save(saved);
+        }
+
         return CustomerComplaintResponseDto.from(saved);
     }
 
