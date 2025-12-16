@@ -4,6 +4,7 @@ import com.rentaltech.techrental.staff.model.Settlement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,5 +12,7 @@ import java.util.Optional;
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
     Optional<Settlement> findByRentalOrder_OrderId(Long orderId);
     List<Settlement> findAll();
+
+    List<Settlement> findByIssuedAtBetween(LocalDateTime start, LocalDateTime end);
 }
 

@@ -270,21 +270,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             updateTaskDescriptionWithNewDevice(replacementTask, brokenDevice, replacementDevice, complaintId);
         } else {
             // Chưa có task → tạo mới
-            // Assign cho tất cả OPERATOR active; ai nhận trước sẽ assign tiếp cho technician
-            List<Staff> operators = staffService.getStaffByRole(
-                    com.rentaltech.techrental.staff.model.StaffRole.OPERATOR
-            ).stream()
-                    .filter(s -> s.getIsActive() != null && s.getIsActive())
-                    .collect(Collectors.toList());
-
-            List<Long> assignedOperatorIds = operators.isEmpty()
-                    ? List.of(staff.getStaffId()) // fallback: assign người đang xử lý
-                    : operators.stream().map(Staff::getStaffId).collect(Collectors.toList());
+            // Business mới: assign cho đúng staff đang xử lý complaint (CSKH / TECHNICIAN),
+            // không spam tất cả OPERATOR.
+            List<Long> assignedStaffIds = List.of(staff.getStaffId());
 
             TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
                     .taskCategoryId(replacementCategory.getTaskCategoryId())
                     .orderId(order.getOrderId())
-                    .assignedStaffIds(assignedOperatorIds)
+                    .assignedStaffIds(assignedStaffIds)
                     .description(String.format("Thay thế thiết bị cho đơn hàng #%d. Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s). Vui lòng assign staff đi giao máy.",
                             order.getOrderId(),
                             complaintId,
