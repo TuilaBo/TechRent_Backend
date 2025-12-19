@@ -278,14 +278,11 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             updateTaskDescriptionWithNewDevice(replacementTask, brokenDevice, replacementDevice, complaintId);
         } else {
             // Chưa có task → tạo mới
-            // Business mới: assign cho đúng staff đang xử lý complaint (CSKH / TECHNICIAN),
-            // không spam tất cả OPERATOR.
-            List<Long> assignedStaffIds = List.of(staff.getStaffId());
-
+            // Task được tạo nhưng không assign cho ai cả, để operator tự assign staff sau
             TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
                     .taskCategoryId(replacementCategory.getTaskCategoryId())
                     .orderId(order.getOrderId())
-                    .assignedStaffIds(assignedStaffIds)
+                    .assignedStaffIds(null) // Không assign cho ai, để operator assign sau
                     .description(String.format("Thay thế thiết bị cho đơn hàng #%d. Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s). Vui lòng assign staff đi giao máy.",
                             order.getOrderId(),
                             complaintId,
