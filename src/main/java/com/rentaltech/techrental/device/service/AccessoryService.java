@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.service;
+/*package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.dto.AccessoryRequestDto;
 import com.rentaltech.techrental.device.model.dto.AccessoryResponseDto;
@@ -12,3 +12,4 @@ public interface AccessoryService {
     AccessoryResponseDto update(Long id, AccessoryRequestDto request);
     void delete(Long id);
 }
+*/

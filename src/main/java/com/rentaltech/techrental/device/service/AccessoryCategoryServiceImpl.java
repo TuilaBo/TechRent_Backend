@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.service;
+/*package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.AccessoryCategory;
 import com.rentaltech.techrental.device.model.dto.AccessoryCategoryRequestDto;
@@ -72,3 +72,4 @@ public class AccessoryCategoryServiceImpl implements AccessoryCategoryService {
     }
 
 }
+*/

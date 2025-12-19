@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.model.dto;
+/*package com.rentaltech.techrental.device.model.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -22,3 +22,4 @@ public class AccessoryCategoryRequestDto {
 
     private boolean isActive;
 }
+*/

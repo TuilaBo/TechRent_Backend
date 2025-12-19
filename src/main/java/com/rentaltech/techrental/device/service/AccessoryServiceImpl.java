@@ -1,5 +1,4 @@
-// java
-package com.rentaltech.techrental.device.service;
+/*package com.rentaltech.techrental.device.service;
 
 import com.rentaltech.techrental.device.model.Accessory;
 import com.rentaltech.techrental.device.model.AccessoryCategory;
@@ -115,3 +114,4 @@ public class AccessoryServiceImpl implements AccessoryService {
     }
 
 }
+*/
