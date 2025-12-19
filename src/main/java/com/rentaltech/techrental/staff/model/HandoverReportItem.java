@@ -32,21 +32,6 @@ public class HandoverReportItem {
     @JoinColumn(name = "allocation_id")
     private Allocation allocation;
 
-//    @Column(name = "item_name", nullable = false, length = 255)
-//    private String itemName;
-//
-//    @Column(name = "item_code", length = 100)
-//    private String itemCode;
-//
-//    @Column(name = "unit", length = 50)
-//    private String unit;
-//
-//    @Column(name = "ordered_quantity")
-//    private Long orderedQuantity;
-//
-//    @Column(name = "delivered_quantity")
-//    private Long deliveredQuantity;
-
     @ElementCollection
     @CollectionTable(
             name = "handover_report_item_evidences",

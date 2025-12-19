@@ -40,9 +40,6 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Customer customer = customerRepository.findByAccount_Username(auth.getName())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
-        if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
-            throw new IllegalArgumentException("Địa chỉ đã tồn tại");
-        }
 
         ShippingAddress entity = ShippingAddress.builder()
                 .address(request.getAddress())
@@ -91,9 +88,6 @@ public class ShippingAddressServiceImpl implements ShippingAddressService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Customer customer = customerRepository.findByAccount_Username(auth.getName())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + auth.getName()));
-        if (repository.existsByAddressAndCustomer_CustomerId(request.getAddress(), customer.getCustomerId())) {
-            throw new IllegalArgumentException("Địa chỉ đã tồn tại");
-        }
 
         ShippingAddress saved = repository.save(existing);
         return ShippingAddressResponseDto.from(saved);

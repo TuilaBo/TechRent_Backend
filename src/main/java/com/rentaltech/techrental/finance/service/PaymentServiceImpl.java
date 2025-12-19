@@ -141,10 +141,8 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Giá trị thanh toán không hợp lệ");
         }
 
-        BigDecimal taxAmount = BigDecimal.ZERO;
-        BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal depositApplied = BigDecimal.ZERO;
-        BigDecimal totalAmount = expectedSubTotal.add(taxAmount).subtract(discountAmount);
+        BigDecimal totalAmount = expectedSubTotal;
 
         boolean reuseExistingInvoice = existingAnnexInvoice != null;
         Invoice invoice;
@@ -152,13 +150,13 @@ public class PaymentServiceImpl implements PaymentService {
             String vnpayTransactionId = generateVnpayTransactionId();
             if (reuseExistingInvoice) {
                 invoice = resetInvoiceForPayment(existingAnnexInvoice, paymentMethod, expectedSubTotal,
-                        taxAmount, discountAmount, depositApplied, totalAmount,
+                        depositApplied, totalAmount,
                         request.getFrontendSuccessUrl(), request.getFrontendFailureUrl());
                 invoice.setVnpayTransactionId(vnpayTransactionId);
                 invoice.setPayosOrderCode(null);
             } else {
                 invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
-                                taxAmount, discountAmount, depositApplied, totalAmount)
+                                depositApplied, totalAmount)
                         .vnpayTransactionId(vnpayTransactionId)
                         .frontendSuccessUrl(request.getFrontendSuccessUrl())
                         .frontendFailureUrl(request.getFrontendFailureUrl())
@@ -179,13 +177,13 @@ public class PaymentServiceImpl implements PaymentService {
             long payosOrderCode = generateUniquePayosOrderCode();
             if (reuseExistingInvoice) {
                 invoice = resetInvoiceForPayment(existingAnnexInvoice, paymentMethod, expectedSubTotal,
-                        taxAmount, discountAmount, depositApplied, totalAmount,
+                        depositApplied, totalAmount,
                         request.getFrontendSuccessUrl(), request.getFrontendFailureUrl());
                 invoice.setPayosOrderCode(payosOrderCode);
                 invoice.setVnpayTransactionId(null);
             } else {
                 invoice = processingInvoiceBuilder(rentalOrder, invoiceType, paymentMethod, expectedSubTotal,
-                                taxAmount, discountAmount, depositApplied, totalAmount)
+                                depositApplied, totalAmount)
                         .payosOrderCode(payosOrderCode)
                         .frontendSuccessUrl(request.getFrontendSuccessUrl())
                         .frontendFailureUrl(request.getFrontendFailureUrl())
@@ -584,8 +582,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .invoiceType(invoiceType)
                 .paymentMethod(PaymentMethod.BANK_ACCOUNT)
                 .subTotal(subTotal)
-                .taxAmount(BigDecimal.ZERO)
-                .discountAmount(BigDecimal.ZERO)
                 .totalAmount(totalAmount)
                 .depositApplied(depositApplied)
                 .invoiceStatus(InvoiceStatus.SUCCEEDED)
@@ -766,8 +762,6 @@ public class PaymentServiceImpl implements PaymentService {
                                                             InvoiceType invoiceType,
                                                             PaymentMethod paymentMethod,
                                                             BigDecimal subTotal,
-                                                            BigDecimal taxAmount,
-                                                            BigDecimal discountAmount,
                                                             BigDecimal depositApplied,
                                                             BigDecimal totalAmount) {
         return Invoice.builder()
@@ -776,8 +770,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentMethod(paymentMethod)
                 .paymentDate(null)
                 .subTotal(subTotal)
-                .taxAmount(taxAmount)
-                .discountAmount(discountAmount)
                 .totalAmount(totalAmount)
                 .depositApplied(depositApplied)
                 .dueDate(LocalDateTime.now().plusDays(3))
@@ -820,8 +812,6 @@ public class PaymentServiceImpl implements PaymentService {
     private Invoice resetInvoiceForPayment(Invoice invoice,
                                            PaymentMethod paymentMethod,
                                            BigDecimal subTotal,
-                                           BigDecimal taxAmount,
-                                           BigDecimal discountAmount,
                                            BigDecimal depositApplied,
                                            BigDecimal totalAmount,
                                            String successUrl,
@@ -831,8 +821,6 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setPaymentDate(null);
         invoice.setProofUrl(null);
         invoice.setSubTotal(subTotal);
-        invoice.setTaxAmount(taxAmount);
-        invoice.setDiscountAmount(discountAmount);
         invoice.setTotalAmount(totalAmount);
         invoice.setDepositApplied(depositApplied);
         invoice.setDueDate(LocalDateTime.now().plusDays(3));

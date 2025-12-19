@@ -686,17 +686,6 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             if (d.getQuantity() > available) {
                 throw new IllegalArgumentException("Số lượng thuê vượt quá số thiết bị khả dụng trong thời gian đã chọn");
             }
-//            /* Disabled old stock logic: using BookingCalendar availability
-//            if (model.getAmountAvailable() == null || d.getQuantity() == null) {
-//                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
-//            }
-//            if (d.getQuantity() > model.getAmountAvailable()) {
-//                throw new IllegalArgumentException("Số lượng thuê vượt quá số lượng trong kho");
-//            }
-//            model.setAmountAvailable(model.getAmountAvailable() - d.getQuantity());
-//            deviceModelRepository.save(model);
-//            */
-
             BigDecimal linePerDay = model.getPricePerDay().multiply(BigDecimal.valueOf(d.getQuantity()));
             BigDecimal depositPerUnit = model.getDeviceValue().multiply(model.getDepositPercent());
 

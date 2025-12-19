@@ -180,14 +180,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
         savePinCode(buildPinKeyForReport(saved.getHandoverReportId()), pinCode);
 
-        if (task.getStatus() != TaskStatus.COMPLETED) {
-            task.setStatus(TaskStatus.COMPLETED);
-            if (task.getCompletedAt() == null) {
-                task.setCompletedAt(LocalDateTime.now());
-            }
-            taskRepository.save(task);
-        }
-
         return HandoverReportResponseDto.fromEntity(saved, findDiscrepancies(saved));
     }
 
@@ -551,8 +543,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         report.setStatus(HandoverReportStatus.BOTH_SIGNED);
 
         HandoverReport saved = handoverReportRepository.save(report);
-//        deletePinCode(key);
-
         // Update order timeline & status
         updateOrderTimelineAfterSign(saved);
         checkAndUpdateOrderStatusIfBothSigned(saved);
@@ -571,6 +561,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     private void checkAndUpdateOrderStatusIfBothSigned(HandoverReport report) {
         if (report.getStatus() == HandoverReportStatus.BOTH_SIGNED && report.getStaffSigned() && report.getCustomerSigned()) {
+            markTaskCompleted(report);
             RentalOrder order = report.getRentalOrder();
             if (order != null && order.getOrderStatus() != OrderStatus.IN_USE) {
                 order.setOrderStatus(OrderStatus.IN_USE);
@@ -617,6 +608,21 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             rentalOrderRepository.save(order);
         }
         completeExtensionsIfOrderCompleted(order);
+    }
+
+    private void markTaskCompleted(HandoverReport report) {
+        if (report == null) {
+            return;
+        }
+        Task task = report.getTask();
+        if (task == null || task.getStatus() == TaskStatus.COMPLETED) {
+            return;
+        }
+        task.setStatus(TaskStatus.COMPLETED);
+        if (task.getCompletedAt() == null) {
+            task.setCompletedAt(LocalDateTime.now());
+        }
+        taskRepository.save(task);
     }
 
     private void createSettlementAfterCustomerSigned(HandoverReport report) {

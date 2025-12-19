@@ -22,9 +22,6 @@ public class SettlementCreateRequestDto {
     private BigDecimal damageFee;
     
     private BigDecimal lateFee;
-    
-    private BigDecimal accessoryFee;
-
     private BigDecimal finalAmount;
     
     private BigDecimal finalReturnAmount;

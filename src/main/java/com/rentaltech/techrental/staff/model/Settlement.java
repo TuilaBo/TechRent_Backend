@@ -36,9 +36,6 @@ public class Settlement {
     @Column(name = "late_fee", precision = 19, scale = 2)
     private BigDecimal lateFee;
 
-    @Column(name = "accessory_fee", precision = 19, scale = 2)
-    private BigDecimal accessoryFee;
-
     @Column(name = "final_return_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal finalReturnAmount;
 

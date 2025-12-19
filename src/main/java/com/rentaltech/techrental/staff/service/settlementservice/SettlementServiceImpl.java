@@ -55,7 +55,6 @@ public class SettlementServiceImpl implements SettlementService {
                 .totalDeposit(request.getTotalDeposit())
                 .damageFee(request.getDamageFee())
                 .lateFee(request.getLateFee())
-                .accessoryFee(request.getAccessoryFee())
                 .finalReturnAmount(request.getFinalReturnAmount())
                 .state(SettlementState.Draft)
                 .issuedAt(null)
@@ -76,17 +75,14 @@ public class SettlementServiceImpl implements SettlementService {
         BigDecimal totalDeposit = order.getDepositAmount() != null ? order.getDepositAmount() : BigDecimal.ZERO;
         BigDecimal damageFee = calculateFinalDiscrepancyDamageFee(order);
         BigDecimal lateFee = calculateLateFee(order);
-        BigDecimal accessoryFee = BigDecimal.ZERO;
         BigDecimal finalReturn = totalDeposit
                 .subtract(damageFee)
-                .subtract(lateFee)
-                .subtract(accessoryFee);
+                .subtract(lateFee);
         return settlementRepository.findByRentalOrder_OrderId(orderId)
                 .map(existing -> {
                     existing.setTotalDeposit(totalDeposit);
                     existing.setDamageFee(damageFee);
                     existing.setLateFee(lateFee);
-                    existing.setAccessoryFee(accessoryFee);
                     existing.setFinalReturnAmount(finalReturn);
                     return settlementRepository.save(existing);
                 })
@@ -96,7 +92,6 @@ public class SettlementServiceImpl implements SettlementService {
                             .totalDeposit(totalDeposit)
                             .damageFee(damageFee)
                             .lateFee(lateFee)
-                            .accessoryFee(accessoryFee)
                             .finalReturnAmount(finalReturn)
                             .build();
                     return create(request);
@@ -111,7 +106,6 @@ public class SettlementServiceImpl implements SettlementService {
         if (request.getTotalDeposit() != null) settlement.setTotalDeposit(request.getTotalDeposit());
         if (request.getDamageFee() != null) settlement.setDamageFee(request.getDamageFee());
         if (request.getLateFee() != null) settlement.setLateFee(request.getLateFee());
-        if (request.getAccessoryFee() != null) settlement.setAccessoryFee(request.getAccessoryFee());
         if (request.getFinalReturnAmount() != null) settlement.setFinalReturnAmount(request.getFinalReturnAmount());
         if (request.getState() != null) {
             settlement.setState(request.getState());
