@@ -62,7 +62,6 @@ class SettlementServiceImplTest {
                 .totalDeposit(BigDecimal.valueOf(500))
                 .damageFee(BigDecimal.ZERO)
                 .lateFee(BigDecimal.ZERO)
-                .accessoryFee(BigDecimal.ZERO)
                 .finalReturnAmount(BigDecimal.valueOf(500))
                 .build();
 
