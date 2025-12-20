@@ -603,7 +603,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         settlementRepository.save(settlement);
 
-        transactionRepository.save(buildTransaction(subTotal, TrasactionType.TRANSACTION_OUT, savedInvoice, username));
+        transactionRepository.save(buildTransaction(totalAmount, TrasactionType.TRANSACTION_OUT, savedInvoice, username));
 
         notifyCustomerDepositRefund(order);
         notifyOperatorsDepositRefund(order.getOrderId(), savedInvoice.getInvoiceId());
