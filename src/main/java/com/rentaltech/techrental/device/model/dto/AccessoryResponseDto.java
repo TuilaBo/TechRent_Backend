@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.model.dto;
+/*package com.rentaltech.techrental.device.model.dto;
 
 import com.rentaltech.techrental.device.model.Accessory;
 import lombok.AllArgsConstructor;
@@ -36,3 +36,4 @@ public class AccessoryResponseDto {
                 .build();
     }
 }
+*/

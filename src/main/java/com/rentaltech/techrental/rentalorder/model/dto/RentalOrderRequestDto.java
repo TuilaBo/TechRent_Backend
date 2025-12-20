@@ -25,9 +25,6 @@ public class RentalOrderRequestDto {
     @NotNull
     private String shippingAddress;
 
-//    @NotNull
-//    private Long customerId;
-
     @NotNull
     @Size(min = 1)
     private List<@Valid OrderDetailRequestDto> orderDetails;

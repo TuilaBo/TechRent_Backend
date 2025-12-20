@@ -22,8 +22,6 @@ public class WebConfig {
         config.addAllowedOriginPattern("https://127.0.0.1:*");
         config.addAllowedOriginPattern("null");  // Cho phép file:// protocol
         config.addAllowedOriginPattern("*");  // Cho phép tất cả origins (development only)
-        // Note: setAllowCredentials(true) không thể dùng với "*" - đã bỏ để tránh lỗi
-        // config.setAllowCredentials(true);
 
         // Allow common HTTP methods
         config.addAllowedMethod("GET");

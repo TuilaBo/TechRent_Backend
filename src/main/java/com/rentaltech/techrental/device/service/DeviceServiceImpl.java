@@ -232,7 +232,6 @@ public class DeviceServiceImpl implements DeviceService {
                 .serialNumber(request.getSerialNumber())
                 .acquireAt(request.getAcquireAt())
                 .status(request.getStatus())
-//                .shelfCode(request.getShelfCode())
                 .deviceModel(model)
                 .build();
     }
@@ -250,7 +249,6 @@ public class DeviceServiceImpl implements DeviceService {
         DeviceModel model = deviceModelRepository.findById(request.getDeviceModelId())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy DeviceModel: " + request.getDeviceModelId()));
 
-//        entity.setShelfCode(request.getShelfCode());
         entity.setSerialNumber(request.getSerialNumber());
         entity.setStatus(request.getStatus());
         entity.setDeviceModel(model);

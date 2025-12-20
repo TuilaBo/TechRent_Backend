@@ -3,15 +3,16 @@ package com.rentaltech.techrental.webapi.customer.service;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintRequestDto;
 import com.rentaltech.techrental.webapi.customer.model.dto.CustomerComplaintResponseDto;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 public interface CustomerComplaintService {
     
     /**
-     * Customer tạo khiếu nại về thiết bị bị hỏng
+     * Customer tạo khiếu nại về thiết bị bị hỏng (có thể kèm ảnh bằng chứng)
      */
-    CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, String username);
+    CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, MultipartFile evidenceImage, String username);
     
     /**
      * Customer xem danh sách khiếu nại của mình

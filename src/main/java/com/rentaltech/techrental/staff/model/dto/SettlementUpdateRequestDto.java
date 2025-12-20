@@ -16,7 +16,6 @@ public class SettlementUpdateRequestDto {
     private BigDecimal totalDeposit;
     private BigDecimal damageFee;
     private BigDecimal lateFee;
-    private BigDecimal accessoryFee;
     private BigDecimal finalReturnAmount;
     private SettlementState state;
 }

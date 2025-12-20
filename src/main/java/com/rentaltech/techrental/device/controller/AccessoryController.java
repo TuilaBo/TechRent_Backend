@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.controller;
+/*package com.rentaltech.techrental.device.controller;
 
 import com.rentaltech.techrental.common.util.ResponseUtil;
 import com.rentaltech.techrental.device.model.dto.AccessoryRequestDto;
@@ -107,4 +107,5 @@ public class AccessoryController {
         );
     }
 }
+*/
 

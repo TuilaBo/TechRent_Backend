@@ -19,8 +19,6 @@ public class InvoiceResponseDto {
     PaymentMethod paymentMethod;
     InvoiceStatus invoiceStatus;
     BigDecimal subTotal;
-    BigDecimal taxAmount;
-    BigDecimal discountAmount;
     BigDecimal totalAmount;
     BigDecimal depositApplied;
     LocalDateTime paymentDate;
@@ -36,8 +34,6 @@ public class InvoiceResponseDto {
                 .paymentMethod(invoice.getPaymentMethod())
                 .invoiceStatus(invoice.getInvoiceStatus())
                 .subTotal(invoice.getSubTotal())
-                .taxAmount(invoice.getTaxAmount())
-                .discountAmount(invoice.getDiscountAmount())
                 .totalAmount(invoice.getTotalAmount())
                 .depositApplied(invoice.getDepositApplied())
                 .paymentDate(invoice.getPaymentDate())

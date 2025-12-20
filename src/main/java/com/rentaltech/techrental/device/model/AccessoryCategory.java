@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.model;
+/*package com.rentaltech.techrental.device.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -28,3 +28,4 @@ public class AccessoryCategory {
     @Column(name = "is_active")
     private boolean isActive;
 }
+*/

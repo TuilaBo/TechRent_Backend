@@ -20,7 +20,6 @@ public class SettlementResponseDto {
     private BigDecimal totalDeposit;
     private BigDecimal damageFee;
     private BigDecimal lateFee;
-    private BigDecimal accessoryFee;
     private BigDecimal finalReturnAmount;
     private SettlementState state;
     private LocalDateTime issuedAt;
@@ -36,7 +35,6 @@ public class SettlementResponseDto {
                 .totalDeposit(settlement.getTotalDeposit())
                 .damageFee(settlement.getDamageFee())
                 .lateFee(settlement.getLateFee())
-                .accessoryFee(settlement.getAccessoryFee())
                 .finalReturnAmount(settlement.getFinalReturnAmount())
                 .state(settlement.getState())
                 .issuedAt(settlement.getIssuedAt())

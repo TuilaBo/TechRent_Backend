@@ -12,9 +12,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -26,9 +28,9 @@ public class CustomerComplaintController {
 
     private final CustomerComplaintService complaintService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Tạo khiếu nại", description = "Khách hàng tạo khiếu nại về thiết bị bị hỏng trong đơn hàng")
+    @Operation(summary = "Tạo khiếu nại", description = "Khách hàng tạo khiếu nại về thiết bị bị hỏng trong đơn hàng (có thể kèm ảnh bằng chứng)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Tạo khiếu nại thành công"),
             @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ"),
@@ -36,10 +38,11 @@ public class CustomerComplaintController {
             @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn hàng hoặc thiết bị")
     })
     public ResponseEntity<?> createComplaint(
-            @Valid @RequestBody CustomerComplaintRequestDto request,
+            @Valid @RequestPart("request") CustomerComplaintRequestDto request,
+            @RequestPart(value = "evidenceImage", required = false) MultipartFile evidenceImage,
             Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
-        CustomerComplaintResponseDto response = complaintService.createComplaint(request, username);
+        CustomerComplaintResponseDto response = complaintService.createComplaint(request, evidenceImage, username);
         return ResponseUtil.createSuccessResponse(
                 "Tạo khiếu nại thành công",
                 "Khiếu nại đã được ghi nhận và đang chờ xử lý",

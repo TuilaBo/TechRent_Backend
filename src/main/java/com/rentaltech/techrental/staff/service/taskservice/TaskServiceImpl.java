@@ -793,11 +793,10 @@ public class TaskServiceImpl implements TaskService {
         }
         rentalOrderRepository.findById(task.getOrderId())
                 .ifPresent(order -> {
-                    // Chỉ chuyển sang DELIVERING cho luồng giao hàng ban đầu
-                    // (đơn đang ở PENDING hoặc PROCESSING). Đơn đang IN_USE
-                    // (đổi/trả thiết bị khi complaint) sẽ giữ nguyên trạng thái.
-                    if (order.getOrderStatus() == OrderStatus.PENDING
-                            || order.getOrderStatus() == OrderStatus.PROCESSING) {
+                    // Chỉ chuyển sang DELIVERING cho các đơn đã xác nhận giao hàng
+                    // (trạng thái DELIVERY_CONFIRMED). Đơn đang IN_USE (đổi/trả thiết bị khi complaint)
+                    // sẽ giữ nguyên trạng thái.
+                    if (order.getOrderStatus() == OrderStatus.DELIVERY_CONFIRMED) {
                         order.setOrderStatus(OrderStatus.DELIVERING);
                         rentalOrderRepository.save(order);
                     }

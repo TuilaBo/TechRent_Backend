@@ -63,8 +63,6 @@ public class ContractExtensionAnnexServiceImpl implements ContractExtensionAnnex
 
         int extensionDays = rentalOrderExtension.getDurationDays() != null ? rentalOrderExtension.getDurationDays() : 0;
         BigDecimal extensionFee = defaultZero(rentalOrderExtension.getAdditionalPrice());
-        BigDecimal vatRate = BigDecimal.ZERO;
-        BigDecimal vatAmount = extensionFee.multiply(vatRate);
 
         String annexContent = buildAnnexContent(contract, originalOrder, rentalOrderExtension, extensionDetails, extensionDays, extensionFee);
 

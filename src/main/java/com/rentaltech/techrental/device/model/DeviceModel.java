@@ -31,7 +31,7 @@ public class DeviceModel {
     @Column(name = "amount_available")
     private Long amountAvailable;
 
-    @Column(name = "description", length = 300, nullable = false)
+    @Column(name = "description", length = 500, nullable = false)
     private String description;
 
     @Column(name = "image_url", length = 500)

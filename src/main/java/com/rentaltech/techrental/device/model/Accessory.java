@@ -1,4 +1,4 @@
-package com.rentaltech.techrental.device.model;
+/*package com.rentaltech.techrental.device.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -39,3 +39,4 @@ public class Accessory {
     @JoinColumn(name = "device_model_id", referencedColumnName = "device_model_id")
     private DeviceModel deviceModel;
 }
+*/

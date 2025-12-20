@@ -48,12 +48,6 @@ public class Invoice {
     @Column(name = "sub_total", nullable = false)
     private BigDecimal subTotal;
 
-    @Column(name = "tax_amount", nullable = false)
-    private BigDecimal taxAmount;
-
-    @Column(name = "discount_amount", nullable = false)
-    private BigDecimal discountAmount;
-
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount;
 

@@ -12,11 +12,7 @@ import com.rentaltech.techrental.device.repository.*;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
 import com.rentaltech.techrental.device.service.DeviceConditionService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
-import com.rentaltech.techrental.rentalorder.model.OrderDetail;
-import com.rentaltech.techrental.rentalorder.model.OrderStatus;
-import com.rentaltech.techrental.rentalorder.model.RentalOrder;
-import com.rentaltech.techrental.rentalorder.model.RentalOrderExtension;
-import com.rentaltech.techrental.rentalorder.model.RentalOrderExtensionStatus;
+import com.rentaltech.techrental.rentalorder.model.*;
 import com.rentaltech.techrental.rentalorder.repository.OrderDetailRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderExtensionRepository;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
@@ -183,14 +179,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             throw new IllegalStateException("Unable to send PIN to staff email: " + staffEmail);
         }
         savePinCode(buildPinKeyForReport(saved.getHandoverReportId()), pinCode);
-
-        if (task.getStatus() != TaskStatus.COMPLETED) {
-            task.setStatus(TaskStatus.COMPLETED);
-            if (task.getCompletedAt() == null) {
-                task.setCompletedAt(LocalDateTime.now());
-            }
-            taskRepository.save(task);
-        }
 
         return HandoverReportResponseDto.fromEntity(saved, findDiscrepancies(saved));
     }
@@ -555,8 +543,6 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         report.setStatus(HandoverReportStatus.BOTH_SIGNED);
 
         HandoverReport saved = handoverReportRepository.save(report);
-//        deletePinCode(key);
-
         // Update order timeline & status
         updateOrderTimelineAfterSign(saved);
         checkAndUpdateOrderStatusIfBothSigned(saved);
@@ -575,6 +561,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
 
     private void checkAndUpdateOrderStatusIfBothSigned(HandoverReport report) {
         if (report.getStatus() == HandoverReportStatus.BOTH_SIGNED && report.getStaffSigned() && report.getCustomerSigned()) {
+            markTaskCompleted(report);
             RentalOrder order = report.getRentalOrder();
             if (order != null && order.getOrderStatus() != OrderStatus.IN_USE) {
                 order.setOrderStatus(OrderStatus.IN_USE);
@@ -621,6 +608,21 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             rentalOrderRepository.save(order);
         }
         completeExtensionsIfOrderCompleted(order);
+    }
+
+    private void markTaskCompleted(HandoverReport report) {
+        if (report == null) {
+            return;
+        }
+        Task task = report.getTask();
+        if (task == null || task.getStatus() == TaskStatus.COMPLETED) {
+            return;
+        }
+        task.setStatus(TaskStatus.COMPLETED);
+        if (task.getCompletedAt() == null) {
+            task.setCompletedAt(LocalDateTime.now());
+        }
+        taskRepository.save(task);
     }
 
     private void createSettlementAfterCustomerSigned(HandoverReport report) {

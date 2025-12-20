@@ -1,11 +1,13 @@
 package com.rentaltech.techrental.contract.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class EmailService {
 
     @Autowired
@@ -130,6 +132,7 @@ public class EmailService {
      */
     private boolean sendHtmlEmail(String to, String subject, String htmlBody) {
         try {
+            log.info("Sending HTML email to {} with subject {}\n{}", to, subject, htmlBody);
             jakarta.mail.internet.MimeMessage mimeMessage = mailSender.createMimeMessage();
             org.springframework.mail.javamail.MimeMessageHelper helper =
                     new org.springframework.mail.javamail.MimeMessageHelper(mimeMessage, "UTF-8");
@@ -141,7 +144,7 @@ public class EmailService {
             mailSender.send(mimeMessage);
             return true;
         } catch (Exception e) {
-            System.err.println("Lỗi gửi email HTML: " + e.getMessage());
+            log.error("Lỗi gửi email HTML: {}", e.getMessage(), e);
             return false;
         }
     }

@@ -46,14 +46,6 @@ public class HandoverReport {
     @OneToMany(mappedBy = "handoverReport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HandoverReportItem> items = new ArrayList<>();
 
-//    @Builder.Default
-//    @ElementCollection
-//    @CollectionTable(
-//            name = "handover_report_device_quality",
-//            joinColumns = @JoinColumn(name = "handover_report_id")
-//    )
-//    private List<DeviceQualityInfo> deviceQualityInfos = new ArrayList<>();
-
     @Column(name = "handover_datetime", nullable = false)
     private LocalDateTime handoverDateTime;
 

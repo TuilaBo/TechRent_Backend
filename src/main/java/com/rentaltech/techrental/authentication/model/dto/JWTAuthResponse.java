@@ -20,10 +20,6 @@ public class JWTAuthResponse {
         this.tokenType = "Bearer";
     }
 
-//    public JWTAuthResponse(String accessToken) {
-//        this.accessToken = accessToken;
-//    }
-
     public String getAccessToken() {
         return accessToken;
     }

@@ -34,7 +34,7 @@ public class PreRentalQcTaskCreator {
                 .orderId(orderId)
                 .description("Check Pre QC cho đơn thuê #" + orderId)
                 .plannedStart(now)
-                .plannedEnd(now.plusDays(3))
+                .plannedEnd(now.plusHours(6))
                 .build();
         taskRepository.save(task);
     }
