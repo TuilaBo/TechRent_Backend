@@ -236,6 +236,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .build();
         Allocation savedAllocation = allocationRepository.save(newAllocation);
 
+        // Đóng Allocation cũ để tránh có 2 Allocation active cho cùng 1 OrderDetail
+        oldAllocation.setStatus("RETURNED");
+        oldAllocation.setReturnedAt(LocalDateTime.now());
+        String oldNotes = oldAllocation.getNotes() != null ? oldAllocation.getNotes() : "";
+        oldAllocation.setNotes(oldNotes + (oldNotes.isEmpty() ? "" : "\n") + 
+                "Thiết bị hỏng, đã thay thế bằng device " + replacementDevice.getSerialNumber() + " (complaint #" + complaintId + ")");
+        allocationRepository.save(oldAllocation);
+
         // Update device cũ: mark as DAMAGED hoặc UNDER_MAINTENANCE
         brokenDevice.setStatus(DeviceStatus.DAMAGED);
         deviceRepository.save(brokenDevice);
@@ -540,12 +548,11 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 EnumSet.of(BookingStatus.BOOKED, BookingStatus.ACTIVE)
         );
 
-        // Tìm device available (không busy, không damaged/lost, status = AVAILABLE hoặc RESERVED)
+        // Tìm device available (không busy, status = AVAILABLE)
         return devices.stream()
                 .filter(device -> device.getDeviceId() != null)
                 .filter(device -> !busyDeviceIds.contains(device.getDeviceId()))
-                .filter(device -> device.getStatus() == DeviceStatus.AVAILABLE || device.getStatus() == DeviceStatus.RESERVED)
-                .filter(device -> device.getStatus() != DeviceStatus.DAMAGED && device.getStatus() != DeviceStatus.LOST)
+                .filter(device -> device.getStatus() == DeviceStatus.AVAILABLE)
                 .findFirst()
                 .orElse(null);
     }

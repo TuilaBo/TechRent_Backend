@@ -74,6 +74,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         // Update device status nếu bảo trì bắt đầu từ hôm nay trở về trước
         if (startDate != null && (startDate.isBefore(LocalDate.now()) || startDate.isEqual(LocalDate.now()))) {
             if (scheduleStatus == MaintenanceScheduleStatus.STARTED) {
+                validateDeviceNotRenting(device);
                 device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                 deviceRepository.save(device);
             }
@@ -171,6 +172,7 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
             if (request.getStartDate() != null && 
                 (request.getStartDate().isBefore(today) || request.getStartDate().isEqual(today))) {
                 if (scheduleStatus == MaintenanceScheduleStatus.STARTED) {
+                    validateDeviceNotRenting(device);
                     device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                     deviceRepository.save(device);
                 }
@@ -422,6 +424,8 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
 
         if (device != null && effectiveStatus != null) {
             if (effectiveStatus == MaintenanceScheduleStatus.STARTED) {
+                // Kiểm tra device có đang được thuê không
+                validateDeviceNotRenting(device);
                 // Đang bảo trì -> thiết bị chuyển sang UNDER_MAINTENANCE
                 device.setStatus(DeviceStatus.UNDER_MAINTENANCE);
                 deviceRepository.save(device);
@@ -541,6 +545,41 @@ public class MaintenanceScheduleServiceImpl implements MaintenanceScheduleServic
         LocalDate bookingEnd = booking.getEndTime() != null ? booking.getEndTime().toLocalDate() : bookingStart;
 
         return !scheduleEnd.isBefore(bookingStart) && !scheduleStart.isAfter(bookingEnd);
+    }
+
+    private void validateDeviceNotRenting(Device device) {
+        if (device == null || device.getDeviceId() == null) {
+            return;
+        }
+
+        // Kiểm tra device status
+        if (device.getStatus() == DeviceStatus.RENTING) {
+            throw new IllegalStateException(
+                    "Không thể bắt đầu bảo trì cho thiết bị ID=" + device.getDeviceId() +
+                    " vì thiết bị đang được khách thuê (status: RENTING)");
+        }
+
+        // Kiểm tra có active booking không
+        LocalDateTime now = LocalDateTime.now();
+        List<BookingCalendar> activeBookings = bookingCalendarRepository.findAll().stream()
+                .filter(booking -> booking.getDevice() != null
+                        && booking.getDevice().getDeviceId().equals(device.getDeviceId())
+                        && (booking.getStatus() == BookingStatus.ACTIVE || booking.getStatus() == BookingStatus.BOOKED)
+                        && booking.getStartTime() != null
+                        && booking.getEndTime() != null
+                        && !booking.getStartTime().isAfter(now)
+                        && !booking.getEndTime().isBefore(now))
+                .collect(Collectors.toList());
+
+        if (!activeBookings.isEmpty()) {
+            BookingCalendar activeBooking = activeBookings.get(0);
+            String customerName = resolveCustomerName(activeBooking);
+            throw new IllegalStateException(
+                    "Không thể bắt đầu bảo trì cho thiết bị ID=" + device.getDeviceId() +
+                    " vì thiết bị đang được khách thuê. " +
+                    (customerName != null ? "Khách hàng: " + customerName : "") +
+                    " (Booking ID: " + activeBooking.getBookingId() + ")");
+        }
     }
 
     private String resolveCustomerName(BookingCalendar booking) {
