@@ -3,15 +3,21 @@ package com.rentaltech.techrental.policy.service;
 import com.rentaltech.techrental.authentication.model.Account;
 import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.policy.model.Policy;
+import com.rentaltech.techrental.policy.model.dto.PolicyFileResponseDto;
 import com.rentaltech.techrental.policy.model.dto.PolicyRequestDto;
 import com.rentaltech.techrental.policy.model.dto.PolicyResponseDto;
 import com.rentaltech.techrental.policy.repository.PolicyRepository;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -150,6 +156,87 @@ public class PolicyServiceImpl implements PolicyService {
         return policyRepository.findActivePolicies().stream()
                 .map(PolicyResponseDto::from)
                 .toList();
+    }
+
+    @Override
+    public PolicyFileResponseDto getPolicyFileForView(Long policyId) throws IOException {
+        PolicyResponseDto policy = getById(policyId);
+        if (policy.getFileUrl() == null) {
+            throw new NoSuchElementException("Policy không có file");
+        }
+
+        byte[] bytes = downloadFileFromUrl(policy.getFileUrl());
+        String filename = policy.getFileName() != null && !policy.getFileName().isBlank()
+                ? policy.getFileName()
+                : "policy-" + policyId + ".pdf";
+
+        return PolicyFileResponseDto.builder()
+                .content(bytes)
+                .filename(filename)
+                .contentType(MediaType.APPLICATION_PDF)
+                .contentDisposition(
+                        ContentDisposition.inline()
+                                .filename(filename, StandardCharsets.UTF_8)
+                                .build()
+                )
+                .cacheControl("public, max-age=3600")
+                .build();
+    }
+
+    @Override
+    public PolicyFileResponseDto getPolicyFileForDownload(Long policyId) throws IOException {
+        PolicyResponseDto policy = getById(policyId);
+        if (policy.getOriginalFileUrl() == null) {
+            throw new NoSuchElementException("Policy không có file gốc");
+        }
+
+        byte[] bytes = downloadFileFromUrl(policy.getOriginalFileUrl());
+        String extension = extractExtensionFromUrl(policy.getOriginalFileUrl());
+        String fileTypeFromUrl = extension.toUpperCase();
+
+        String filename;
+        if (policy.getFileName() != null && !policy.getFileName().isBlank()) {
+            String baseName = policy.getFileName().replaceAll("\\.pdf$", "").replaceAll("\\.(doc|docx)$", "");
+            filename = baseName + "." + extension;
+        } else {
+            filename = "policy-" + policyId + "." + extension;
+        }
+
+        MediaType contentType = switch (fileTypeFromUrl) {
+            case "DOC" -> MediaType.parseMediaType("application/msword");
+            case "DOCX" -> MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            case "PDF" -> MediaType.APPLICATION_PDF;
+            default -> MediaType.APPLICATION_OCTET_STREAM;
+        };
+
+        return PolicyFileResponseDto.builder()
+                .content(bytes)
+                .filename(filename)
+                .contentType(contentType)
+                .contentDisposition(
+                        ContentDisposition.attachment()
+                                .filename(filename, StandardCharsets.UTF_8)
+                                .build()
+                )
+                .cacheControl(null)
+                .build();
+    }
+
+    private byte[] downloadFileFromUrl(String fileUrl) throws IOException {
+        URL url = new URL(fileUrl);
+        return url.openStream().readAllBytes();
+    }
+
+    private String extractExtensionFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "docx";
+        }
+        String path = url.split("\\?")[0];
+        int lastDot = path.lastIndexOf('.');
+        if (lastDot > 0 && lastDot < path.length() - 1) {
+            return path.substring(lastDot + 1).toLowerCase();
+        }
+        return "docx";
     }
 
     private void validateEffectiveDates(java.time.LocalDate effectiveFrom, java.time.LocalDate effectiveTo) {
