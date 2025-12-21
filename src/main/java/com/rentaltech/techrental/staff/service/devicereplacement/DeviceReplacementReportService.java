@@ -41,5 +41,11 @@ public interface DeviceReplacementReportService {
             Long deviceId,
             List<MultipartFile> files,
             String staffUsername);
+
+    /**
+     * Tạo DiscrepancyReport cho complaint nếu faultSource = CUSTOMER
+     * Được gọi sau khi technician xác định faultSource và conditionDefinitionIds
+     */
+    void createDiscrepancyReportIfNeeded(Long complaintId);
 }
 

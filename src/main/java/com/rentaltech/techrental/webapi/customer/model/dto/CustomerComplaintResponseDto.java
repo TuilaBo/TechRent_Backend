@@ -1,5 +1,6 @@
 package com.rentaltech.techrental.webapi.customer.model.dto;
 
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
@@ -9,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 @Data
@@ -38,8 +40,18 @@ public class CustomerComplaintResponseDto {
     private Long resolvedByStaffId;
     private String resolvedByStaffName;
     private List<String> evidenceUrls; // Danh sách URL ảnh bằng chứng
+    private List<Long> conditionDefinitionIds; // Danh sách ID hư hỏng đã ghi nhận
+    private String damageNote; // Ghi chú về hư hỏng (từ DeviceCondition)
+    private List<DiscrepancyReportResponseDto> discrepancies; // Chi tiết thiệt hại và phí
 
     public static CustomerComplaintResponseDto from(CustomerComplaint complaint) {
+        return from(complaint, null, null, null);
+    }
+
+    public static CustomerComplaintResponseDto from(CustomerComplaint complaint, 
+                                                     List<Long> conditionDefinitionIds,
+                                                     String damageNote,
+                                                     List<DiscrepancyReportResponseDto> discrepancies) {
         if (complaint == null) {
             return null;
         }
@@ -75,6 +87,9 @@ public class CustomerComplaintResponseDto {
                 .evidenceUrls(complaint.getEvidenceUrls() != null && !complaint.getEvidenceUrls().isBlank()
                         ? java.util.Arrays.asList(complaint.getEvidenceUrls().split(","))
                         : java.util.Collections.emptyList())
+                .conditionDefinitionIds(conditionDefinitionIds != null ? conditionDefinitionIds : Collections.emptyList())
+                .damageNote(damageNote != null ? damageNote : null)
+                .discrepancies(discrepancies != null ? discrepancies : Collections.emptyList())
                 .build();
     }
 }
