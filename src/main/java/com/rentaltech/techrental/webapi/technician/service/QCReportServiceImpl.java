@@ -1068,6 +1068,18 @@ public class QCReportServiceImpl implements QCReportService {
                 allocationRepository.save(oldSuggestedAllocation);
             }
 
+            // Reset suggested device về AVAILABLE nếu technician chọn device khác
+            Device suggestedDevice = complaint.getReplacementDevice();
+            if (suggestedDevice != null && suggestedDevice.getDeviceId() != null
+                    && !suggestedDevice.getDeviceId().equals(newDevice.getDeviceId())
+                    && suggestedDevice.getStatus() == DeviceStatus.PRE_RENTAL_QC) {
+                // Technician đã chọn device khác, reset suggested device về AVAILABLE
+                suggestedDevice.setStatus(DeviceStatus.AVAILABLE);
+                deviceRepository.save(suggestedDevice);
+                log.info("Reset suggested device {} về AVAILABLE vì technician đã chọn device khác {} cho complaint #{}",
+                        suggestedDevice.getSerialNumber(), newDevice.getSerialNumber(), complaint.getComplaintId());
+            }
+
             // Đóng allocation gốc của device hỏng (nếu chưa đóng)
             Allocation brokenDeviceAllocation = complaint.getAllocation();
             if (brokenDeviceAllocation != null && brokenDeviceAllocation.getAllocationId() != null
