@@ -276,94 +276,46 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             throw new IllegalStateException("Không tìm thấy thiết bị thay thế khả dụng. Vui lòng liên hệ bộ phận hỗ trợ.");
         }
 
-        // Tạo Allocation mới cho device thay thế
-        Allocation newAllocation = Allocation.builder()
-                .device(replacementDevice)
-                .orderDetail(orderDetail)
-                .status("ALLOCATED")
-                .allocatedAt(LocalDateTime.now())
-                .notes("Thay thế cho device " + brokenDevice.getSerialNumber() + " (complaint #" + complaintId + ")")
-                .build();
-        Allocation savedAllocation = allocationRepository.save(newAllocation);
-
-        // Đóng Allocation cũ để tránh có 2 Allocation active cho cùng 1 OrderDetail
-        oldAllocation.setStatus("RETURNED");
-        oldAllocation.setReturnedAt(LocalDateTime.now());
-        String oldNotes = oldAllocation.getNotes() != null ? oldAllocation.getNotes() : "";
-        oldAllocation.setNotes(oldNotes + (oldNotes.isEmpty() ? "" : "\n") + 
-                "Thiết bị hỏng, đã thay thế bằng device " + replacementDevice.getSerialNumber() + " (complaint #" + complaintId + ")");
-        allocationRepository.save(oldAllocation);
-
-        // Update device cũ: mark as DAMAGED hoặc UNDER_MAINTENANCE
+        // Update device cũ: mark as DAMAGED
         brokenDevice.setStatus(DeviceStatus.DAMAGED);
         deviceRepository.save(brokenDevice);
 
-        // Update device mới: mark as RESERVED hoặc PRE_RENTAL_QC
-        replacementDevice.setStatus(DeviceStatus.RESERVED);
+        // Update device mới: mark as PRE_RENTAL_QC (chờ QC check trước khi allocation)
+        replacementDevice.setStatus(DeviceStatus.PRE_RENTAL_QC);
         deviceRepository.save(replacementDevice);
 
-        // Tạo BookingCalendar cho device mới
-        bookingCalendarService.createBookingsForAllocations(List.of(savedAllocation));
+        // Tìm hoặc tạo TaskCategory "Pre rental QC"
+        TaskCategory qcCategory = taskCategoryRepository.findByName("Pre rental QC")
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pre rental QC'. Vui lòng tạo category này trước."));
 
-        // Tìm hoặc tạo TaskCategory "Device Replacement"
-        TaskCategory replacementCategory = taskCategoryRepository.findByNameIgnoreCase("Device Replacement")
-                .orElseGet(() -> {
-                    // Nếu không có, tự động tạo category "Device Replacement"
-                    TaskCategory newCategory = TaskCategory.builder()
-                            .name("Device Replacement")
-                            .description("Thay thế thiết bị cho khách hàng khi có khiếu nại")
-                            .build();
-                    return taskCategoryRepository.save(newCategory);
-                });
+        // Tạo task Pre-Rental QC cho device replacement
+        // Technician sẽ dùng task này để tạo QC report và chọn device (có thể khác device suggested)
+        TaskCreateRequestDto qcTaskRequest = TaskCreateRequestDto.builder()
+                .taskCategoryId(qcCategory.getTaskCategoryId())
+                .orderId(order.getOrderId())
+                .assignedStaffIds(null) // Không assign cho ai, để operator assign sau
+                .description(String.format("Pre-Rental QC cho device thay thế (Complaint #%d). Device hỏng: %s (Serial: %s). Device đề xuất: %s (Serial: %s). Technician có thể chọn device khác cùng model khi QC.",
+                        complaintId,
+                        brokenDevice.getDeviceModel().getDeviceName(),
+                        brokenDevice.getSerialNumber(),
+                        replacementDevice.getDeviceModel().getDeviceName(),
+                        replacementDevice.getSerialNumber()))
+                .plannedStart(LocalDateTime.now())
+                .plannedEnd(LocalDateTime.now().plusHours(6)) // Deadline 6h cho QC
+                .build();
 
-        // Tìm task pending của order (cùng category "Device Replacement")
-        // Chỉ tạo 1 task cho tất cả complaints cùng order
-        List<TaskStatus> pendingStatuses = List.of(
-                com.rentaltech.techrental.staff.model.TaskStatus.PENDING,
-                com.rentaltech.techrental.staff.model.TaskStatus.IN_PROGRESS
-        );
-        List<Task> existingTasks = taskCustomRepository.findPendingTasksByOrderAndCategory(
-                order.getOrderId(),
-                replacementCategory.getTaskCategoryId(),
-                pendingStatuses
-        );
-
-        Task replacementTask;
-        if (!existingTasks.isEmpty()) {
-            // Đã có task pending → dùng task đó
-            replacementTask = existingTasks.get(0); // Lấy task đầu tiên
-            // Update description để bao gồm device mới
-            updateTaskDescriptionWithNewDevice(replacementTask, brokenDevice, replacementDevice, complaintId);
-        } else {
-            // Chưa có task → tạo mới
-            // Task được tạo nhưng không assign cho ai cả, để operator tự assign staff sau
-            TaskCreateRequestDto taskRequest = TaskCreateRequestDto.builder()
-                    .taskCategoryId(replacementCategory.getTaskCategoryId())
-                    .orderId(order.getOrderId())
-                    .assignedStaffIds(null) // Không assign cho ai, để operator assign sau
-                    .description(String.format("Thay thế thiết bị cho đơn hàng #%d. Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s). Vui lòng assign staff đi giao máy.",
-                            order.getOrderId(),
-                            complaintId,
-                            brokenDevice.getDeviceModel().getDeviceName(),
-                            brokenDevice.getSerialNumber(),
-                            replacementDevice.getDeviceModel().getDeviceName(),
-                            replacementDevice.getSerialNumber()))
-                    .plannedStart(LocalDateTime.now())
-                    .plannedEnd(LocalDateTime.now().plusHours(24)) // Deadline 24h
-                    .build();
-
-            replacementTask = taskService.createTask(taskRequest, username);
-        }
+        Task qcTask = taskService.createTask(qcTaskRequest, username);
 
         // Update complaint
+        // Lưu suggested device (technician có thể chọn device khác khi QC)
         complaint.setStatus(ComplaintStatus.PROCESSING);
         complaint.setFaultSource(faultSource != null
                 ? faultSource
                 : com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource.UNKNOWN);
         complaint.setStaffNote(staffNote);
-        complaint.setReplacementDevice(replacementDevice);
-        complaint.setReplacementTask(replacementTask);
-        complaint.setReplacementAllocation(savedAllocation);
+        complaint.setReplacementDevice(replacementDevice); // Device đề xuất (có thể thay đổi sau khi QC)
+        complaint.setReplacementTask(qcTask); // Task Pre-Rental QC
+        complaint.setReplacementAllocation(null); // Chưa có allocation, sẽ được tạo sau khi QC pass
         complaint.setProcessedAt(LocalDateTime.now());
 
         // Ghi nhận condition hiện tại của thiết bị để cập nhật trạng thái
@@ -373,13 +325,8 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         CustomerComplaint saved = complaintRepository.save(complaint);
         
-        // OPTION 3: Tự động tạo biên bản (hoặc thêm vào biên bản pending nếu có)
-        // Biên bản sẽ được tạo ngay khi process, tự động gộp nếu đã có biên bản pending của order
-        deviceReplacementReportService.createDeviceReplacementReport(saved.getComplaintId(), username);
-        
-        // Reload để lấy replacement report
-        saved = complaintRepository.findById(saved.getComplaintId())
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại sau khi tạo biên bản"));
+        // KHÔNG tạo biên bản ngay lúc này vì chưa có allocation
+        // Biên bản sẽ được tạo sau khi QC pass và allocation được tạo
         
         return buildComplaintResponseDto(saved);
     }
