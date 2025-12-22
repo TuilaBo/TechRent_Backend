@@ -36,18 +36,6 @@ public class Customer {
     @Column(name = "full_name", length = 100, nullable = true)
     private String fullName;
 
-    @Column(name = "shipping_address", length = 500)
-    private String shippingAddress;
-
-    @Column(name = "bank_account_number", length = 20)
-    private String bankAccountNumber;
-
-    @Column(name = "bank_name", length = 100)
-    private String bankName;
-
-    @Column(name = "bank_account_holder", length = 100)
-    private String bankAccountHolder;
-
     @Column(name = "fcm_token", length = 500)
     private String fcmToken;
 
