@@ -2,6 +2,8 @@ package com.rentaltech.techrental.staff.controller;
 
 import com.rentaltech.techrental.common.util.PageableUtil;
 import com.rentaltech.techrental.common.util.ResponseUtil;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
+import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.staff.model.Settlement;
 import com.rentaltech.techrental.staff.model.dto.*;
 import com.rentaltech.techrental.staff.service.latefee.LateFeeConfigService;
@@ -18,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -28,6 +31,7 @@ public class SettlementController {
 
     private final SettlementService settlementService;
     private final LateFeeConfigService lateFeeConfigService;
+    private final DiscrepancyReportService discrepancyReportService;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER_SUPPORT_STAFF') or hasRole('TECHNICIAN') or hasRole('ADMIN') or hasRole('OPERATOR')")
@@ -42,7 +46,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Tạo settlement thành công",
                 "Settlement đã được tạo ở trạng thái Draft",
-                SettlementResponseDto.from(settlement),
+                buildSettlementResponseDto(settlement),
                 HttpStatus.CREATED
         );
     }
@@ -61,7 +65,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Cập nhật settlement thành công",
                 "Settlement đã được cập nhật",
-                SettlementResponseDto.from(settlement),
+                buildSettlementResponseDto(settlement),
                 HttpStatus.OK
         );
     }
@@ -79,7 +83,7 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 "Lấy settlement thành công",
                 "Settlement theo order ID",
-                SettlementResponseDto.from(settlement),
+                buildSettlementResponseDto(settlement),
                 HttpStatus.OK
         );
     }
@@ -96,7 +100,7 @@ public class SettlementController {
                                     @RequestParam(required = false) List<String> sort) {
         Pageable pageable = PageableUtil.buildPageRequest(page, size, sort);
         var pageResult = settlementService.getAll(pageable);
-        var pageDto = pageResult.map(SettlementResponseDto::from);
+        var pageDto = pageResult.map(this::buildSettlementResponseDto);
         return ResponseUtil.createSuccessPaginationResponse(
                 "Danh sách tất cả settlement",
                 "Tất cả settlements trong hệ thống với phân trang",
@@ -123,9 +127,30 @@ public class SettlementController {
         return ResponseUtil.createSuccessResponse(
                 title,
                 message,
-                SettlementResponseDto.from(settlement),
+                buildSettlementResponseDto(settlement),
                 HttpStatus.OK
         );
+    }
+
+    /**
+     * Build SettlementResponseDto với đầy đủ thông tin về damageDetails
+     */
+    private SettlementResponseDto buildSettlementResponseDto(Settlement settlement) {
+        if (settlement == null) {
+            return null;
+        }
+
+        // Lấy DiscrepancyReport của order để hiển thị chi tiết thiệt hại
+        List<DiscrepancyReportResponseDto> damageDetails = Collections.emptyList();
+        if (settlement.getRentalOrder() != null && settlement.getRentalOrder().getOrderId() != null) {
+            try {
+                damageDetails = discrepancyReportService.getByOrderId(settlement.getRentalOrder().getOrderId());
+            } catch (Exception ex) {
+                // Log nhưng không throw
+            }
+        }
+
+        return SettlementResponseDto.from(settlement, damageDetails);
     }
 
     @GetMapping("/late-fee-config")

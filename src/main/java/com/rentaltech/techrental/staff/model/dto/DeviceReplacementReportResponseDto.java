@@ -1,13 +1,16 @@
 package com.rentaltech.techrental.staff.model.dto;
 
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.staff.model.DeviceReplacementReport;
 import com.rentaltech.techrental.staff.model.DeviceReplacementReportStatus;
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,8 +37,16 @@ public class DeviceReplacementReportResponseDto {
     private List<DeviceReplacementReportItemResponseDto> items;
     private HandoverReportStaffDto createdByStaff;
     private LocalDateTime createdAt;
+    private ComplaintFaultSource faultSource; // Lỗi do ai (từ complaint)
+    private List<DiscrepancyReportResponseDto> discrepancies; // Thiệt hại từ complaint
 
     public static DeviceReplacementReportResponseDto fromEntity(DeviceReplacementReport report) {
+        return fromEntity(report, null, null);
+    }
+
+    public static DeviceReplacementReportResponseDto fromEntity(DeviceReplacementReport report,
+                                                                  ComplaintFaultSource faultSource,
+                                                                  List<DiscrepancyReportResponseDto> discrepancies) {
         if (report == null) {
             return null;
         }
@@ -62,6 +73,8 @@ public class DeviceReplacementReportResponseDto {
                         ? HandoverReportStaffDto.fromEntity(report.getCreatedByStaff())
                         : null)
                 .createdAt(report.getCreatedAt())
+                .faultSource(faultSource)
+                .discrepancies(discrepancies != null ? discrepancies : Collections.emptyList())
                 .build();
     }
 }

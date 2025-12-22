@@ -10,6 +10,8 @@ import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.service.AllocationSnapshotService;
 import com.rentaltech.techrental.device.service.DiscrepancyReportService;
+import com.rentaltech.techrental.device.service.DeviceConditionService;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.rentalorder.model.RentalOrder;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.*;
@@ -61,6 +63,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     private final AllocationSnapshotService allocationSnapshotService;
     private final CustomerComplaintRepository customerComplaintRepository;
     private final DiscrepancyReportService discrepancyReportService;
+    private final DeviceConditionService deviceConditionService;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -220,22 +223,22 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         complaint.setReplacementReport(saved);
         customerComplaintRepository.save(complaint);
 
-        return DeviceReplacementReportResponseDto.fromEntity(saved);
+        return buildReplacementReportResponseDto(saved);
     }
 
     @Override
     @Transactional
     public DeviceReplacementReportResponseDto getReport(Long replacementReportId) {
-        return replacementReportRepository.findById(replacementReportId)
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+        DeviceReplacementReport report = replacementReportRepository.findById(replacementReportId)
                 .orElseThrow(() -> new IllegalArgumentException("Device replacement report not found: " + replacementReportId));
+        return buildReplacementReportResponseDto(report);
     }
 
     @Override
     @Transactional
     public List<DeviceReplacementReportResponseDto> getReportsByTask(Long taskId) {
         return replacementReportRepository.findByTask_TaskId(taskId).stream()
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+                .map(this::buildReplacementReportResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -243,7 +246,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Transactional
     public List<DeviceReplacementReportResponseDto> getReportsByOrder(Long orderId) {
         return replacementReportRepository.findByRentalOrder_OrderId(orderId).stream()
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+                .map(this::buildReplacementReportResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -251,7 +254,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Transactional
     public List<DeviceReplacementReportResponseDto> getReportsByStaff(Long staffId) {
         return replacementReportRepository.findByStaff(staffId).stream()
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+                .map(this::buildReplacementReportResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -259,7 +262,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Transactional
     public List<DeviceReplacementReportResponseDto> getAllReports() {
         return replacementReportRepository.findAll().stream()
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+                .map(this::buildReplacementReportResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -414,8 +417,53 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Transactional
     public List<DeviceReplacementReportResponseDto> getReportsByCustomerOrder(Long customerId) {
         return replacementReportRepository.findByRentalOrder_Customer_CustomerId(customerId).stream()
-                .map(DeviceReplacementReportResponseDto::fromEntity)
+                .map(this::buildReplacementReportResponseDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Build DeviceReplacementReportResponseDto với đầy đủ thông tin về faultSource và discrepancies
+     */
+    private DeviceReplacementReportResponseDto buildReplacementReportResponseDto(DeviceReplacementReport report) {
+        if (report == null) {
+            return null;
+        }
+
+        // Lấy faultSource từ complaint (nếu có)
+        ComplaintFaultSource faultSource = null;
+        List<DiscrepancyReportResponseDto> discrepancies = Collections.emptyList();
+
+        if (report.getRentalOrder() != null && report.getRentalOrder().getOrderId() != null) {
+            // Tìm complaint liên quan đến report này
+            List<CustomerComplaint> complaints = customerComplaintRepository
+                    .findByRentalOrder_OrderId(report.getRentalOrder().getOrderId());
+            
+            if (complaints != null && !complaints.isEmpty()) {
+                // Lấy faultSource từ complaint đầu tiên (hoặc có thể merge nếu có nhiều)
+                CustomerComplaint complaint = complaints.stream()
+                        .filter(c -> c.getReplacementReport() != null 
+                                && c.getReplacementReport().getReplacementReportId() != null
+                                && c.getReplacementReport().getReplacementReportId().equals(report.getReplacementReportId()))
+                        .findFirst()
+                        .orElse(complaints.get(0));
+                
+                faultSource = complaint.getFaultSource();
+
+                // Lấy DiscrepancyReport từ complaint
+                if (complaint.getComplaintId() != null) {
+                    try {
+                        discrepancies = discrepancyReportService.getByReference(
+                                DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT,
+                                complaint.getComplaintId()
+                        );
+                    } catch (Exception ex) {
+                        // Log nhưng không throw
+                    }
+                }
+            }
+        }
+
+        return DeviceReplacementReportResponseDto.fromEntity(report, faultSource, discrepancies);
     }
 
     @Override
@@ -464,6 +512,23 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         return DeviceReplacementReportItemResponseDto.fromEntity(saved);
     }
 
+    @Override
+    @Transactional
+    public void createDiscrepancyReportIfNeeded(Long complaintId) {
+        CustomerComplaint complaint = customerComplaintRepository.findById(complaintId)
+                .orElse(null);
+        if (complaint == null) {
+            log.warn("Không tìm thấy complaint {} để tạo DiscrepancyReport", complaintId);
+            return;
+        }
+        Allocation allocation = complaint.getAllocation();
+        if (allocation == null) {
+            log.warn("Complaint {} không có allocation để tạo DiscrepancyReport", complaintId);
+            return;
+        }
+        createDiscrepancyForOldDevice(complaint, allocation);
+    }
+
     private void createDiscrepancyForOldDevice(CustomerComplaint complaint, Allocation allocation) {
         if (complaint == null || allocation == null) {
             return;
@@ -482,6 +547,7 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
             return;
         }
 
+        // Kiểm tra xem đã tạo DiscrepancyReport cho complaint này chưa
         List<DiscrepancyReportResponseDto> existingReports =
                 discrepancyReportService.getByReference(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT, complaintId);
         boolean alreadyCreated = existingReports != null && existingReports.stream()
@@ -491,18 +557,55 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
             return;
         }
 
+        // Lấy DeviceCondition của device để lấy conditionDefinitionIds
+        List<DeviceConditionResponseDto> deviceConditions = deviceConditionService.getByDevice(deviceId);
+        if (CollectionUtils.isEmpty(deviceConditions)) {
+            // Nếu không có condition, tạo DiscrepancyReport không có conditionDefinitionId (penaltyAmount = 0)
+            String staffNote = StringUtils.hasText(complaint.getStaffNote())
+                    ? complaint.getStaffNote()
+                    : complaint.getCustomerDescription();
+            discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
+                    .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
+                    .refId(complaintId)
+                    .discrepancyType(DiscrepancyType.DAMAGE)
+                    .orderDetailId(orderDetailId)
+                    .deviceId(deviceId)
+                    .staffNote(staffNote)
+                    .build());
+            return;
+        }
+
+        // Tạo DiscrepancyReport cho mỗi conditionDefinitionId
         String staffNote = StringUtils.hasText(complaint.getStaffNote())
                 ? complaint.getStaffNote()
                 : complaint.getCustomerDescription();
 
-        discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
-                .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
-                .refId(complaintId)
-                .discrepancyType(DiscrepancyType.DAMAGE)
-                .orderDetailId(orderDetailId)
-                .deviceId(deviceId)
-                .staffNote(staffNote)
-                .build());
+        for (DeviceConditionResponseDto deviceCondition : deviceConditions) {
+            if (deviceCondition == null || deviceCondition.getConditionDefinitionId() == null) {
+                continue;
+            }
+
+            // Kiểm tra xem đã tạo DiscrepancyReport cho condition này chưa
+            boolean conditionAlreadyReported = existingReports != null && existingReports.stream()
+                    .filter(Objects::nonNull)
+                    .anyMatch(dto -> Objects.equals(dto.getConditionDefinitionId(), deviceCondition.getConditionDefinitionId())
+                            && Objects.equals(dto.getDeviceId(), deviceId));
+            if (conditionAlreadyReported) {
+                continue;
+            }
+
+            // Tạo DiscrepancyReport với conditionDefinitionId
+            // penaltyAmount sẽ được tính tự động từ ConditionDefinition.defaultCompensation
+            discrepancyReportService.create(DiscrepancyReportRequestDto.builder()
+                    .createdFrom(DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT)
+                    .refId(complaintId)
+                    .discrepancyType(DiscrepancyType.DAMAGE)
+                    .conditionDefinitionId(deviceCondition.getConditionDefinitionId())
+                    .orderDetailId(orderDetailId)
+                    .deviceId(deviceId)
+                    .staffNote(staffNote)
+                    .build());
+        }
     }
 
 

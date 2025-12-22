@@ -5,8 +5,12 @@ import com.rentaltech.techrental.authentication.service.AccountService;
 import com.rentaltech.techrental.device.model.Allocation;
 import com.rentaltech.techrental.device.model.Device;
 import com.rentaltech.techrental.device.model.DeviceStatus;
+import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
+import com.rentaltech.techrental.device.model.dto.DiscrepancyReportResponseDto;
+import com.rentaltech.techrental.device.model.dto.DeviceConditionResponseDto;
 import com.rentaltech.techrental.device.repository.AllocationRepository;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
+import com.rentaltech.techrental.device.service.DiscrepancyReportService;
 import com.rentaltech.techrental.rentalorder.model.BookingStatus;
 import com.rentaltech.techrental.rentalorder.model.OrderDetail;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
@@ -23,6 +27,7 @@ import com.rentaltech.techrental.staff.repository.TaskCategoryRepository;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
 import com.rentaltech.techrental.staff.service.taskservice.TaskService;
+import com.rentaltech.techrental.webapi.customer.model.ComplaintFaultSource;
 import com.rentaltech.techrental.webapi.customer.model.ComplaintStatus;
 import com.rentaltech.techrental.webapi.customer.model.Customer;
 import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
@@ -65,6 +70,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     private final ImageStorageService imageStorageService;
     private final com.rentaltech.techrental.staff.service.devicereplacement.DeviceReplacementReportService deviceReplacementReportService;
     private final com.rentaltech.techrental.device.service.DeviceConditionService deviceConditionService;
+    private final DiscrepancyReportService discrepancyReportService;
 
     @Override
     public CustomerComplaintResponseDto createComplaint(CustomerComplaintRequestDto request, MultipartFile evidenceImage, String username) {
@@ -116,7 +122,51 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             saved = complaintRepository.save(saved);
         }
 
-        return CustomerComplaintResponseDto.from(saved);
+        return buildComplaintResponseDto(saved);
+    }
+
+    /**
+     * Build CustomerComplaintResponseDto với đầy đủ thông tin về hư hỏng và thiệt hại
+     */
+    private CustomerComplaintResponseDto buildComplaintResponseDto(CustomerComplaint complaint) {
+        if (complaint == null) {
+            return null;
+        }
+
+        // Lấy conditionDefinitionIds từ DeviceCondition
+        List<Long> conditionDefinitionIds = Collections.emptyList();
+        String damageNote = null;
+        if (complaint.getDevice() != null && complaint.getDevice().getDeviceId() != null) {
+            List<DeviceConditionResponseDto> deviceConditions = deviceConditionService.getByDevice(complaint.getDevice().getDeviceId());
+            if (deviceConditions != null && !deviceConditions.isEmpty()) {
+                conditionDefinitionIds = deviceConditions.stream()
+                        .map(DeviceConditionResponseDto::getConditionDefinitionId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                // Lấy damageNote từ condition đầu tiên (hoặc có thể merge tất cả)
+                damageNote = deviceConditions.stream()
+                        .map(DeviceConditionResponseDto::getNote)
+                        .filter(Objects::nonNull)
+                        .filter(note -> !note.isBlank())
+                        .findFirst()
+                        .orElse(null);
+            }
+        }
+
+        // Lấy DiscrepancyReport từ complaint
+        List<DiscrepancyReportResponseDto> discrepancies = Collections.emptyList();
+        if (complaint.getComplaintId() != null) {
+            try {
+                discrepancies = discrepancyReportService.getByReference(
+                        DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT,
+                        complaint.getComplaintId()
+                );
+            } catch (Exception ex) {
+                // Log nhưng không throw để không làm gián đoạn flow
+            }
+        }
+
+        return CustomerComplaintResponseDto.from(complaint, conditionDefinitionIds, damageNote, discrepancies);
     }
 
     @Override
@@ -127,7 +177,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         List<CustomerComplaint> complaints = complaintCustomRepository.findByCustomerId(customer.getCustomerId());
         return complaints.stream()
-                .map(CustomerComplaintResponseDto::from)
+                .map(this::buildComplaintResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -145,7 +195,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             throw new AccessDeniedException("Không có quyền xem khiếu nại này");
         }
 
-        return CustomerComplaintResponseDto.from(complaint);
+        return buildComplaintResponseDto(complaint);
     }
 
     @Override
@@ -163,7 +213,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         List<CustomerComplaint> complaints = complaintRepository.findByRentalOrder_OrderId(orderId);
         return complaints.stream()
-                .map(CustomerComplaintResponseDto::from)
+                .map(this::buildComplaintResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -183,7 +233,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
     public CustomerComplaintResponseDto getComplaintById(Long complaintId) {
         CustomerComplaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại: " + complaintId));
-        return CustomerComplaintResponseDto.from(complaint);
+        return buildComplaintResponseDto(complaint);
     }
 
     @Override
@@ -331,7 +381,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         saved = complaintRepository.findById(saved.getComplaintId())
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khiếu nại sau khi tạo biên bản"));
         
-        return CustomerComplaintResponseDto.from(saved);
+        return buildComplaintResponseDto(saved);
     }
 
     @Override
@@ -369,7 +419,18 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
-        return CustomerComplaintResponseDto.from(saved);
+        
+        // Nếu faultSource = CUSTOMER, tạo DiscrepancyReport để tính phí thiệt hại
+        // Được gọi sau khi technician xác định faultSource và conditionDefinitionIds
+        if (saved.getFaultSource() == ComplaintFaultSource.CUSTOMER) {
+            try {
+                deviceReplacementReportService.createDiscrepancyReportIfNeeded(saved.getComplaintId());
+            } catch (Exception ex) {
+                // Log nhưng không throw để không làm gián đoạn flow
+            }
+        }
+        
+        return buildComplaintResponseDto(saved);
     }
 
     private void addDamageConditions(Long deviceId,
@@ -504,7 +565,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             taskRepository.save(replacementTask);
         }
 
-        return CustomerComplaintResponseDto.from(saved);
+        return buildComplaintResponseDto(saved);
     }
 
     @Override
@@ -528,7 +589,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
-        return CustomerComplaintResponseDto.from(saved);
+        return buildComplaintResponseDto(saved);
     }
 
     /**
