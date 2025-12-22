@@ -15,5 +15,7 @@ public interface CustomerComplaintRepository extends JpaRepository<CustomerCompl
     List<CustomerComplaint> findByRentalOrder_OrderIdAndStatus(Long orderId, ComplaintStatus status);
     
     List<CustomerComplaint> findByStatus(ComplaintStatus status);
+    
+    List<CustomerComplaint> findByReplacementTask_TaskId(Long taskId);
 }
 

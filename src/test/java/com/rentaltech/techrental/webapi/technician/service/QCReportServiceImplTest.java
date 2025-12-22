@@ -14,6 +14,8 @@ import com.rentaltech.techrental.staff.model.TaskCategory;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
+import com.rentaltech.techrental.staff.service.devicereplacement.DeviceReplacementReportService;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
@@ -75,6 +77,10 @@ class QCReportServiceImplTest {
     private DiscrepancyReportService discrepancyReportService;
     @Mock
     private DiscrepancyReportRepository discrepancyReportRepository;
+    @Mock
+    private CustomerComplaintRepository customerComplaintRepository;
+    @Mock
+    private DeviceReplacementReportService deviceReplacementReportService;
 
     private QCReportServiceImpl service;
 
@@ -99,7 +105,9 @@ class QCReportServiceImplTest {
                 rentalOrderRepository,
                 messagingTemplate,
                 discrepancyReportService,
-                discrepancyReportRepository
+                discrepancyReportRepository,
+                customerComplaintRepository,
+                deviceReplacementReportService
         );
     }
 
