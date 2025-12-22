@@ -23,7 +23,10 @@ import com.rentaltech.techrental.staff.model.Task;
 import com.rentaltech.techrental.staff.model.TaskStatus;
 import com.rentaltech.techrental.staff.repository.TaskRepository;
 import com.rentaltech.techrental.staff.service.staffservice.StaffService;
+import com.rentaltech.techrental.staff.service.devicereplacement.DeviceReplacementReportService;
+import com.rentaltech.techrental.webapi.customer.model.CustomerComplaint;
 import com.rentaltech.techrental.webapi.customer.model.NotificationType;
+import com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository;
 import com.rentaltech.techrental.webapi.customer.service.NotificationService;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import com.rentaltech.techrental.webapi.technician.model.QCPhase;
@@ -72,6 +75,8 @@ public class QCReportServiceImpl implements QCReportService {
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportService discrepancyReportService;
     private final DiscrepancyReportRepository discrepancyReportRepository;
+    private final CustomerComplaintRepository customerComplaintRepository;
+    private final DeviceReplacementReportService deviceReplacementReportService;
 
     @Override
     @Transactional
@@ -137,6 +142,11 @@ public class QCReportServiceImpl implements QCReportService {
             saved.setAllocations(new ArrayList<>(allocations));
             bookingCalendarService.createBookingsForAllocations(allocations);
             extendReservationHold(task, allocations, saved.getResult());
+            
+            // Nếu là PRE_RENTAL và có allocation → update complaint nếu task này là replacement task
+            if (phase == QCPhase.PRE_RENTAL) {
+                updateComplaintAfterQcAllocation(task, allocations);
+            }
         }
         if (phase == QCPhase.PRE_RENTAL) {
             createBaselineSnapshots(allocations, deviceConditions, currentStaff);
@@ -289,6 +299,9 @@ public class QCReportServiceImpl implements QCReportService {
         }
         createBaselineSnapshots(finalAllocations, deviceConditions, currentStaff);
         extendReservationHold(report.getTask(), finalAllocations, report.getResult());
+        
+        // Update complaint nếu task này là replacement task
+        updateComplaintAfterQcAllocation(report.getTask(), finalAllocations);
     }
 
     private void handlePostRentalUpdate(QCReport report, QCResult result) {
@@ -1006,6 +1019,108 @@ public class QCReportServiceImpl implements QCReportService {
                         .orElse(null));
         if (orderId != null) {
             reservationService.moveToUnderReview(orderId);
+        }
+    }
+
+    /**
+     * Update complaint sau khi allocation được tạo từ QC report PRE_RENTAL
+     * Tự động update replacementDevice và replacementAllocation từ allocation mới được tạo
+     * Đóng allocation cũ và tạo biên bản replacement report
+     */
+    private void updateComplaintAfterQcAllocation(Task task, List<Allocation> newAllocations) {
+        if (task == null || task.getTaskId() == null || newAllocations == null || newAllocations.isEmpty()) {
+            return;
+        }
+
+        // Tìm complaint có replacementTask = task này
+        List<CustomerComplaint> complaints = customerComplaintRepository.findByReplacementTask_TaskId(task.getTaskId());
+        if (complaints == null || complaints.isEmpty()) {
+            return; // Không phải replacement task
+        }
+
+        // Lấy allocation đầu tiên (thường chỉ có 1 allocation cho replacement)
+        Allocation newAllocation = newAllocations.stream()
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        if (newAllocation == null || newAllocation.getDevice() == null || newAllocation.getOrderDetail() == null) {
+            return;
+        }
+
+        Device newDevice = newAllocation.getDevice();
+
+        // Update từng complaint
+        for (CustomerComplaint complaint : complaints) {
+            if (complaint == null || complaint.getComplaintId() == null) {
+                continue;
+            }
+
+            // Lấy allocation cũ (nếu có) - từ suggested device
+            Allocation oldSuggestedAllocation = complaint.getReplacementAllocation();
+            if (oldSuggestedAllocation != null && oldSuggestedAllocation.getAllocationId() != null
+                    && !oldSuggestedAllocation.getAllocationId().equals(newAllocation.getAllocationId())) {
+                // Đóng allocation cũ của suggested device (nếu technician chọn device khác)
+                oldSuggestedAllocation.setStatus("RETURNED");
+                oldSuggestedAllocation.setReturnedAt(LocalDateTime.now());
+                String oldNotes = oldSuggestedAllocation.getNotes() != null ? oldSuggestedAllocation.getNotes() : "";
+                oldSuggestedAllocation.setNotes(oldNotes + (oldNotes.isEmpty() ? "" : "\n") +
+                        "Device đề xuất không được chọn, technician đã chọn device khác (complaint #" + complaint.getComplaintId() + ")");
+                allocationRepository.save(oldSuggestedAllocation);
+            }
+
+            // Reset suggested device về AVAILABLE nếu technician chọn device khác
+            Device suggestedDevice = complaint.getReplacementDevice();
+            if (suggestedDevice != null && suggestedDevice.getDeviceId() != null
+                    && !suggestedDevice.getDeviceId().equals(newDevice.getDeviceId())
+                    && suggestedDevice.getStatus() == DeviceStatus.PRE_RENTAL_QC) {
+                // Technician đã chọn device khác, reset suggested device về AVAILABLE
+                suggestedDevice.setStatus(DeviceStatus.AVAILABLE);
+                deviceRepository.save(suggestedDevice);
+                log.info("Reset suggested device {} về AVAILABLE vì technician đã chọn device khác {} cho complaint #{}",
+                        suggestedDevice.getSerialNumber(), newDevice.getSerialNumber(), complaint.getComplaintId());
+            }
+
+            // Đóng allocation gốc của device hỏng (nếu chưa đóng)
+            Allocation brokenDeviceAllocation = complaint.getAllocation();
+            if (brokenDeviceAllocation != null && brokenDeviceAllocation.getAllocationId() != null
+                    && !"RETURNED".equals(brokenDeviceAllocation.getStatus())) {
+                brokenDeviceAllocation.setStatus("RETURNED");
+                brokenDeviceAllocation.setReturnedAt(LocalDateTime.now());
+                String brokenNotes = brokenDeviceAllocation.getNotes() != null ? brokenDeviceAllocation.getNotes() : "";
+                brokenDeviceAllocation.setNotes(brokenNotes + (brokenNotes.isEmpty() ? "" : "\n") +
+                        "Thiết bị hỏng, đã thay thế bằng device " + newDevice.getSerialNumber() + " (complaint #" + complaint.getComplaintId() + ")");
+                allocationRepository.save(brokenDeviceAllocation);
+            }
+
+            // Update complaint với device và allocation mới (device technician đã chọn)
+            complaint.setReplacementDevice(newDevice);
+            complaint.setReplacementAllocation(newAllocation);
+            customerComplaintRepository.save(complaint);
+
+            // Tạo biên bản replacement report (nếu chưa có)
+            try {
+                com.rentaltech.techrental.staff.model.DeviceReplacementReport existingReport = complaint.getReplacementReport();
+                if (existingReport == null || existingReport.getReplacementReportId() == null) {
+                    // Tìm staff từ task hoặc lấy từ QC report creator
+                    String createdBy = task.getAssignedStaff() != null && !task.getAssignedStaff().isEmpty()
+                            ? task.getAssignedStaff().stream()
+                                .filter(Objects::nonNull)
+                                .filter(s -> s.getAccount() != null)
+                                .map(s -> s.getAccount().getUsername())
+                                .filter(Objects::nonNull)
+                                .findFirst()
+                                .orElse(null)
+                            : null;
+                    if (createdBy == null) {
+                        // Fallback: lấy từ QC report creator hoặc system
+                        createdBy = "system";
+                    }
+                    deviceReplacementReportService.createDeviceReplacementReport(complaint.getComplaintId(), createdBy);
+                }
+            } catch (Exception ex) {
+                log.warn("Không thể tạo biên bản replacement report cho complaint {}: {}", complaint.getComplaintId(), ex.getMessage());
+                // Không throw để không làm gián đoạn flow QC
+            }
         }
     }
 
