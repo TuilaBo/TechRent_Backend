@@ -3,9 +3,9 @@ package com.rentaltech.techrental.device.repository;
 import com.rentaltech.techrental.device.model.DiscrepancyCreatedFrom;
 import com.rentaltech.techrental.device.model.DiscrepancyReport;
 import com.rentaltech.techrental.device.model.DiscrepancyType;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
