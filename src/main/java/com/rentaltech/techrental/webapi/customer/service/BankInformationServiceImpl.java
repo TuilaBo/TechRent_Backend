@@ -98,15 +98,6 @@ public class BankInformationServiceImpl implements BankInformationService {
         if (request.getCardNumber() != null && !request.getCardNumber().isBlank()) {
             existing.setCardNumber(request.getCardNumber());
         }
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Long customerId = customerRepository.findByAccount_Username(username)
-                .map(Customer::getCustomerId)
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy khách hàng: " + username));
-
-        if (repository.existsByCardNumberAndCustomer_CustomerId(request.getCardNumber(), customerId)) {
-            throw new IllegalArgumentException("Thẻ với số này đã được sử dụng");
-        }
-
         BankInformation saved = repository.save(existing);
         return BankInformationResponseDto.from(saved);
     }
