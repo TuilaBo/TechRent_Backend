@@ -126,7 +126,8 @@ public class AdminDashboardController {
 
     @GetMapping("/revenue")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Thống kê doanh thu", description = "Tính doanh thu theo ngày/tháng/năm. Bao gồm: tiền thuê, tiền phạt, tiền bồi thường, trừ đi tiền cọc trả lại")
+    @Operation(summary = "Thống kê doanh thu",
+            description = "Tính doanh thu theo ngày/tháng/năm. Bao gồm: tiền thuê, tiền phạt trả muộn, tiền bồi thường thiệt hại. KHÔNG tính tiền cọc.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về thống kê doanh thu"),
             @ApiResponse(responseCode = "400", description = "Tham số không hợp lệ"),
@@ -139,15 +140,19 @@ public class AdminDashboardController {
     ) {
         if (day != null && month == null) {
             return ResponseUtil.createErrorResponse(
+                    "INVALID_PARAMETERS",
                     "Tham số không hợp lệ",
                     "Không thể query theo ngày mà không có tháng",
                     HttpStatus.BAD_REQUEST
             );
         }
         RevenueStatsDto stats = dashboardService.getRevenueStats(year, month, day);
+        String message = day != null
+                ? "Doanh thu trong ngày"
+                : (month != null ? "Doanh thu trong tháng" : "Doanh thu trong năm");
         return ResponseUtil.createSuccessResponse(
                 "Thống kê doanh thu",
-                day != null ? "Doanh thu trong ngày" : (month != null ? "Doanh thu trong tháng" : "Doanh thu trong năm"),
+                message,
                 stats,
                 HttpStatus.OK
         );

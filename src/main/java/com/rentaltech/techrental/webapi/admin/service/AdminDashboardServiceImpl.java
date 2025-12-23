@@ -4,7 +4,6 @@ import com.rentaltech.techrental.device.model.DiscrepancyType;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.finance.model.InvoiceType;
-import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.Settlement;
@@ -28,7 +27,6 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final DiscrepancyReportRepository discrepancyReportRepository;
     private final SettlementRepository settlementRepository;
     private final RentalOrderRepository rentalOrderRepository;
-    private final InvoiceRepository invoiceRepository;
 
     @Override
     public NewCustomerStatsDto getNewCustomers(int year, int month) {
@@ -123,7 +121,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     public RevenueStatsDto getRevenueStats(int year, Integer month, Integer day) {
         LocalDateTime start;
         LocalDateTime end;
-        
+
         if (day != null && month != null) {
             // Query theo ngày
             start = LocalDate.of(year, month, day).atStartOfDay();
@@ -137,41 +135,29 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
             start = LocalDate.of(year, 1, 1).atStartOfDay();
             end = start.plusYears(1);
         }
-        
-        // Tiền thuê thực tế: Invoice RENT_PAYMENT (loại trừ deposit để tránh double counting)
-        // Invoice.totalAmount = depositAmount + totalPrice, nhưng ta chỉ cần totalPrice
-        BigDecimal rentalRevenue = invoiceRepository.sumRentalPriceExcludingDeposit(start, end);
+
+        // Tiền thuê: lấy từ RentalOrder.totalPrice cho các đơn có Invoice RENT_PAYMENT đã thanh toán
+        BigDecimal rentalRevenue = rentalOrderRepository
+                .sumTotalPriceByInvoiceTypeAndPaymentDateRange(InvoiceType.RENT_PAYMENT, start, end);
         if (rentalRevenue == null) rentalRevenue = BigDecimal.ZERO;
-        
-        // Tiền phạt trả muộn: từ Settlement
+
+        // Tiền phạt và bồi thường: lấy từ Settlement trong khoảng issuedAt
         List<Settlement> settlements = settlementRepository.findByIssuedAtBetween(start, end);
         BigDecimal lateFeeRevenue = settlements.stream()
                 .map(Settlement::getLateFee)
                 .filter(fee -> fee != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        // Tiền bồi thường thiệt hại: từ Settlement
+
         BigDecimal damageFeeRevenue = settlements.stream()
                 .map(Settlement::getDamageFee)
                 .filter(fee -> fee != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        // Tiền cọc trả lại: Tính từ Settlement.totalDeposit (tổng cọc ban đầu)
-        // Lưu ý: Invoice DEPOSIT_REFUND.totalAmount = finalReturnAmount = totalDeposit - damageFee - lateFee
-        // Nếu dùng Invoice DEPOSIT_REFUND, ta sẽ bị double count vì đã trừ damageFee + lateFee
-        // Nên ta tính trực tiếp từ Settlement.totalDeposit
-        BigDecimal depositRefund = settlements.stream()
-                .map(Settlement::getTotalDeposit)
-                .filter(deposit -> deposit != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        // Tổng doanh thu = tiền thuê (không bao gồm cọc) + tiền phạt + tiền thiệt hại - tổng cọc đã trả
-        // = totalPrice + lateFee + damageFee - totalDeposit
+
+        // Tổng doanh thu = tiền thuê + tiền phạt + tiền bồi thường
         BigDecimal totalRevenue = rentalRevenue
                 .add(lateFeeRevenue)
-                .add(damageFeeRevenue)
-                .subtract(depositRefund);
-        
+                .add(damageFeeRevenue);
+
         return RevenueStatsDto.builder()
                 .year(year)
                 .month(month)
@@ -179,7 +165,6 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .rentalRevenue(rentalRevenue)
                 .lateFeeRevenue(lateFeeRevenue)
                 .damageFeeRevenue(damageFeeRevenue)
-                .depositRefund(depositRefund)
                 .totalRevenue(totalRevenue)
                 .build();
     }
