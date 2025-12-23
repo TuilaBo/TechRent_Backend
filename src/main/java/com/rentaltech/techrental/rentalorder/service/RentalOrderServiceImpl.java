@@ -43,6 +43,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -58,6 +59,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
             OrderStatus.PENDING,
             OrderStatus.PROCESSING
     );
+    private static final LocalTime ALLOWED_START_TIME = LocalTime.of(8, 0);
+    private static final LocalTime ALLOWED_END_TIME = LocalTime.of(19, 0);
 
     private final RentalOrderRepository rentalOrderRepository;
     private final OrderDetailRepository orderDetailRepository;
@@ -95,8 +98,19 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Không tìm thấy thông tin khách hàng cho tài khoản đang đăng nhập"));
                 authenticatedCustomerId = customer.getCustomerId();
                 effectiveCustomerId = authenticatedCustomerId;
-            }
+    }
+
+    private void validateOperatingHours(LocalDateTime dateTime, String label) {
+        if (dateTime == null) {
+            return;
         }
+        LocalTime time = dateTime.toLocalTime();
+        if (time.isBefore(ALLOWED_START_TIME) || time.isAfter(ALLOWED_END_TIME)) {
+            throw new IllegalArgumentException(String.format(
+                    "Thời gian dự kiến %s phải nằm trong khung từ 08:00 đến 19:00", label));
+        }
+    }
+}
 
         OrderStatus parsedStatus = null;
         if (orderStatus != null && !orderStatus.isBlank()) {
@@ -147,6 +161,12 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         if (request.getPlanStartDate() == null || request.getPlanEndDate() == null) {
             throw new IllegalArgumentException("Cần cung cấp đầy đủ thời gian dự kiến bắt đầu và kết thúc");
         }
+        LocalDateTime now = LocalDateTime.now();
+        if (!request.getPlanStartDate().isAfter(now)) {
+            throw new IllegalArgumentException("Thời gian dự kiến bắt đầu phải lớn hơn thời gian hiện tại");
+        }
+        validateOperatingHours(request.getPlanStartDate(), "bắt đầu");
+        validateOperatingHours(request.getPlanEndDate(), "kết thúc");
         long days = ChronoUnit.DAYS.between(request.getPlanStartDate(), request.getPlanEndDate());
         if (days <= 0) {
             throw new IllegalArgumentException("Thời gian kết thúc dự kiến phải sau thời gian bắt đầu");
