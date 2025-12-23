@@ -36,5 +36,6 @@ public class HandoverReportBaseUpdateRequestDto {
     private String customerSignature;
 
     @Builder.Default
+    @NotNull
     private List<@Valid HandoverReportItemRequestDto> items = new ArrayList<>();
 }
