@@ -42,5 +42,6 @@ public class HandoverReportBaseCreateRequestDto {
      * Optional custom items. If empty, the system will populate from OrderDetail.
      */
     @Builder.Default
+    @NotNull
     private List<@Valid HandoverReportItemRequestDto> items = new ArrayList<>();
 }

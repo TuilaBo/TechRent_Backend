@@ -134,6 +134,12 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         Staff createdByStaff = staffRepository.findByAccount_AccountId(staffAccount.getAccountId())
                 .orElseThrow(() -> new IllegalArgumentException("Staff not found for account: " + staffUsername));
 
+        long orderDeviceCount = countDevicesForOrder(rentalOrder);
+        validateItemRequests(request.getItems(), orderDeviceCount, rentalOrder.getOrderId());
+        if (handoverType == HandoverType.CHECKOUT) {
+            validateDeviceConditions(deviceConditions, orderDeviceCount, rentalOrder.getOrderId());
+        }
+
         List<HandoverReportItem> items = resolveItems(request, rentalOrder);
 
         HandoverReport report = HandoverReport.builder()
@@ -212,6 +218,12 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         RentalOrder rentalOrder = report.getRentalOrder();
         if (rentalOrder == null) {
             throw new IllegalStateException("Không xác định được đơn thuê của biên bản");
+        }
+
+        long orderDeviceCount = countDevicesForOrder(rentalOrder);
+        validateItemRequests(request.getItems(), orderDeviceCount, rentalOrder.getOrderId());
+        if (expectedType == HandoverType.CHECKOUT) {
+            validateDeviceConditions(deviceConditions, orderDeviceCount, rentalOrder.getOrderId());
         }
 
         List<HandoverReportItem> updatedItems = resolveItems(request.getItems(), rentalOrder, true);
@@ -707,6 +719,50 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         }
         devices.forEach(device -> device.setStatus(DeviceStatus.POST_RENTAL_QC));
         deviceRepository.saveAll(devices);
+    }
+
+    private long countDevicesForOrder(RentalOrder rentalOrder) {
+        if (rentalOrder == null || rentalOrder.getOrderId() == null) {
+            return 0;
+        }
+        Long orderId = rentalOrder.getOrderId();
+        long allocationCount = Optional.ofNullable(allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId))
+                .map(List::size)
+                .orElse(0);
+        long orderDetailCount = orderDetailRepository.findByRentalOrder_OrderId(orderId).stream()
+                .map(OrderDetail::getQuantity)
+                .filter(Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .sum();
+        return Math.max(allocationCount, orderDetailCount);
+    }
+
+    private void validateItemRequests(List<HandoverReportItemRequestDto> items, long requiredCount, Long orderId) {
+        if (items == null) {
+            throw new IllegalArgumentException("Danh sách items không được để trống");
+        }
+        long providedCount = items.stream().filter(Objects::nonNull).count();
+        if (requiredCount > 0 && providedCount < requiredCount) {
+            throw new IllegalArgumentException(String.format(
+                    "Danh sách items phải có ít nhất %d phần tử để khớp số thiết bị của đơn hàng %s",
+                    requiredCount,
+                    orderId != null ? orderId : ""));
+        }
+    }
+
+    private void validateDeviceConditions(List<HandoverDeviceConditionRequestDto> deviceConditions,
+                                          long requiredCount,
+                                          Long orderId) {
+        if (deviceConditions == null) {
+            throw new IllegalArgumentException("Danh sách deviceConditions không được để trống");
+        }
+        long providedCount = deviceConditions.stream().filter(Objects::nonNull).count();
+        if (requiredCount > 0 && providedCount < requiredCount) {
+            throw new IllegalArgumentException(String.format(
+                    "Danh sách deviceConditions phải có ít nhất %d phần tử để khớp số thiết bị của đơn hàng %s",
+                    requiredCount,
+                    orderId != null ? orderId : ""));
+        }
     }
 
     private List<HandoverReportItem> resolveItems(HandoverReportBaseCreateRequestDto request, RentalOrder rentalOrder) {
