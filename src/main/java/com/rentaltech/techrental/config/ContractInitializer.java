@@ -57,7 +57,7 @@ public class ContractInitializer implements ApplicationRunner {
 
             // Create sample contracts
             createSampleContracts(sampleCustomer, order1, order2);
-            
+
             log.info("Contract initialization completed successfully");
         } catch (Exception e) {
             log.error("Error initializing contract data: {}", e.getMessage(), e);
@@ -87,7 +87,6 @@ public class ContractInitializer implements ApplicationRunner {
                             .email("customer@example.com")
                             .phoneNumber("0901234567")
                             .fullName("Nguyễn Văn Khách Hàng")
-                            .shippingAddress("123 Đường ABC, Quận XYZ, TP.HCM")
                             .status(com.rentaltech.techrental.webapi.customer.model.CustomerStatus.ACTIVE)
                             .build();
                     return customerRepository.save(customer);
@@ -220,7 +219,7 @@ public class ContractInitializer implements ApplicationRunner {
                 .build();
 
         contractRepository.saveAll(java.util.List.of(contract1, contract2, contract3));
-        
+
         log.info("Created 3 sample contracts with statuses: DRAFT, PENDING_SIGNATURE, SIGNED");
     }
 }

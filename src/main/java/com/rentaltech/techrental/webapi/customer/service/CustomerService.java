@@ -80,10 +80,6 @@ public class CustomerService {
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
                 .fullName(request.getFullName())
-                .shippingAddress(request.getShippingAddress())
-                .bankAccountNumber(request.getBankAccountNumber())
-                .bankName(request.getBankName())
-                .bankAccountHolder(request.getBankAccountHolder())
                 .status(Boolean.TRUE.equals(account.getIsActive()) 
                     ? CustomerStatus.ACTIVE 
                     : CustomerStatus.INACTIVE) // Set status dựa trên isActive của account
@@ -99,9 +95,7 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setFullName(request.getFullName());
-        customer.setBankName(request.getBankName());
-        customer.setBankAccountHolder(request.getBankAccountHolder());
-        
+
         return customerRepository.save(customer);
     }
     
@@ -112,9 +106,7 @@ public class CustomerService {
         customer.setEmail(request.getEmail());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setFullName(request.getFullName());
-        customer.setBankName(request.getBankName());
-        customer.setBankAccountHolder(request.getBankAccountHolder());
-        
+
         return customerRepository.save(customer);
     }
     
