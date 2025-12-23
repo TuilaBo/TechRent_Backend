@@ -123,6 +123,35 @@ public class AdminDashboardController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/revenue")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Thống kê doanh thu", description = "Tính doanh thu theo ngày/tháng/năm. Bao gồm: tiền thuê, tiền phạt, tiền bồi thường, trừ đi tiền cọc trả lại")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về thống kê doanh thu"),
+            @ApiResponse(responseCode = "400", description = "Tham số không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Không thể thống kê do lỗi hệ thống")
+    })
+    public ResponseEntity<?> getRevenueStats(
+            @RequestParam int year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer day
+    ) {
+        if (day != null && month == null) {
+            return ResponseUtil.createErrorResponse(
+                    "Tham số không hợp lệ",
+                    "Không thể query theo ngày mà không có tháng",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+        RevenueStatsDto stats = dashboardService.getRevenueStats(year, month, day);
+        return ResponseUtil.createSuccessResponse(
+                "Thống kê doanh thu",
+                day != null ? "Doanh thu trong ngày" : (month != null ? "Doanh thu trong tháng" : "Doanh thu trong năm"),
+                stats,
+                HttpStatus.OK
+        );
+    }
 }
 
 

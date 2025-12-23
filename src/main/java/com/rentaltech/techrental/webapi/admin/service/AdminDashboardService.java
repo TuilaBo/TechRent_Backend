@@ -13,6 +13,8 @@ public interface AdminDashboardService {
     DamageStatsDto getDamageStats(int year, int month);
 
     OrderStatusStatsDto getOrderStatusStats(int year, int month);
+    
+    RevenueStatsDto getRevenueStats(int year, Integer month, Integer day);
 }
 
 
