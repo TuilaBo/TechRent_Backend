@@ -98,19 +98,8 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Không tìm thấy thông tin khách hàng cho tài khoản đang đăng nhập"));
                 authenticatedCustomerId = customer.getCustomerId();
                 effectiveCustomerId = authenticatedCustomerId;
-    }
-
-    private void validateOperatingHours(LocalDateTime dateTime, String label) {
-        if (dateTime == null) {
-            return;
+            }
         }
-        LocalTime time = dateTime.toLocalTime();
-        if (time.isBefore(ALLOWED_START_TIME) || time.isAfter(ALLOWED_END_TIME)) {
-            throw new IllegalArgumentException(String.format(
-                    "Thời gian dự kiến %s phải nằm trong khung từ 08:00 đến 19:00", label));
-        }
-    }
-}
 
         OrderStatus parsedStatus = null;
         if (orderStatus != null && !orderStatus.isBlank()) {
@@ -475,6 +464,17 @@ public class RentalOrderServiceImpl implements RentalOrderService {
                 .toList();
         dto.setExtensions(extensionDtos);
         return dto;
+    }
+
+    private void validateOperatingHours(LocalDateTime dateTime, String label) {
+        if (dateTime == null) {
+            return;
+        }
+        LocalTime time = dateTime.toLocalTime();
+        if (time.isBefore(ALLOWED_START_TIME) || time.isAfter(ALLOWED_END_TIME)) {
+            throw new IllegalArgumentException(String.format(
+                    "Thời gian dự kiến %s phải nằm trong khung từ 08:00 đến 19:00", label));
+        }
     }
 
     private List<DiscrepancyReport> loadOrderDiscrepancies(Long orderId) {

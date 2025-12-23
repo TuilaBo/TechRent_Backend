@@ -139,6 +139,7 @@ public class AdminDashboardController {
     ) {
         if (day != null && month == null) {
             return ResponseUtil.createErrorResponse(
+                    "Lỗi tham số",
                     "Tham số không hợp lệ",
                     "Không thể query theo ngày mà không có tháng",
                     HttpStatus.BAD_REQUEST
