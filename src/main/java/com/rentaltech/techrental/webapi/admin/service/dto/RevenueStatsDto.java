@@ -9,21 +9,19 @@ import java.math.BigDecimal;
 @Builder
 public class RevenueStatsDto {
     int year;
-    Integer month; // null nếu query theo ngày
-    Integer day; // null nếu query theo tháng
-    
-    // Tiền thuê (từ Invoice RENT_PAYMENT)
+    Integer month; // null nếu query theo năm
+    Integer day;   // null nếu query theo tháng/năm
+
+    // Tiền thuê (chỉ totalPrice, không bao gồm cọc)
     BigDecimal rentalRevenue;
-    
-    // Tiền phạt trả muộn (từ Settlement)
+
+    // Tiền phạt trả muộn (từ Settlement.lateFee)
     BigDecimal lateFeeRevenue;
-    
-    // Tiền bồi thường thiệt hại (từ Settlement)
+
+    // Tiền bồi thường thiệt hại (từ Settlement.damageFee)
     BigDecimal damageFeeRevenue;
-    
-    // Tiền cọc trả lại cho khách (từ Invoice DEPOSIT_REFUND)
-    BigDecimal depositRefund;
-    
-    // Tổng doanh thu = rental + lateFee + damageFee - depositRefund
+
+    // Tổng doanh thu = rental + lateFee + damageFee
     BigDecimal totalRevenue;
 }
+
