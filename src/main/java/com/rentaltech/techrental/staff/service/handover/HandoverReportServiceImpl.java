@@ -71,6 +71,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final DeviceConditionService deviceConditionService;
     private final SettlementService settlementService;
     private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
+    private final com.rentaltech.techrental.staff.repository.DeviceReplacementReportRepository deviceReplacementReportRepository;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -786,22 +787,140 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             log.warn("No order details found for order {}", rentalOrder.getOrderId());
             return List.of();
         }
+        
+        // Tìm DeviceReplacementReport để biết device nào đã được thay thế
+        Map<Long, Allocation> replacementAllocationMap = buildReplacementAllocationMap(rentalOrder.getOrderId());
+        
         return orderDetails.stream()
-                .map(HandoverReportItem::fromOrderDetail)
+                .map(orderDetail -> createHandoverItemFromOrderDetail(orderDetail, replacementAllocationMap))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+    
+    /**
+     * Tạo map: OrderDetailId -> Replacement Allocation (device mới sau khi thay)
+     * Dựa vào DeviceReplacementReport để biết device nào đã được thay thế
+     */
+    private Map<Long, Allocation> buildReplacementAllocationMap(Long orderId) {
+        Map<Long, Allocation> map = new HashMap<>();
+        if (orderId == null) {
+            return map;
+        }
+        
+        // Tìm tất cả DeviceReplacementReport của order
+        List<com.rentaltech.techrental.staff.model.DeviceReplacementReport> replacementReports =
+                deviceReplacementReportRepository.findByRentalOrder_OrderId(orderId);
+        
+        if (CollectionUtils.isEmpty(replacementReports)) {
+            return map;
+        }
+        
+        // Lấy replacement allocations (device mới, isOldDevice = false)
+        for (com.rentaltech.techrental.staff.model.DeviceReplacementReport report : replacementReports) {
+            if (report.getItems() == null) {
+                continue;
+            }
+            for (com.rentaltech.techrental.staff.model.DeviceReplacementReportItem item : report.getItems()) {
+                if (item.getIsOldDevice() != null && !item.getIsOldDevice() && item.getAllocation() != null) {
+                    Allocation replacementAllocation = item.getAllocation();
+                    OrderDetail orderDetail = replacementAllocation.getOrderDetail();
+                    if (orderDetail != null && orderDetail.getOrderDetailId() != null) {
+                        // Ưu tiên allocation mới nhất (nếu có nhiều replacement cho cùng OrderDetail)
+                        map.putIfAbsent(orderDetail.getOrderDetailId(), replacementAllocation);
+                    }
+                }
+            }
+        }
+        
+        return map;
+    }
+    
+    /**
+     * Tạo HandoverReportItem từ OrderDetail, tự động tìm Allocation ACTIVE
+     * Nếu có replacement, ưu tiên dùng replacement allocation
+     */
+    private HandoverReportItem createHandoverItemFromOrderDetail(OrderDetail orderDetail,
+                                                                 Map<Long, Allocation> replacementAllocationMap) {
+        if (orderDetail == null || orderDetail.getOrderDetailId() == null) {
+            return null;
+        }
+        
+        HandoverReportItem item = HandoverReportItem.builder().build();
+        
+        // Ưu tiên: dùng replacement allocation nếu có
+        Allocation allocation = replacementAllocationMap.get(orderDetail.getOrderDetailId());
+        
+        // Nếu không có replacement, tìm allocation ACTIVE của OrderDetail này
+        if (allocation == null) {
+            List<Allocation> allocations = allocationRepository.findByOrderDetail_OrderDetailId(orderDetail.getOrderDetailId());
+            allocation = allocations.stream()
+                    .filter(a -> a != null && "ACTIVE".equals(a.getStatus()))
+                    .findFirst()
+                    .orElse(null);
+        }
+        
+        // Nếu vẫn không có, log warning nhưng vẫn tạo item (allocation = null)
+        if (allocation == null) {
+            log.warn("No active allocation found for OrderDetail {} in order {}. HandoverReportItem will be created without allocation.",
+                    orderDetail.getOrderDetailId(), orderDetail.getRentalOrder() != null ? orderDetail.getRentalOrder().getOrderId() : null);
+        }
+        
+        item.setAllocation(allocation);
+        return item;
     }
 
     private HandoverReportItem mapDtoToItem(HandoverReportItemRequestDto itemDto, RentalOrder rentalOrder) {
         HandoverReportItem entity = HandoverReportItem.builder().build();
         if (itemDto.getDeviceId() != null && rentalOrder != null && rentalOrder.getOrderId() != null) {
-            Allocation allocation = allocationRepository
-                    .findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(rentalOrder.getOrderId(), itemDto.getDeviceId())
-                    .orElseThrow(() -> new NoSuchElementException(
-                            "Allocation not found for order " + rentalOrder.getOrderId() + " và device " + itemDto.getDeviceId()));
+            // Tìm allocation ACTIVE (không lấy RETURNED)
+            // Nếu có replacement, ưu tiên dùng replacement allocation
+            Allocation allocation = findActiveAllocationForDevice(rentalOrder.getOrderId(), itemDto.getDeviceId());
+            if (allocation == null) {
+                throw new NoSuchElementException(
+                        "No active allocation found for order " + rentalOrder.getOrderId() + " và device " + itemDto.getDeviceId() +
+                        ". Device may have been replaced or allocation is already returned.");
+            }
             entity.setAllocation(allocation);
         }
         entity.setEvidenceUrls(resolveItemEvidence(itemDto.getEvidenceUrls()));
         return entity;
+    }
+    
+    /**
+     * Tìm Allocation ACTIVE cho device trong order
+     * Ưu tiên: replacement allocation (từ DeviceReplacementReport) > allocation thường
+     */
+    private Allocation findActiveAllocationForDevice(Long orderId, Long deviceId) {
+        if (orderId == null || deviceId == null) {
+            return null;
+        }
+        
+        // Tìm trong replacement reports trước (device mới sau khi thay)
+        List<com.rentaltech.techrental.staff.model.DeviceReplacementReport> replacementReports =
+                deviceReplacementReportRepository.findByRentalOrder_OrderId(orderId);
+        
+        for (com.rentaltech.techrental.staff.model.DeviceReplacementReport report : replacementReports) {
+            if (report.getItems() == null) {
+                continue;
+            }
+            for (com.rentaltech.techrental.staff.model.DeviceReplacementReportItem item : report.getItems()) {
+                Allocation allocation = item.getAllocation();
+                if (allocation != null 
+                        && allocation.getDevice() != null 
+                        && deviceId.equals(allocation.getDevice().getDeviceId())
+                        && "ACTIVE".equals(allocation.getStatus())
+                        && (item.getIsOldDevice() == null || !item.getIsOldDevice())) {
+                    // Tìm thấy replacement allocation ACTIVE cho device này
+                    return allocation;
+                }
+            }
+        }
+        
+        // Nếu không có trong replacement, tìm allocation thường
+        return allocationRepository
+                .findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(orderId, deviceId)
+                .filter(a -> "ACTIVE".equals(a.getStatus()))
+                .orElse(null);
     }
 
     private List<String> resolveItemEvidence(List<String> evidences) {
