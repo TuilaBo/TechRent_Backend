@@ -81,6 +81,10 @@ class QCReportServiceImplTest {
     private CustomerComplaintRepository customerComplaintRepository;
     @Mock
     private DeviceReplacementReportService deviceReplacementReportService;
+    @Mock
+    private com.rentaltech.techrental.staff.service.taskservice.TaskService taskService;
+    @Mock
+    private com.rentaltech.techrental.staff.repository.TaskCategoryRepository taskCategoryRepository;
 
     private QCReportServiceImpl service;
 
@@ -107,7 +111,9 @@ class QCReportServiceImplTest {
                 discrepancyReportService,
                 discrepancyReportRepository,
                 customerComplaintRepository,
-                deviceReplacementReportService
+                deviceReplacementReportService,
+                taskService,
+                taskCategoryRepository
         );
     }
 

@@ -410,6 +410,9 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
         DeviceReplacementReport saved = replacementReportRepository.save(report);
         deletePinCode(key);
 
+        // Tự động đánh dấu task "Device Replacement" là hoàn thành khi cả staff và customer đã ký
+        markDeviceReplacementTaskCompleted(saved);
+
         return DeviceReplacementReportResponseDto.fromEntity(saved);
     }
 
@@ -682,6 +685,46 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
 
         boolean isExpired() {
             return System.currentTimeMillis() > expiryTime;
+        }
+    }
+
+    /**
+     * Tự động đánh dấu task "Device Replacement" là hoàn thành khi cả staff và customer đã ký biên bản
+     */
+    private void markDeviceReplacementTaskCompleted(DeviceReplacementReport report) {
+        if (report == null || report.getRentalOrder() == null) {
+            return;
+        }
+
+        RentalOrder order = report.getRentalOrder();
+        Long orderId = order.getOrderId();
+
+        // Tìm task "Device Replacement" cho order này
+        List<Task> deliveryTasks = taskRepository.findByOrderId(orderId).stream()
+                .filter(task -> {
+                    if (task.getStatus() == TaskStatus.COMPLETED) {
+                        return false; // Đã completed rồi, skip
+                    }
+                    String categoryName = task.getTaskCategory() != null ? task.getTaskCategory().getName() : null;
+                    return "Device Replacement".equalsIgnoreCase(categoryName);
+                })
+                .collect(Collectors.toList());
+
+        if (deliveryTasks.isEmpty()) {
+            log.debug("Không tìm thấy task Device Replacement pending cho order {} để đánh dấu completed", orderId);
+            return;
+        }
+
+        // Đánh dấu tất cả task "Device Replacement" pending là completed
+        LocalDateTime now = LocalDateTime.now();
+        for (Task task : deliveryTasks) {
+            task.setStatus(TaskStatus.COMPLETED);
+            if (task.getCompletedAt() == null) {
+                task.setCompletedAt(now);
+            }
+            taskRepository.save(task);
+            log.info("Đã đánh dấu task Device Replacement (taskId: {}) là COMPLETED sau khi customer ký biên bản replacement (reportId: {})",
+                    task.getTaskId(), report.getReplacementReportId());
         }
     }
 }

@@ -1,0 +1,22 @@
+{
+  "taskId": 100,
+  "result": "READY_FOR_SHIPPING",
+  "findings": "Device hoạt động tốt, không có lỗi. Tất cả chức năng đều bình thường.",
+  "orderDetailSerialNumbers": {
+    "50": ["DEVICE-SERIAL-001", "DEVICE-SERIAL-002"]
+  },
+  "deviceConditions": [
+    {
+      "deviceId": 999,
+      "conditionDefinitionId": 1,
+      "severity": "GOOD",
+      "images": []
+    },
+    {
+      "deviceId": 1000,
+      "conditionDefinitionId": 2,
+      "severity": "MINOR",
+      "images": ["https://cloudinary.com/image1.jpg", "https://cloudinary.com/image2.jpg"]
+    }
+  ]
+}

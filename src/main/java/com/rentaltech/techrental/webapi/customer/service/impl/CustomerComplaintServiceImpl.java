@@ -284,14 +284,21 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         replacementDevice.setStatus(DeviceStatus.PRE_RENTAL_QC);
         deviceRepository.save(replacementDevice);
 
-        // Tìm hoặc tạo TaskCategory "Pre rental QC"
-        TaskCategory qcCategory = taskCategoryRepository.findByName("Pre rental QC")
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy TaskCategory 'Pre rental QC'. Vui lòng tạo category này trước."));
+        // Tìm hoặc tạo TaskCategory "Pre rental QC Replace" (riêng cho complaint, phân biệt với QC ban đầu)
+        TaskCategory qcReplaceCategory = taskCategoryRepository.findByName("Pre rental QC Replace")
+                .orElseGet(() -> {
+                    // Tạo category mới nếu chưa có
+                    TaskCategory newCategory = TaskCategory.builder()
+                            .name("Pre rental QC Replace")
+                            .description("Pre-Rental QC cho device thay thế khi có complaint")
+                            .build();
+                    return taskCategoryRepository.save(newCategory);
+                });
 
-        // Tạo task Pre-Rental QC cho device replacement
-        // Technician sẽ dùng task này để tạo QC report và chọn device (có thể khác device suggested)
+        // Luôn tạo task mới với category "Pre rental QC Replace" cho complaint
+        // Không tái sử dụng task QC ban đầu để phân biệt rõ ràng
         TaskCreateRequestDto qcTaskRequest = TaskCreateRequestDto.builder()
-                .taskCategoryId(qcCategory.getTaskCategoryId())
+                .taskCategoryId(qcReplaceCategory.getTaskCategoryId())
                 .orderId(order.getOrderId())
                 .assignedStaffIds(null) // Không assign cho ai, để operator assign sau
                 .description(String.format("Pre-Rental QC cho device thay thế (Complaint #%d). Device hỏng: %s (Serial: %s). Device đề xuất: %s (Serial: %s). Technician có thể chọn device khác cùng model khi QC.",
@@ -303,7 +310,6 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .plannedStart(LocalDateTime.now())
                 .plannedEnd(LocalDateTime.now().plusHours(6)) // Deadline 6h cho QC
                 .build();
-
         Task qcTask = taskService.createTask(qcTaskRequest, username);
 
         // Update complaint
@@ -324,6 +330,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
+        complaintRepository.flush(); // Flush để đảm bảo complaint được save trước khi query
         
         // KHÔNG tạo biên bản ngay lúc này vì chưa có allocation
         // Biên bản sẽ được tạo sau khi QC pass và allocation được tạo
@@ -505,12 +512,15 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         CustomerComplaint saved = complaintRepository.save(complaint);
 
-        // Tự động update task status thành COMPLETED
+        // Tự động update task "Pre rental QC" status thành COMPLETED
         if (replacementTask != null && replacementTask.getTaskId() != null) {
             replacementTask.setStatus(TaskStatus.COMPLETED);
             replacementTask.setCompletedAt(LocalDateTime.now());
             taskRepository.save(replacementTask);
         }
+
+        // Tự động đánh dấu task "Device Replacement" là hoàn thành (nếu chưa complete)
+        markDeviceReplacementTaskCompleted(saved);
 
         return buildComplaintResponseDto(saved);
     }
@@ -563,6 +573,44 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                 .filter(device -> device.getStatus() == DeviceStatus.AVAILABLE)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Tự động đánh dấu task "Device Replacement" là hoàn thành khi resolve complaint
+     * (Đảm bảo task được complete nếu chưa complete từ lúc customer ký biên bản)
+     */
+    private void markDeviceReplacementTaskCompleted(CustomerComplaint complaint) {
+        if (complaint == null || complaint.getRentalOrder() == null) {
+            return;
+        }
+
+        RentalOrder order = complaint.getRentalOrder();
+        Long orderId = order.getOrderId();
+
+        // Tìm task "Device Replacement" cho order này
+        List<Task> deliveryTasks = taskRepository.findByOrderId(orderId).stream()
+                .filter(task -> {
+                    if (task.getStatus() == TaskStatus.COMPLETED) {
+                        return false; // Đã completed rồi, skip
+                    }
+                    String categoryName = task.getTaskCategory() != null ? task.getTaskCategory().getName() : null;
+                    return "Device Replacement".equalsIgnoreCase(categoryName);
+                })
+                .collect(Collectors.toList());
+
+        if (deliveryTasks.isEmpty()) {
+            return; // Không có task pending, có thể đã complete từ lúc customer ký
+        }
+
+        // Đánh dấu tất cả task "Device Replacement" pending là completed
+        LocalDateTime now = LocalDateTime.now();
+        for (Task task : deliveryTasks) {
+            task.setStatus(TaskStatus.COMPLETED);
+            if (task.getCompletedAt() == null) {
+                task.setCompletedAt(now);
+            }
+            taskRepository.save(task);
+        }
     }
 
 }
