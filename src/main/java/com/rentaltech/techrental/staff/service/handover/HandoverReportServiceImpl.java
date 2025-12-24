@@ -850,11 +850,11 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         // Ưu tiên: dùng replacement allocation nếu có
         Allocation allocation = replacementAllocationMap.get(orderDetail.getOrderDetailId());
         
-        // Nếu không có replacement, tìm allocation ACTIVE của OrderDetail này
+        // Nếu không có replacement, tìm allocation ACTIVE hoặc ALLOCATED của OrderDetail này
         if (allocation == null) {
             List<Allocation> allocations = allocationRepository.findByOrderDetail_OrderDetailId(orderDetail.getOrderDetailId());
             allocation = allocations.stream()
-                    .filter(a -> a != null && "ACTIVE".equals(a.getStatus()))
+                    .filter(a -> a != null && ("ACTIVE".equals(a.getStatus()) || "ALLOCATED".equals(a.getStatus())))
                     .findFirst()
                     .orElse(null);
         }
@@ -876,9 +876,11 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             // Nếu có replacement, ưu tiên dùng replacement allocation
             Allocation allocation = findActiveAllocationForDevice(rentalOrder.getOrderId(), itemDto.getDeviceId());
             if (allocation == null) {
-                throw new NoSuchElementException(
-                        "No active allocation found for order " + rentalOrder.getOrderId() + " và device " + itemDto.getDeviceId() +
-                        ". Device may have been replaced or allocation is already returned.");
+                // Log warning nhưng vẫn tạo item (allocation = null)
+                // Cho phép handover report được tạo ngay cả khi không tìm thấy allocation
+                // (có thể do device đã được thay thế, allocation đã return, hoặc data inconsistency)
+                log.warn("No active allocation found for order {} và device {}. HandoverReportItem will be created without allocation. Device may have been replaced or allocation is already returned.",
+                        rentalOrder.getOrderId(), itemDto.getDeviceId());
             }
             entity.setAllocation(allocation);
         }
@@ -887,8 +889,12 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     }
     
     /**
-     * Tìm Allocation ACTIVE cho device trong order
+     * Tìm Allocation ACTIVE hoặc ALLOCATED cho device trong order
      * Ưu tiên: replacement allocation (từ DeviceReplacementReport) > allocation thường
+     * 
+     * Note: Pre-rental QC tạo allocation với status "ALLOCATED", 
+     * sau đó có thể chuyển sang "ACTIVE" khi checkout. 
+     * Cả 2 status đều hợp lệ cho checkout handover.
      */
     private Allocation findActiveAllocationForDevice(Long orderId, Long deviceId) {
         if (orderId == null || deviceId == null) {
@@ -908,9 +914,9 @@ public class HandoverReportServiceImpl implements HandoverReportService {
                 if (allocation != null 
                         && allocation.getDevice() != null 
                         && deviceId.equals(allocation.getDevice().getDeviceId())
-                        && "ACTIVE".equals(allocation.getStatus())
+                        && ("ACTIVE".equals(allocation.getStatus()) || "ALLOCATED".equals(allocation.getStatus()))
                         && (item.getIsOldDevice() == null || !item.getIsOldDevice())) {
-                    // Tìm thấy replacement allocation ACTIVE cho device này
+                    // Tìm thấy replacement allocation ACTIVE/ALLOCATED cho device này
                     return allocation;
                 }
             }
@@ -919,7 +925,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
         // Nếu không có trong replacement, tìm allocation thường
         return allocationRepository
                 .findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(orderId, deviceId)
-                .filter(a -> "ACTIVE".equals(a.getStatus()))
+                .filter(a -> "ACTIVE".equals(a.getStatus()) || "ALLOCATED".equals(a.getStatus()))
                 .orElse(null);
     }
 

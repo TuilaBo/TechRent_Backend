@@ -549,8 +549,78 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Contract updateContract(Long contractId, ContractCreateRequestDto request, Long updatedBy) {
-        // Implementation
-        return null;
+        try {
+            // Lấy hợp đồng hiện tại
+            Contract contract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + contractId));
+            
+            // Chỉ cho phép update khi contract ở trạng thái DRAFT
+            if (contract.getStatus() != ContractStatus.DRAFT) {
+                throw new RuntimeException(
+                    "Chỉ có thể chỉnh sửa hợp đồng ở trạng thái DRAFT. " +
+                    "Trạng thái hiện tại: " + contract.getStatus().getDisplayName() + 
+                    ". Không thể chỉnh sửa hợp đồng đã bắt đầu quy trình ký hoặc đã ký."
+                );
+            }
+            
+            // Cập nhật các field từ request
+            if (request.getTitle() != null) {
+                contract.setTitle(request.getTitle());
+            }
+            if (request.getDescription() != null) {
+                contract.setDescription(request.getDescription());
+            }
+            if (request.getContractType() != null) {
+                contract.setContractType(request.getContractType());
+            }
+            if (request.getContractContent() != null) {
+                contract.setContractContent(request.getContractContent());
+            }
+            if (request.getTermsAndConditions() != null) {
+                contract.setTermsAndConditions(request.getTermsAndConditions());
+            }
+            if (request.getRentalPeriodDays() != null) {
+                contract.setRentalPeriodDays(request.getRentalPeriodDays());
+            }
+            if (request.getTotalAmount() != null) {
+                contract.setTotalAmount(request.getTotalAmount());
+            }
+            if (request.getDepositAmount() != null) {
+                contract.setDepositAmount(request.getDepositAmount());
+            }
+            if (request.getStartDate() != null) {
+                contract.setStartDate(request.getStartDate());
+            }
+            if (request.getEndDate() != null) {
+                contract.setEndDate(request.getEndDate());
+            }
+            if (request.getExpiresAt() != null) {
+                contract.setExpiresAt(request.getExpiresAt());
+            }
+            
+            // Nếu có orderId, enrich terms như trong createContract
+            if (request.getOrderId() != null) {
+                RentalOrder linkedOrder = rentalOrderRepository.findById(request.getOrderId()).orElse(null);
+                if (linkedOrder != null) {
+                    List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(request.getOrderId());
+                    String enrichedTerms = appendDeviceTerms(contract.getTermsAndConditions(), linkedOrder, orderDetails);
+                    contract.setTermsAndConditions(enrichedTerms);
+                }
+                contract.setOrderId(request.getOrderId());
+            }
+            
+            // Cập nhật thông tin người chỉnh sửa
+            contract.setUpdatedBy(updatedBy);
+            contract.setUpdatedAt(LocalDateTime.now());
+            
+            // Lưu vào database
+            return contractRepository.save(contract);
+            
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể cập nhật hợp đồng: " + e.getMessage());
+        }
     }
 
     /**
@@ -562,6 +632,37 @@ public class ContractServiceImpl implements ContractService {
             // Lấy thông tin đơn thuê
             RentalOrder order = rentalOrderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn thuê với ID: " + orderId));
+            
+            // Kiểm tra xem đã có contract ACTIVE hoặc SIGNED cho order này chưa
+            List<Contract> existingContracts = contractRepository.findByOrderId(orderId);
+            boolean hasActiveContract = existingContracts.stream()
+                    .anyMatch(c -> c.getStatus() == ContractStatus.ACTIVE || c.getStatus() == ContractStatus.SIGNED);
+            
+            if (hasActiveContract) {
+                throw new RuntimeException(
+                    "Đơn thuê này đã có hợp đồng đang có hiệu lực (ACTIVE/SIGNED). " +
+                    "Không thể tạo hợp đồng mới. Vui lòng hủy hợp đồng cũ trước."
+                );
+            }
+            
+            // Tự động cancel các contract DRAFT cũ của order này
+            List<Contract> draftContracts = existingContracts.stream()
+                    .filter(c -> c.getStatus() == ContractStatus.DRAFT)
+                    .collect(Collectors.toList());
+            
+            for (Contract draftContract : draftContracts) {
+                try {
+                    draftContract.setStatus(ContractStatus.CANCELLED);
+                    draftContract.setUpdatedBy(createdBy);
+                    draftContract.setUpdatedAt(LocalDateTime.now());
+                    String currentDesc = draftContract.getDescription() != null ? draftContract.getDescription() : "";
+                    draftContract.setDescription(currentDesc + "\n\n[Đã hủy tự động] Được thay thế bởi hợp đồng mới.");
+                    contractRepository.save(draftContract);
+                    log.info("Đã tự động hủy hợp đồng DRAFT cũ: {}", draftContract.getContractNumber());
+                } catch (Exception e) {
+                    log.warn("Không thể hủy hợp đồng DRAFT cũ {}: {}", draftContract.getContractId(), e.getMessage());
+                }
+            }
             
             // Lấy chi tiết đơn thuê
             List<OrderDetail> orderDetails = orderDetailRepository.findByRentalOrder_OrderId(orderId);
@@ -762,8 +863,36 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Contract cancelContract(Long contractId, String reason, Long cancelledBy) {
-        // Implementation
-        return null;
+        try {
+            Contract contract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng với ID: " + contractId));
+            
+            // Không cho phép cancel contract đã ACTIVE hoặc SIGNED
+            if (contract.getStatus() == ContractStatus.ACTIVE || contract.getStatus() == ContractStatus.SIGNED) {
+                throw new RuntimeException(
+                    "Không thể hủy hợp đồng ở trạng thái " + contract.getStatus().getDisplayName() + 
+                    ". Chỉ có thể hủy hợp đồng chưa có hiệu lực."
+                );
+            }
+            
+            // Set status thành CANCELLED
+            contract.setStatus(ContractStatus.CANCELLED);
+            contract.setUpdatedBy(cancelledBy);
+            contract.setUpdatedAt(LocalDateTime.now());
+            
+            // Lưu lý do hủy vào description nếu có
+            if (reason != null && !reason.trim().isEmpty()) {
+                String currentDesc = contract.getDescription() != null ? contract.getDescription() : "";
+                contract.setDescription(currentDesc + "\n\n[Đã hủy] Lý do: " + reason);
+            }
+            
+            return contractRepository.save(contract);
+            
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể hủy hợp đồng: " + e.getMessage());
+        }
     }
 
     @Override
