@@ -118,7 +118,7 @@ public class QCReportServiceImpl implements QCReportService {
         Map<OrderDetail, List<String>> orderDetailSerials = resolveOrderDetails(task, orderDetailSerialNumbers);
         RentalOrder rentalOrder = determineRentalOrder(task, orderDetailSerials);
         if (phase == QCPhase.PRE_RENTAL) {
-            ensureRentalOrderProcessing(rentalOrder);
+            ensureRentalOrderProcessing(rentalOrder, task);
         }
 
         QCReport qcReport = QCReport.builder()
@@ -137,19 +137,25 @@ public class QCReportServiceImpl implements QCReportService {
             createPostRentalSnapshots(orderDetailSerials, currentStaff);
         }
 
-        List<Allocation> allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
-        if (!allocations.isEmpty()) {
-            saved.setAllocations(new ArrayList<>(allocations));
-            bookingCalendarService.createBookingsForAllocations(allocations);
-            extendReservationHold(task, allocations, saved.getResult());
-            
-            // Nếu là PRE_RENTAL và có allocation → update complaint nếu task này là replacement task
-            if (phase == QCPhase.PRE_RENTAL) {
-                updateComplaintAfterQcAllocation(task, allocations);
+        List<Allocation> allocations = new ArrayList<>();
+        
+        // Chỉ tạo allocation khi QC PASS (READY_FOR_SHIPPING)
+        if (result == QCResult.READY_FOR_SHIPPING) {
+            allocations = createAllocationsIfNeeded(saved, orderDetailSerials);
+            if (!allocations.isEmpty()) {
+                saved.setAllocations(new ArrayList<>(allocations));
+                bookingCalendarService.createBookingsForAllocations(allocations);
+                extendReservationHold(task, allocations, saved.getResult());
+                
+                // Nếu là PRE_RENTAL và có allocation → update complaint nếu task này là replacement task
+                if (phase == QCPhase.PRE_RENTAL) {
+                    updateComplaintAfterQcAllocation(task, allocations);
+                    createBaselineSnapshots(allocations, deviceConditions, currentStaff);
+                }
             }
-        }
-        if (phase == QCPhase.PRE_RENTAL) {
-            createBaselineSnapshots(allocations, deviceConditions, currentStaff);
+        } else if (phase == QCPhase.PRE_RENTAL && result == QCResult.PRE_RENTAL_FAILED) {
+            // Xử lý khi QC FAILED: reset device status và complaint
+            handlePreRentalQcFailed(task, orderDetailSerials);
         }
         if (!CollectionUtils.isEmpty(discrepancies)) {
             handleDiscrepancies(discrepancies, DiscrepancyCreatedFrom.QC_REPORT, saved.getQcReportId(), currentStaff);
@@ -239,7 +245,7 @@ public class QCReportServiceImpl implements QCReportService {
 
         RentalOrder rentalOrder = resolveRentalOrderForReport(report);
         if (phase == QCPhase.PRE_RENTAL) {
-            ensureRentalOrderProcessing(rentalOrder);
+            ensureRentalOrderProcessing(rentalOrder, report.getTask());
         }
         report.setRentalOrder(rentalOrder);
 
@@ -282,7 +288,7 @@ public class QCReportServiceImpl implements QCReportService {
                 throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation");
             }
             RentalOrder rentalOrder = determineRentalOrder(report.getTask(), resolved);
-            ensureRentalOrderProcessing(rentalOrder);
+            ensureRentalOrderProcessing(rentalOrder, report.getTask());
             report.setRentalOrder(rentalOrder);
             if (report.getTask() != null && report.getTask().getOrderId() != null) {
                 bookingCalendarService.clearBookingsForOrder(report.getTask().getOrderId());
@@ -946,10 +952,23 @@ public class QCReportServiceImpl implements QCReportService {
                 .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đơn hàng với id: " + task.getOrderId()));
     }
 
-    private void ensureRentalOrderProcessing(RentalOrder rentalOrder) {
+    private void ensureRentalOrderProcessing(RentalOrder rentalOrder, Task task) {
         if (rentalOrder == null) {
             throw new IllegalStateException("Không xác định được đơn hàng gắn với báo cáo QC");
         }
+        
+        // Nếu task này là replacement task (gắn với complaint) → cho phép QC ngay cả khi order không ở PROCESSING
+        // Vì complaint có thể xảy ra sau khi đã giao hàng (order ở ACTIVE/RENTED)
+        if (task != null && task.getTaskId() != null) {
+            List<CustomerComplaint> complaints = customerComplaintRepository.findByReplacementTask_TaskId(task.getTaskId());
+            if (complaints != null && !complaints.isEmpty()) {
+                // Đây là replacement task → bỏ qua validation order status
+                log.debug("Task {} là replacement task cho complaint, cho phép PRE_RENTAL QC ngay cả khi order không ở PROCESSING", task.getTaskId());
+                return;
+            }
+        }
+        
+        // Validation bình thường cho PRE_RENTAL QC của order mới
         OrderStatus status = rentalOrder.getOrderStatus();
         if (status != OrderStatus.PROCESSING) {
             throw new IllegalStateException("Không thể tạo/cập nhật báo cáo QC khi đơn hàng không ở trạng thái PROCESSING");
@@ -1019,6 +1038,58 @@ public class QCReportServiceImpl implements QCReportService {
                         .orElse(null));
         if (orderId != null) {
             reservationService.moveToUnderReview(orderId);
+        }
+    }
+
+    /**
+     * Xử lý khi PRE_RENTAL QC failed:
+     * - Reset device status về AVAILABLE
+     * - Reset complaint suggested device về AVAILABLE nếu là replacement task
+     */
+    private void handlePreRentalQcFailed(Task task, Map<OrderDetail, List<String>> orderDetailSerials) {
+        if (task == null || task.getTaskId() == null) {
+            return;
+        }
+
+        // Reset device status về AVAILABLE
+        Set<Device> devicesToReset = new LinkedHashSet<>();
+        if (orderDetailSerials != null && !orderDetailSerials.isEmpty()) {
+            orderDetailSerials.forEach((orderDetail, serialNumbers) -> {
+                if (serialNumbers != null) {
+                    serialNumbers.forEach(serial -> {
+                        if (serial != null && !serial.isBlank()) {
+                            deviceRepository.findBySerialNumber(serial).ifPresent(device -> {
+                                if (device.getStatus() == DeviceStatus.PRE_RENTAL_QC) {
+                                    device.setStatus(DeviceStatus.AVAILABLE);
+                                    devicesToReset.add(device);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Reset complaint suggested device nếu là replacement task
+        List<CustomerComplaint> complaints = customerComplaintRepository.findByReplacementTask_TaskId(task.getTaskId());
+        if (complaints != null && !complaints.isEmpty()) {
+            for (CustomerComplaint complaint : complaints) {
+                if (complaint != null && complaint.getReplacementDevice() != null) {
+                    Device suggestedDevice = complaint.getReplacementDevice();
+                    if (suggestedDevice.getStatus() == DeviceStatus.PRE_RENTAL_QC) {
+                        suggestedDevice.setStatus(DeviceStatus.AVAILABLE);
+                        devicesToReset.add(suggestedDevice);
+                        log.info("Reset suggested device {} về AVAILABLE vì PRE_RENTAL QC failed cho complaint #{}",
+                                suggestedDevice.getSerialNumber(), complaint.getComplaintId());
+                    }
+                }
+            }
+        }
+
+        if (!devicesToReset.isEmpty()) {
+            deviceRepository.saveAll(devicesToReset);
+            deviceRepository.flush();
+            log.info("Đã reset {} device về AVAILABLE sau khi PRE_RENTAL QC failed cho task {}", devicesToReset.size(), task.getTaskId());
         }
     }
 
