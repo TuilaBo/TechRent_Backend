@@ -21,6 +21,12 @@ public class RevenueStatsDto {
     // Tiền bồi thường thiệt hại (từ Settlement.damageFee)
     BigDecimal damageFeeRevenue;
 
+    // Tiền cọc nhận vào (từ invoice RENT_PAYMENT, phần deposit)
+    BigDecimal depositInbound;
+
+    // Tiền cọc hoàn trả cho khách (invoice DEPOSIT_REFUND)
+    BigDecimal depositOutbound;
+
     // Tổng doanh thu = rental + lateFee + damageFee
     BigDecimal totalRevenue;
 }

@@ -42,6 +42,22 @@ public interface RentalOrderRepository extends JpaRepository<RentalOrder, Long>,
     BigDecimal sumTotalPriceByInvoiceTypeAndPaymentDateRange(@Param("type") InvoiceType type,
                                                              @Param("start") LocalDateTime start,
                                                              @Param("end") LocalDateTime end);
+
+    /**
+     * Tính tổng tiền cọc đã nhận cho các đơn có invoice RENT_PAYMENT hoàn tất.
+     */
+    @Query("""
+            SELECT COALESCE(SUM(ro.depositAmount), 0)
+            FROM RentalOrder ro
+            JOIN Invoice i ON i.rentalOrder = ro
+            WHERE i.invoiceType = :type
+              AND i.invoiceStatus = com.rentaltech.techrental.finance.model.InvoiceStatus.SUCCEEDED
+              AND i.paymentDate IS NOT NULL
+              AND i.paymentDate BETWEEN :start AND :end
+            """)
+    BigDecimal sumDepositAmountByInvoiceTypeAndPaymentDateRange(@Param("type") InvoiceType type,
+                                                                @Param("start") LocalDateTime start,
+                                                                @Param("end") LocalDateTime end);
     @Query("""
             SELECT ro FROM RentalOrder ro
             WHERE ro.orderId = COALESCE(:orderId, ro.orderId)

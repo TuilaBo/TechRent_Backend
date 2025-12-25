@@ -396,7 +396,9 @@ public class RentalOrderServiceImpl implements RentalOrderService {
         if (existingDetails.isEmpty()) {
             throw new IllegalStateException("Không tìm thấy chi tiết đơn thuê để gia hạn");
         }
-        long extensionDays = ChronoUnit.DAYS.between(extensionStart, extensionEnd);
+        long extensionDays = ChronoUnit.DAYS.between(
+                extensionStart.toLocalDate(),
+                extensionEnd.toLocalDate());
         if (extensionDays <= 0) {
             throw new IllegalArgumentException("Khoảng thời gian gia hạn không hợp lệ");
         }

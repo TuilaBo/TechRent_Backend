@@ -4,6 +4,7 @@ import com.rentaltech.techrental.device.model.DiscrepancyType;
 import com.rentaltech.techrental.device.repository.DeviceRepository;
 import com.rentaltech.techrental.device.repository.DiscrepancyReportRepository;
 import com.rentaltech.techrental.finance.model.InvoiceType;
+import com.rentaltech.techrental.finance.repository.InvoiceRepository;
 import com.rentaltech.techrental.rentalorder.model.OrderStatus;
 import com.rentaltech.techrental.rentalorder.repository.RentalOrderRepository;
 import com.rentaltech.techrental.staff.model.Settlement;
@@ -26,6 +27,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final DeviceRepository deviceRepository;
     private final DiscrepancyReportRepository discrepancyReportRepository;
     private final SettlementRepository settlementRepository;
+    private final InvoiceRepository invoiceRepository;
     private final RentalOrderRepository rentalOrderRepository;
 
     @Override
@@ -141,6 +143,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .sumTotalPriceByInvoiceTypeAndPaymentDateRange(InvoiceType.RENT_PAYMENT, start, end);
         if (rentalRevenue == null) rentalRevenue = BigDecimal.ZERO;
 
+        // Tiền cọc nhận vào: đi cùng invoice RENT_PAYMENT
+        BigDecimal depositInbound = rentalOrderRepository
+                .sumDepositAmountByInvoiceTypeAndPaymentDateRange(InvoiceType.RENT_PAYMENT, start, end);
+        if (depositInbound == null) depositInbound = BigDecimal.ZERO;
+
         // Tiền phạt và bồi thường: lấy từ Settlement trong khoảng issuedAt
         List<Settlement> settlements = settlementRepository.findByIssuedAtBetween(start, end);
         BigDecimal lateFeeRevenue = settlements.stream()
@@ -152,6 +159,10 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .map(Settlement::getDamageFee)
                 .filter(fee -> fee != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal depositOutbound = invoiceRepository
+                .sumTotalAmountByTypeAndPaymentDateRange(InvoiceType.DEPOSIT_REFUND, start, end);
+        if (depositOutbound == null) depositOutbound = BigDecimal.ZERO;
 
         // Tổng doanh thu = tiền thuê + tiền phạt + tiền bồi thường
         BigDecimal totalRevenue = rentalRevenue
@@ -165,6 +176,8 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .rentalRevenue(rentalRevenue)
                 .lateFeeRevenue(lateFeeRevenue)
                 .damageFeeRevenue(damageFeeRevenue)
+                .depositInbound(depositInbound)
+                .depositOutbound(depositOutbound)
                 .totalRevenue(totalRevenue)
                 .build();
     }
