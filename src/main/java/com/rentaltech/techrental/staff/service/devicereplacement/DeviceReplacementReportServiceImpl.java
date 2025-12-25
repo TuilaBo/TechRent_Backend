@@ -86,6 +86,12 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
     @Override
     @Transactional
     public DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername) {
+        return createDeviceReplacementReport(complaintId, staffUsername, null);
+    }
+
+    @Override
+    @Transactional
+    public DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername, Task deviceReplacementTask) {
         CustomerComplaint complaint = 
                 customerComplaintRepository.findById(complaintId)
                 .orElseThrow(() -> new IllegalArgumentException("Customer complaint not found: " + complaintId));
@@ -94,14 +100,33 @@ public class DeviceReplacementReportServiceImpl implements DeviceReplacementRepo
             throw new IllegalStateException("Chỉ có thể tạo biên bản đổi thiết bị khi complaint ở trạng thái PROCESSING");
         }
 
-        Task task = complaint.getReplacementTask();
-        if (task == null || task.getTaskId() == null) {
-            throw new IllegalStateException("Complaint chưa có replacement task");
-        }
-
         RentalOrder rentalOrder = complaint.getRentalOrder();
         if (rentalOrder == null) {
             throw new IllegalStateException("Complaint chưa có rental order");
+        }
+
+        // Ưu tiên dùng task "Device Replacement" được truyền vào, nếu không có thì tìm từ order
+        Task task = deviceReplacementTask;
+        if (task == null || task.getTaskId() == null) {
+            // Tìm task "Device Replacement" của order này
+            task = taskRepository.findByOrderId(rentalOrder.getOrderId()).stream()
+                    .filter(t -> {
+                        String categoryName = t.getTaskCategory() != null ? t.getTaskCategory().getName() : null;
+                        return "Device Replacement".equalsIgnoreCase(categoryName) 
+                                && (t.getStatus() == TaskStatus.PENDING || t.getStatus() == TaskStatus.IN_PROGRESS);
+                    })
+                    .findFirst()
+                    .orElse(null);
+            
+            // Nếu vẫn không tìm thấy, fallback về replacementTask của complaint (Pre rental QC Replace)
+            if (task == null) {
+                task = complaint.getReplacementTask();
+                if (task == null || task.getTaskId() == null) {
+                    throw new IllegalStateException("Complaint chưa có replacement task và không tìm thấy task Device Replacement cho order");
+                }
+                log.warn("Không tìm thấy task Device Replacement cho order {}, sử dụng task Pre rental QC Replace (taskId: {})", 
+                        rentalOrder.getOrderId(), task.getTaskId());
+            }
         }
 
         Allocation oldAllocation = complaint.getAllocation();

@@ -264,10 +264,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             throw new IllegalStateException("Không tìm thấy OrderDetail cho allocation");
         }
 
-        // Tìm device thay thế (cùng model, available trong toàn bộ khoảng thời gian của order)
-        // Cần check từ startDate đến endDate để đảm bảo device không bị booking bởi order khác
+        // Tìm device thay thế (cùng model với broken device, available trong toàn bộ khoảng thời gian của order)
+        // QUAN TRỌNG: Dùng model từ broken device, không phải OrderDetail
+        // Vì replacement device phải cùng model với broken device, không nhất thiết cùng model với OrderDetail
+        if (brokenDevice.getDeviceModel() == null || brokenDevice.getDeviceModel().getDeviceModelId() == null) {
+            throw new IllegalStateException("Broken device không có model. Không thể tìm device thay thế.");
+        }
         Device replacementDevice = findReplacementDevice(
-                orderDetail.getDeviceModel().getDeviceModelId(),
+                brokenDevice.getDeviceModel().getDeviceModelId(),  // ← Dùng model từ broken device
                 order.getEffectiveStartDate(),
                 order.getEffectiveEndDate()
         );

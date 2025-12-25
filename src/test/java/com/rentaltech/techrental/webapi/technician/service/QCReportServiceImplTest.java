@@ -80,6 +80,8 @@ class QCReportServiceImplTest {
     @Mock
     private CustomerComplaintRepository customerComplaintRepository;
     @Mock
+    private com.rentaltech.techrental.staff.repository.DeviceReplacementReportItemRepository deviceReplacementReportItemRepository;
+    @Mock
     private DeviceReplacementReportService deviceReplacementReportService;
     @Mock
     private com.rentaltech.techrental.staff.service.taskservice.TaskService taskService;
@@ -109,6 +111,7 @@ class QCReportServiceImplTest {
                 rentalOrderRepository,
                 messagingTemplate,
                 discrepancyReportService,
+                deviceReplacementReportItemRepository,
                 discrepancyReportRepository,
                 customerComplaintRepository,
                 deviceReplacementReportService,

@@ -78,6 +78,7 @@ public class QCReportServiceImpl implements QCReportService {
     private final RentalOrderRepository rentalOrderRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final DiscrepancyReportService discrepancyReportService;
+    private final com.rentaltech.techrental.staff.repository.DeviceReplacementReportItemRepository deviceReplacementReportItemRepository;
     private final DiscrepancyReportRepository discrepancyReportRepository;
     private final CustomerComplaintRepository customerComplaintRepository;
     private final DeviceReplacementReportService deviceReplacementReportService;
@@ -736,7 +737,49 @@ public class QCReportServiceImpl implements QCReportService {
             return;
         }
         existing.forEach(this::removeExistingQcBaselineSnapshots);
-        allocationRepository.deleteAll(existing);
+        
+        // Không xóa allocations đang được reference bởi device_replacement_report_item
+        // Chỉ update status thành RETURNED để tránh foreign key constraint
+        LocalDateTime now = LocalDateTime.now();
+        List<Allocation> toDelete = new ArrayList<>();
+        for (Allocation allocation : existing) {
+            if (allocation == null || allocation.getAllocationId() == null) {
+                continue;
+            }
+            // Check xem allocation có đang được reference không
+            // 1. Check device_replacement_report_item
+            List<com.rentaltech.techrental.staff.model.DeviceReplacementReportItem> referencedItems = 
+                    deviceReplacementReportItemRepository.findByAllocation_AllocationId(allocation.getAllocationId());
+            
+            // 2. Check customer_complaint (replacement_allocation_id)
+            List<CustomerComplaint> complaintsWithAllocation = 
+                    customerComplaintRepository.findByReplacementAllocation_AllocationId(allocation.getAllocationId());
+            
+            boolean isReferenced = (referencedItems != null && !referencedItems.isEmpty()) ||
+                                  (complaintsWithAllocation != null && !complaintsWithAllocation.isEmpty());
+            
+            if (isReferenced) {
+                // Allocation đang được reference → chỉ update status, không xóa
+                if (!"RETURNED".equals(allocation.getStatus())) {
+                    allocation.setStatus("RETURNED");
+                    allocation.setReturnedAt(now);
+                    String notes = allocation.getNotes() != null ? allocation.getNotes() : "";
+                    allocation.setNotes(notes + (notes.isEmpty() ? "" : "\n") + 
+                            "Allocation được thay thế khi update QC report #" + report.getQcReportId());
+                    allocationRepository.save(allocation);
+                    log.debug("Allocation {} đang được reference (device_replacement_report_item hoặc customer_complaint), chỉ update status thành RETURNED", 
+                            allocation.getAllocationId());
+                }
+            } else {
+                // Allocation không được reference → có thể xóa
+                toDelete.add(allocation);
+            }
+        }
+        
+        // Chỉ xóa allocations không được reference
+        if (!toDelete.isEmpty()) {
+            allocationRepository.deleteAll(toDelete);
+        }
         allocationRepository.flush();
         if (report.getAllocations() != null) {
             report.getAllocations().clear();
@@ -772,6 +815,34 @@ public class QCReportServiceImpl implements QCReportService {
     private List<Allocation> createAllocations(QCReport report, Map<OrderDetail, List<String>> orderDetailSerials) {
         List<Allocation> allocations = new ArrayList<>();
         Set<Device> devicesToUpdate = new LinkedHashSet<>();
+        
+        // Check xem task này có phải là replacement task cho complaint không
+        Task task = report.getTask();
+        final boolean isComplaintReplacementTask;
+        final Long expectedModelForComplaint;
+        if (task != null && task.getTaskId() != null) {
+            List<CustomerComplaint> complaints = customerComplaintRepository.findByReplacementTask_TaskId(task.getTaskId());
+            if (complaints != null && !complaints.isEmpty()) {
+                isComplaintReplacementTask = true;
+                // Lấy model từ broken device của complaint đầu tiên
+                CustomerComplaint firstComplaint = complaints.get(0);
+                if (firstComplaint != null && firstComplaint.getDevice() != null 
+                        && firstComplaint.getDevice().getDeviceModel() != null) {
+                    expectedModelForComplaint = firstComplaint.getDevice().getDeviceModel().getDeviceModelId();
+                    log.debug("Task {} là replacement task cho complaint, expected model từ broken device: {}", 
+                            task.getTaskId(), expectedModelForComplaint);
+                } else {
+                    expectedModelForComplaint = null;
+                }
+            } else {
+                isComplaintReplacementTask = false;
+                expectedModelForComplaint = null;
+            }
+        } else {
+            isComplaintReplacementTask = false;
+            expectedModelForComplaint = null;
+        }
+        
         orderDetailSerials.forEach((orderDetail, serialNumbers) -> {
             if (serialNumbers == null || serialNumbers.isEmpty()) {
                 throw new IllegalArgumentException("Cần cung cấp danh sách thiết bị để tạo allocation cho order detail "
@@ -780,13 +851,27 @@ public class QCReportServiceImpl implements QCReportService {
             for (String serial : serialNumbers) {
                 Device device = deviceRepository.findBySerialNumber(serial)
                         .orElseThrow(() -> new NoSuchElementException("Không tìm thấy thiết bị với serial: " + serial));
-                if (orderDetail != null && orderDetail.getDeviceModel() != null && device.getDeviceModel() != null) {
-                    Long expectedModel = orderDetail.getDeviceModel().getDeviceModelId();
-                    if (!expectedModel.equals(device.getDeviceModel().getDeviceModelId())) {
-                        throw new IllegalArgumentException("Thiết bị " + serial + " không thuộc model của OrderDetail "
-                                + orderDetail.getOrderDetailId());
+                
+                // Validation: Check device model
+                if (device.getDeviceModel() != null) {
+                    Long deviceModelId = device.getDeviceModel().getDeviceModelId();
+                    
+                    if (isComplaintReplacementTask && expectedModelForComplaint != null) {
+                        // Trong complaint flow: replacement device phải cùng model với broken device
+                        if (!expectedModelForComplaint.equals(deviceModelId)) {
+                            throw new IllegalArgumentException("Thiết bị " + serial + " không cùng model với thiết bị hỏng. " +
+                                    "Thiết bị thay thế phải cùng model với thiết bị bị hỏng trong complaint.");
+                        }
+                    } else if (orderDetail != null && orderDetail.getDeviceModel() != null) {
+                        // Flow bình thường: device phải cùng model với OrderDetail
+                        Long expectedModel = orderDetail.getDeviceModel().getDeviceModelId();
+                        if (!expectedModel.equals(deviceModelId)) {
+                            throw new IllegalArgumentException("Thiết bị " + serial + " không thuộc model của OrderDetail "
+                                    + orderDetail.getOrderDetailId());
+                        }
                     }
                 }
+                
                 device.setStatus(DeviceStatus.PRE_RENTAL_QC);
                 devicesToUpdate.add(device);
                 Allocation allocation = Allocation.builder()
@@ -1191,7 +1276,27 @@ public class QCReportServiceImpl implements QCReportService {
             complaint.setReplacementAllocation(newAllocation);
             customerComplaintRepository.save(complaint);
 
-            // Tạo biên bản replacement report (nếu chưa có)
+            // Tạo task "Device Replacement" TRƯỚC (để link vào DeviceReplacementReport)
+            Task deviceReplacementTask = null;
+            try {
+                RentalOrder complaintOrder = complaint.getRentalOrder();
+                Device complaintBrokenDevice = complaint.getDevice();
+                if (complaintOrder != null && complaintBrokenDevice != null) {
+                    log.info("Bắt đầu tạo task Device Replacement cho complaint #{} (order #{})", 
+                            complaint.getComplaintId(), complaintOrder.getOrderId());
+                    deviceReplacementTask = createDeviceReplacementTask(complaint, newDevice, complaintBrokenDevice, complaintOrder);
+                    log.info("Hoàn thành tạo task Device Replacement cho complaint #{}", complaint.getComplaintId());
+                } else {
+                    log.warn("Không thể tạo task Device Replacement: complaintOrder={}, complaintBrokenDevice={}", 
+                            complaintOrder, complaintBrokenDevice);
+                }
+            } catch (Exception ex) {
+                log.error("Lỗi khi tạo task Device Replacement cho complaint {}: {}", 
+                        complaint.getComplaintId(), ex.getMessage(), ex);
+                // Không throw để không làm gián đoạn flow QC
+            }
+
+            // Tạo biên bản replacement report (nếu chưa có) - link với task "Device Replacement"
             try {
                 com.rentaltech.techrental.staff.model.DeviceReplacementReport existingReport = complaint.getReplacementReport();
                 if (existingReport == null || existingReport.getReplacementReportId() == null) {
@@ -1209,29 +1314,11 @@ public class QCReportServiceImpl implements QCReportService {
                         // Fallback: lấy từ QC report creator hoặc system
                         createdBy = "system";
                     }
-                    deviceReplacementReportService.createDeviceReplacementReport(complaint.getComplaintId(), createdBy);
+                    // Truyền task "Device Replacement" vào để link vào report
+                    deviceReplacementReportService.createDeviceReplacementReport(complaint.getComplaintId(), createdBy, deviceReplacementTask);
                 }
             } catch (Exception ex) {
                 log.warn("Không thể tạo biên bản replacement report cho complaint {}: {}", complaint.getComplaintId(), ex.getMessage());
-                // Không throw để không làm gián đoạn flow QC
-            }
-            
-            // Tạo task "Device Replacement" để operator assign cho staff đi giao
-            try {
-                RentalOrder complaintOrder = complaint.getRentalOrder();
-                Device complaintBrokenDevice = complaint.getDevice();
-                if (complaintOrder != null && complaintBrokenDevice != null) {
-                    log.info("Bắt đầu tạo task Device Replacement cho complaint #{} (order #{})", 
-                            complaint.getComplaintId(), complaintOrder.getOrderId());
-                    createDeviceReplacementTask(complaint, newDevice, complaintBrokenDevice, complaintOrder);
-                    log.info("Hoàn thành tạo task Device Replacement cho complaint #{}", complaint.getComplaintId());
-                } else {
-                    log.warn("Không thể tạo task Device Replacement: complaintOrder={}, complaintBrokenDevice={}", 
-                            complaintOrder, complaintBrokenDevice);
-                }
-            } catch (Exception ex) {
-                log.error("Lỗi khi tạo task Device Replacement cho complaint {}: {}", 
-                        complaint.getComplaintId(), ex.getMessage(), ex);
                 // Không throw để không làm gián đoạn flow QC
             }
         }
@@ -1240,67 +1327,75 @@ public class QCReportServiceImpl implements QCReportService {
     /**
      * Tạo task "Device Replacement" sau khi QC pass cho complaint
      * Task này để operator assign cho staff đi giao device mới cho khách hàng
+     * @return Task đã tạo hoặc task đã tồn tại, null nếu lỗi
      */
-    private void createDeviceReplacementTask(CustomerComplaint complaint, 
+    private Task createDeviceReplacementTask(CustomerComplaint complaint, 
                                              Device newDevice, 
                                              Device brokenDevice,
                                              RentalOrder order) {
         if (complaint == null || complaint.getComplaintId() == null || order == null) {
-            return;
+            return null;
         }
         
         // Kiểm tra xem đã có task "Device Replacement" cho order này chưa
         // (có thể có nhiều complaints cùng order, nhưng chỉ cần 1 task delivery cho order)
         Task existingDeliveryTask = taskRepository.findByOrderId(order.getOrderId()).stream()
-                .filter(task -> {
-                    String categoryName = task.getTaskCategory() != null ? task.getTaskCategory().getName() : null;
+                .filter(t -> {
+                    String categoryName = t.getTaskCategory() != null ? t.getTaskCategory().getName() : null;
                     return "Device Replacement".equalsIgnoreCase(categoryName) 
-                            && task.getStatus() == TaskStatus.PENDING;
+                            && t.getStatus() == TaskStatus.PENDING;
                 })
                 .findFirst()
                 .orElse(null);
         
         if (existingDeliveryTask != null) {
-            log.debug("Đã có task Device Replacement pending cho order {}, không tạo mới", order.getOrderId());
-            return;
+            log.info("Đã có task Device Replacement pending (taskId: {}) cho order {}, không tạo mới", 
+                    existingDeliveryTask.getTaskId(), order.getOrderId());
+            return existingDeliveryTask;
         }
         
-        // Tìm TaskCategory "Device Replacement"
+        // Tìm hoặc tạo TaskCategory "Device Replacement" (giống logic "Pre rental QC Replace")
         TaskCategory deliveryCategory = taskCategoryRepository.findByName("Device Replacement")
-                .orElse(null);
+                .orElseGet(() -> {
+                    // Tạo category mới nếu chưa có
+                    TaskCategory newCategory = TaskCategory.builder()
+                            .name("Device Replacement")
+                            .description("Task giao device thay thế cho khách hàng khi có complaint")
+                            .build();
+                    TaskCategory saved = taskCategoryRepository.save(newCategory);
+                    log.info("Đã tự động tạo TaskCategory 'Device Replacement' (categoryId: {})", saved.getTaskCategoryId());
+                    return saved;
+                });
         
-        if (deliveryCategory == null) {
-            log.warn("Không tìm thấy TaskCategory 'Device Replacement'. Vui lòng tạo category này trước.");
-            return;
-        }
-        
-        // Tạo task Device Replacement
-        TaskCreateRequestDto deliveryTaskRequest = TaskCreateRequestDto.builder()
-                .taskCategoryId(deliveryCategory.getTaskCategoryId())
-                .orderId(order.getOrderId())
-                .assignedStaffIds(null) // Không assign cho ai, để operator assign sau
-                .description(String.format("Giao device thay thế cho khách hàng (Complaint #%d, Order #%d). " +
-                        "Device hỏng: %s (Serial: %s). Device thay thế: %s (Serial: %s). " +
-                        "Vui lòng assign staff đi giao device mới và ký biên bản replacement report.",
-                        complaint.getComplaintId(),
-                        order.getOrderId(),
-                        brokenDevice.getDeviceModel() != null ? brokenDevice.getDeviceModel().getDeviceName() : "N/A",
-                        brokenDevice.getSerialNumber(),
-                        newDevice.getDeviceModel() != null ? newDevice.getDeviceModel().getDeviceName() : "N/A",
-                        newDevice.getSerialNumber()))
-                .plannedStart(LocalDateTime.now())
-                .plannedEnd(LocalDateTime.now().plusHours(24)) // Deadline 24h cho delivery
-                .build();
-        
+        // Tạo task Device Replacement trực tiếp (giống PreRentalQcTaskCreator và PaymentServiceImpl)
+        // Không qua taskService.createTask() để tránh permission check
         try {
-            log.debug("Gọi taskService.createTask() để tạo task Device Replacement. OrderId: {}, ComplaintId: {}", 
-                    order.getOrderId(), complaint.getComplaintId());
-            Task deliveryTask = taskService.createTask(deliveryTaskRequest, "system");
+            Task deliveryTask = Task.builder()
+                    .taskCategory(deliveryCategory)
+                    .orderId(order.getOrderId())
+                    .assignedStaff(null) // Không assign cho ai, để operator assign sau
+                    .description(String.format("Giao device thay thế cho khách hàng (Complaint #%d, Order #%d). " +
+                            "Device hỏng: %s (Serial: %s). Device thay thế: %s (Serial: %s). " +
+                            "Vui lòng assign staff đi giao device mới và ký biên bản replacement report.",
+                            complaint.getComplaintId(),
+                            order.getOrderId(),
+                            brokenDevice.getDeviceModel() != null ? brokenDevice.getDeviceModel().getDeviceName() : "N/A",
+                            brokenDevice.getSerialNumber(),
+                            newDevice.getDeviceModel() != null ? newDevice.getDeviceModel().getDeviceName() : "N/A",
+                            newDevice.getSerialNumber()))
+                    .plannedStart(LocalDateTime.now())
+                    .plannedEnd(LocalDateTime.now().plusHours(24)) // Deadline 24h cho delivery
+                    .status(TaskStatus.PENDING)
+                    .build();
+            
+            Task saved = taskRepository.save(deliveryTask);
             log.info("✅ Đã tạo task Device Replacement (taskId: {}) cho complaint #{} và order #{}", 
-                    deliveryTask.getTaskId(), complaint.getComplaintId(), order.getOrderId());
+                    saved.getTaskId(), complaint.getComplaintId(), order.getOrderId());
+            return saved;
         } catch (Exception ex) {
             log.error("❌ Lỗi khi tạo task Device Replacement cho complaint #{} và order #{}: {}", 
                     complaint.getComplaintId(), order.getOrderId(), ex.getMessage(), ex);
+            return null;
         }
     }
 

@@ -16,6 +16,12 @@ public interface DeviceReplacementReportService {
      */
     DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername);
 
+    /**
+     * Tạo biên bản đổi thiết bị cho customer complaint với task "Device Replacement" cụ thể
+     * @param deviceReplacementTask Task "Device Replacement" để link vào report (nếu null, sẽ tìm task từ complaint)
+     */
+    DeviceReplacementReportResponseDto createDeviceReplacementReport(Long complaintId, String staffUsername, com.rentaltech.techrental.staff.model.Task deviceReplacementTask);
+
     DeviceReplacementReportResponseDto getReport(Long replacementReportId);
 
     List<DeviceReplacementReportResponseDto> getReportsByTask(Long taskId);
