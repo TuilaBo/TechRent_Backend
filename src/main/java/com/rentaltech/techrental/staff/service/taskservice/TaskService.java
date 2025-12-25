@@ -15,7 +15,7 @@ public interface TaskService {
     List<Task> getTasksByCategory(Long categoryId);
     List<Task> getTasksByOrder(Long orderId, String username);
     List<Task> getTasks(Long categoryId, Long orderId, Long assignedStaffId, String status, String username);
-    org.springframework.data.domain.Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String username, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String sortBy, String username, org.springframework.data.domain.Pageable pageable);
     Task updateTask(Long taskId, TaskUpdateRequestDto request, String username);
     void deleteTask(Long taskId, String username);
     List<Task> getOverdueTasks();

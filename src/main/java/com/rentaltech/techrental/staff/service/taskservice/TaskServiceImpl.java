@@ -208,7 +208,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String username, Pageable pageable) {
+    public Page<Task> getTasksWithPagination(Long categoryId, Long orderId, Long assignedStaffId, String status, String sortBy, String username, Pageable pageable) {
         try {
             AccessContext access = resolveAccessContext(username);
             Long effectiveAssignedStaffId = resolveEffectiveAssignedStaff(assignedStaffId, access);
@@ -251,62 +251,91 @@ public class TaskServiceImpl implements TaskService {
             filteredTasks = new ArrayList<>(filteredTasks);
         }
         
-        // Sort theo khoảng cách tuyệt đối từ plannedEnd đến thời điểm hiện tại (gần nhất lên trước)
-        // Ví dụ: Hôm nay 8/12 10h30, task có plannedEnd = 8/12 10h30 (0 phút) → lên đầu
-        //        Task có plannedEnd = 8/12 11h00 (30 phút) → tiếp theo
-        //        Task có plannedEnd = 8/12 09h00 (1h30) → xa hơn
-        //        Task có plannedEnd = 7/12 10h30 (1 ngày) → xa nhất
-        LocalDateTime now = LocalDateTime.now();
-        filteredTasks.sort((t1, t2) -> {
-            try {
-                // Null safety cho task
-                if (t1 == null && t2 == null) return 0;
-                if (t1 == null) return 1;
-                if (t2 == null) return -1;
-                
-                LocalDateTime end1 = t1.getPlannedEnd();
-                LocalDateTime end2 = t2.getPlannedEnd();
-                
-                // Nếu cả 2 đều null, sort theo createdAt DESC (null-safe)
-                if (end1 == null && end2 == null) {
+        // Sort theo sortBy parameter
+        // "createdAt" → sort theo thời gian tạo mới nhất lên đầu
+        // "plannedEnd" hoặc null → sort theo khoảng cách tuyệt đối từ plannedEnd đến thời điểm hiện tại
+        if ("createdAt".equalsIgnoreCase(sortBy)) {
+            // Sort theo createdAt DESC (mới tạo nhất lên đầu)
+            filteredTasks.sort((t1, t2) -> {
+                try {
+                    if (t1 == null && t2 == null) return 0;
+                    if (t1 == null) return 1;
+                    if (t2 == null) return -1;
+                    
+                    LocalDateTime created1 = t1.getCreatedAt();
+                    LocalDateTime created2 = t2.getCreatedAt();
+                    if (created1 == null && created2 == null) return 0;
+                    if (created1 == null) return 1;
+                    if (created2 == null) return -1;
+                    return created2.compareTo(created1); // DESC - mới nhất lên đầu
+                } catch (Exception e) {
+                    // Fallback: sort theo taskId
+                    Long id1 = t1 != null ? t1.getTaskId() : null;
+                    Long id2 = t2 != null ? t2.getTaskId() : null;
+                    if (id1 == null && id2 == null) return 0;
+                    if (id1 == null) return 1;
+                    if (id2 == null) return -1;
+                    return id2.compareTo(id1); // DESC
+                }
+            });
+        } else {
+            // Sort theo khoảng cách tuyệt đối từ plannedEnd đến thời điểm hiện tại (gần nhất lên trước)
+            // Ví dụ: Hôm nay 8/12 10h30, task có plannedEnd = 8/12 10h30 (0 phút) → lên đầu
+            //        Task có plannedEnd = 8/12 11h00 (30 phút) → tiếp theo
+            //        Task có plannedEnd = 8/12 09h00 (1h30) → xa hơn
+            //        Task có plannedEnd = 7/12 10h30 (1 ngày) → xa nhất
+            LocalDateTime now = LocalDateTime.now();
+            filteredTasks.sort((t1, t2) -> {
+                try {
+                    // Null safety cho task
+                    if (t1 == null && t2 == null) return 0;
+                    if (t1 == null) return 1;
+                    if (t2 == null) return -1;
+                    
+                    LocalDateTime end1 = t1.getPlannedEnd();
+                    LocalDateTime end2 = t2.getPlannedEnd();
+                    
+                    // Nếu cả 2 đều null, sort theo createdAt DESC (null-safe)
+                    if (end1 == null && end2 == null) {
+                        LocalDateTime created1 = t1.getCreatedAt();
+                        LocalDateTime created2 = t2.getCreatedAt();
+                        if (created1 == null && created2 == null) return 0;
+                        if (created1 == null) return 1;
+                        if (created2 == null) return -1;
+                        return created2.compareTo(created1); // DESC
+                    }
+                    // Nếu t1 null, đưa xuống cuối
+                    if (end1 == null) return 1;
+                    // Nếu t2 null, đưa xuống cuối
+                    if (end2 == null) return -1;
+                    
+                    // Tính khoảng cách tuyệt đối (số giây)
+                    long distance1 = Math.abs(java.time.Duration.between(now, end1).getSeconds());
+                    long distance2 = Math.abs(java.time.Duration.between(now, end2).getSeconds());
+                    
+                    // Sort theo khoảng cách ASC (gần nhất lên trước)
+                    int compare = Long.compare(distance1, distance2);
+                    if (compare != 0) {
+                        return compare;
+                    }
+                    // Nếu cùng khoảng cách, sort theo createdAt DESC (mới tạo lên trước)
                     LocalDateTime created1 = t1.getCreatedAt();
                     LocalDateTime created2 = t2.getCreatedAt();
                     if (created1 == null && created2 == null) return 0;
                     if (created1 == null) return 1;
                     if (created2 == null) return -1;
                     return created2.compareTo(created1); // DESC
+                } catch (Exception e) {
+                    // Fallback: sort theo taskId nếu có lỗi
+                    Long id1 = t1.getTaskId();
+                    Long id2 = t2.getTaskId();
+                    if (id1 == null && id2 == null) return 0;
+                    if (id1 == null) return 1;
+                    if (id2 == null) return -1;
+                    return id1.compareTo(id2);
                 }
-                // Nếu t1 null, đưa xuống cuối
-                if (end1 == null) return 1;
-                // Nếu t2 null, đưa xuống cuối
-                if (end2 == null) return -1;
-                
-                // Tính khoảng cách tuyệt đối (số giây)
-                long distance1 = Math.abs(java.time.Duration.between(now, end1).getSeconds());
-                long distance2 = Math.abs(java.time.Duration.between(now, end2).getSeconds());
-                
-                // Sort theo khoảng cách ASC (gần nhất lên trước)
-                int compare = Long.compare(distance1, distance2);
-                if (compare != 0) {
-                    return compare;
-                }
-                // Nếu cùng khoảng cách, sort theo createdAt DESC (mới tạo lên trước)
-                LocalDateTime created1 = t1.getCreatedAt();
-                LocalDateTime created2 = t2.getCreatedAt();
-                if (created1 == null && created2 == null) return 0;
-                if (created1 == null) return 1;
-                if (created2 == null) return -1;
-                return created2.compareTo(created1); // DESC
-            } catch (Exception e) {
-                // Fallback: sort theo taskId nếu có lỗi
-                Long id1 = t1.getTaskId();
-                Long id2 = t2.getTaskId();
-                if (id1 == null && id2 == null) return 0;
-                if (id1 == null) return 1;
-                if (id2 == null) return -1;
-                return id1.compareTo(id2);
-            }
-        });
+            });
+        }
         
         // Apply pagination sau khi sort
         int start = (int) pageable.getOffset();
@@ -318,8 +347,8 @@ public class TaskServiceImpl implements TaskService {
         // Tạo Page mới với paginated content
         return new PageImpl<>(paginatedContent, pageable, filteredTasks.size());
         } catch (Exception e) {
-            log.error("Error in getTasksWithPagination: username={}, categoryId={}, orderId={}, assignedStaffId={}, status={}", 
-                    username, categoryId, orderId, assignedStaffId, status, e);
+            log.error("Error in getTasksWithPagination: username={}, categoryId={}, orderId={}, assignedStaffId={}, status={}, sortBy={}", 
+                    username, categoryId, orderId, assignedStaffId, status, sortBy, e);
             throw new RuntimeException("Lỗi khi lấy danh sách tác vụ: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
         }
     }

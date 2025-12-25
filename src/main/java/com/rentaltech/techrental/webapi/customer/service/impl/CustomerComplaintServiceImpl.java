@@ -617,5 +617,43 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerComplaintResponseDto getComplaintByTaskId(Long taskId) {
+        if (taskId == null) {
+            throw new IllegalArgumentException("TaskId không được null");
+        }
+
+        com.rentaltech.techrental.staff.model.Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy task: " + taskId));
+
+        String categoryName = task.getTaskCategory() != null ? task.getTaskCategory().getName() : null;
+        Long orderId = task.getOrderId();
+
+        List<CustomerComplaint> complaints;
+
+        if ("Pre rental QC Replace".equalsIgnoreCase(categoryName)) {
+            // Task "Pre rental QC Replace" → tìm complaint trực tiếp
+            complaints = complaintRepository.findByReplacementTask_TaskId(taskId);
+        } else if ("Device Replacement".equalsIgnoreCase(categoryName) && orderId != null) {
+            // Task "Device Replacement" → tìm complaint theo orderId
+            // Filter complaints có replacementReport hoặc replacementAllocation (đã được xử lý)
+            complaints = complaintRepository.findByRentalOrder_OrderId(orderId).stream()
+                    .filter(c -> c.getReplacementReport() != null || c.getReplacementAllocation() != null)
+                    .filter(c -> c.getStatus() == ComplaintStatus.PROCESSING || c.getStatus() == ComplaintStatus.RESOLVED)
+                    .collect(Collectors.toList());
+        } else {
+            // Fallback: thử tìm bằng replacementTask
+            complaints = complaintRepository.findByReplacementTask_TaskId(taskId);
+        }
+
+        if (complaints == null || complaints.isEmpty()) {
+            return null;
+        }
+
+        // Trả về complaint đầu tiên (hoặc có thể merge nếu có nhiều)
+        return buildComplaintResponseDto(complaints.get(0));
+    }
+
 }
 

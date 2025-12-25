@@ -50,7 +50,7 @@ public class TaskController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
-    @Operation(summary = "Danh sách tác vụ", description = "Lấy tác vụ với các bộ lọc tùy chọn, phân trang và sắp xếp theo thời gian kết thúc gần nhất")
+    @Operation(summary = "Danh sách tác vụ", description = "Lấy tác vụ với các bộ lọc tùy chọn, phân trang và sắp xếp. sortBy: 'plannedEnd' (mặc định - theo thời gian kết thúc gần nhất) hoặc 'createdAt' (theo thời gian tạo mới nhất)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Trả về danh sách tác vụ thành công"),
             @ApiResponse(responseCode = "500", description = "Không thể truy vấn do lỗi hệ thống")
@@ -59,17 +59,21 @@ public class TaskController {
                                       @RequestParam(required = false) Long orderId,
                                       @RequestParam(required = false) Long assignedStaffId,
                                       @RequestParam(required = false) String status,
+                                      @RequestParam(required = false, defaultValue = "plannedEnd") String sortBy,
                                       @RequestParam(defaultValue = "0") int page,
                                       @RequestParam(defaultValue = "20") int size,
                                       Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        org.springframework.data.domain.Page<Task> taskPage = taskService.getTasksWithPagination(categoryId, orderId, assignedStaffId, status, username, pageable);
+        org.springframework.data.domain.Page<Task> taskPage = taskService.getTasksWithPagination(categoryId, orderId, assignedStaffId, status, sortBy, username, pageable);
 
         org.springframework.data.domain.Page<TaskResponseDto> responsePage = taskPage.map(TaskResponseDto::from);
+        String sortDescription = "createdAt".equalsIgnoreCase(sortBy) 
+                ? "Danh sách tác vụ được sắp xếp theo thời gian tạo mới nhất" 
+                : "Danh sách tác vụ được sắp xếp theo thời gian kết thúc gần nhất";
         return ResponseUtil.createSuccessPaginationResponse(
                 "Lấy danh sách tác vụ thành công",
-                "Danh sách tác vụ được sắp xếp theo thời gian kết thúc gần nhất",
+                sortDescription,
                 responsePage,
                 HttpStatus.OK
         );

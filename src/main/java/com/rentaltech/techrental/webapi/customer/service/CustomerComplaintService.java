@@ -69,5 +69,11 @@ public interface CustomerComplaintService {
      * Staff hủy khiếu nại (nếu không cần thay thế)
      */
     CustomerComplaintResponseDto cancelComplaint(Long complaintId, String staffNote, String username);
+
+    /**
+     * Tìm complaint từ taskId (hỗ trợ cả task "Pre rental QC Replace" và "Device Replacement")
+     * @return Complaint đầu tiên tìm thấy, null nếu không tìm thấy
+     */
+    CustomerComplaintResponseDto getComplaintByTaskId(Long taskId);
 }
 

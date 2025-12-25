@@ -1276,7 +1276,7 @@ public class QCReportServiceImpl implements QCReportService {
             complaint.setReplacementAllocation(newAllocation);
             customerComplaintRepository.save(complaint);
 
-            // Tạo task "Device Replacement" TRƯỚC (để link vào DeviceReplacementReport)
+            // Tạo task "Device Replacement" TRƯỚC (để link vào DeviceReplacementReport và complaint)
             Task deviceReplacementTask = null;
             try {
                 RentalOrder complaintOrder = complaint.getRentalOrder();

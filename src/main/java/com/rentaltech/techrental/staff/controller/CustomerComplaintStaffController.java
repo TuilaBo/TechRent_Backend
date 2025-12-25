@@ -180,5 +180,30 @@ public class CustomerComplaintStaffController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/task/{taskId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERATOR') or hasRole('TECHNICIAN') or hasRole('CUSTOMER_SUPPORT_STAFF')")
+    @Operation(summary = "Tìm khiếu nại theo task", description = "Tìm khiếu nại từ taskId (hỗ trợ cả task 'Pre rental QC Replace' và 'Device Replacement')")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tìm thấy khiếu nại"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy task hoặc không có khiếu nại liên quan")
+    })
+    public ResponseEntity<?> getComplaintByTaskId(@PathVariable Long taskId) {
+        CustomerComplaintResponseDto response = complaintService.getComplaintByTaskId(taskId);
+        if (response == null) {
+            return ResponseUtil.createErrorResponse(
+                    "NOT_FOUND",
+                    "Không tìm thấy khiếu nại",
+                    "Không có khiếu nại nào liên quan đến task này",
+                    HttpStatus.NOT_FOUND
+            );
+        }
+        return ResponseUtil.createSuccessResponse(
+                "Tìm thấy khiếu nại",
+                "Khiếu nại liên quan đến task",
+                response,
+                HttpStatus.OK
+        );
+    }
 }
 
