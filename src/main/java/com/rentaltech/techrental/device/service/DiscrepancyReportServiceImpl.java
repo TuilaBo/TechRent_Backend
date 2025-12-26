@@ -28,17 +28,55 @@ public class DiscrepancyReportServiceImpl implements DiscrepancyReportService {
 
     @Override
     public DiscrepancyReportResponseDto create(DiscrepancyReportRequestDto request) {
-        ConditionDefinition condition = resolveCondition(request.getConditionDefinitionId());
-        DiscrepancyReport entity = DiscrepancyReport.builder()
-                .createdFrom(request.getCreatedFrom())
-                .refId(request.getRefId())
-                .discrepancyType(request.getDiscrepancyType())
-                .conditionDefinition(condition)
-                .allocation(resolveAllocation(request.getOrderDetailId(), request.getDeviceId()))
-                .penaltyAmount(resolvePenalty(condition))
-                .staffNote(request.getStaffNote())
-                .build();
-        return DiscrepancyReportResponseDto.from(discrepancyReportRepository.save(entity));
+        // Validate required fields
+        if (request.getCreatedFrom() == null) {
+            throw new IllegalArgumentException("createdFrom không được null");
+        }
+        if (request.getRefId() == null) {
+            throw new IllegalArgumentException("refId không được null khi tạo DiscrepancyReport");
+        }
+        if (request.getDiscrepancyType() == null) {
+            throw new IllegalArgumentException("discrepancyType không được null");
+        }
+        if (request.getOrderDetailId() == null || request.getDeviceId() == null) {
+            throw new IllegalArgumentException("orderDetailId và deviceId không được null khi tạo DiscrepancyReport");
+        }
+        
+        try {
+            ConditionDefinition condition = resolveCondition(request.getConditionDefinitionId());
+            Allocation allocation = resolveAllocation(request.getOrderDetailId(), request.getDeviceId());
+            
+            // Tạo entity bằng constructor để đảm bảo refId được set đúng
+            DiscrepancyReport entity = new DiscrepancyReport();
+            entity.setCreatedFrom(request.getCreatedFrom());
+            entity.setRefId(request.getRefId()); // Set trực tiếp để đảm bảo không bị null
+            entity.setDiscrepancyType(request.getDiscrepancyType());
+            entity.setConditionDefinition(condition);
+            entity.setAllocation(allocation);
+            entity.setPenaltyAmount(resolvePenalty(condition));
+            entity.setStaffNote(request.getStaffNote());
+            
+            // Validate entity trước khi save
+            if (entity.getRefId() == null) {
+                throw new IllegalStateException("refId không được null sau khi set. Request refId: " + request.getRefId());
+            }
+            if (entity.getCreatedFrom() == null) {
+                throw new IllegalStateException("createdFrom không được null sau khi set");
+            }
+            
+            DiscrepancyReport saved = discrepancyReportRepository.save(entity);
+            
+            // Validate sau khi save
+            if (saved.getRefId() == null) {
+                throw new IllegalStateException("refId bị null sau khi save! Entity refId trước save: " + entity.getRefId());
+            }
+            
+            return DiscrepancyReportResponseDto.from(saved);
+        } catch (Exception ex) {
+            throw new RuntimeException("Lỗi khi tạo DiscrepancyReport: createdFrom=" + request.getCreatedFrom() 
+                    + ", refId=" + request.getRefId() + ", orderDetailId=" + request.getOrderDetailId() 
+                    + ", deviceId=" + request.getDeviceId() + ". " + ex.getMessage(), ex);
+        }
     }
 
     @Override

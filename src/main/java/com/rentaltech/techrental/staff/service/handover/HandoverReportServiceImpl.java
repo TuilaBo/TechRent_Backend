@@ -72,6 +72,7 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     private final SettlementService settlementService;
     private final RentalOrderExtensionRepository rentalOrderExtensionRepository;
     private final com.rentaltech.techrental.staff.repository.DeviceReplacementReportRepository deviceReplacementReportRepository;
+    private final com.rentaltech.techrental.webapi.customer.repository.CustomerComplaintRepository customerComplaintRepository;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -684,16 +685,58 @@ public class HandoverReportServiceImpl implements HandoverReportService {
     }
 
     private List<DiscrepancyReport> findDiscrepancies(HandoverReport report) {
-        Long handoverReportId = Optional.ofNullable(report)
-                .map(HandoverReport::getHandoverReportId)
-                .orElse(null);
-        if (handoverReportId == null) {
+        if (report == null) {
             return List.of();
         }
-        return discrepancyReportRepository.findByCreatedFromAndRefIdOrderByCreatedAtDesc(
-                DiscrepancyCreatedFrom.HANDOVER_REPORT,
-                handoverReportId
-        );
+        
+        Long handoverReportId = report.getHandoverReportId();
+        RentalOrder rentalOrder = report.getRentalOrder();
+        Long orderId = rentalOrder != null ? rentalOrder.getOrderId() : null;
+        
+        List<DiscrepancyReport> allDiscrepancies = new ArrayList<>();
+        
+        // 1. Lấy DiscrepancyReports từ HANDOVER_REPORT (discrepancies được tạo khi checkin)
+        if (handoverReportId != null) {
+            List<DiscrepancyReport> handoverDiscrepancies = discrepancyReportRepository
+                    .findByCreatedFromAndRefIdOrderByCreatedAtDesc(DiscrepancyCreatedFrom.HANDOVER_REPORT, handoverReportId);
+            if (handoverDiscrepancies != null) {
+                allDiscrepancies.addAll(handoverDiscrepancies);
+            }
+        }
+        
+        // 2. Lấy DiscrepancyReports từ CUSTOMER_COMPLAINT (discrepancies từ complaint về thiết bị cũ)
+        if (orderId != null) {
+            try {
+                List<com.rentaltech.techrental.webapi.customer.model.CustomerComplaint> complaints = 
+                        customerComplaintRepository.findByRentalOrder_OrderId(orderId);
+                if (complaints != null && !complaints.isEmpty()) {
+                    for (com.rentaltech.techrental.webapi.customer.model.CustomerComplaint complaint : complaints) {
+                        if (complaint.getComplaintId() != null) {
+                            List<DiscrepancyReport> complaintDiscrepancies = discrepancyReportRepository
+                                    .findByCreatedFromAndRefIdOrderByCreatedAtDesc(
+                                            DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT, 
+                                            complaint.getComplaintId());
+                            if (complaintDiscrepancies != null) {
+                                allDiscrepancies.addAll(complaintDiscrepancies);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Lỗi khi lấy DiscrepancyReports từ Customer Complaint cho order {}: {}", 
+                        orderId, ex.getMessage());
+            }
+        }
+        
+        // 3. Deduplicate theo ID (nếu có duplicate)
+        Map<Long, DiscrepancyReport> uniqueDiscrepancies = new LinkedHashMap<>();
+        for (DiscrepancyReport dr : allDiscrepancies) {
+            if (dr != null && dr.getDiscrepancyReportId() != null) {
+                uniqueDiscrepancies.put(dr.getDiscrepancyReportId(), dr);
+            }
+        }
+        
+        return new ArrayList<>(uniqueDiscrepancies.values());
     }
 
     private void markDevicesForPostRentalQc(RentalOrder rentalOrder, List<HandoverReportItem> items) {
@@ -727,9 +770,13 @@ public class HandoverReportServiceImpl implements HandoverReportService {
             return 0;
         }
         Long orderId = rentalOrder.getOrderId();
+        // CHỈ đếm các allocation còn active (chưa RETURNED)
+        // Loại bỏ các allocation của device cũ đã bị thay thế (status = "RETURNED")
         long allocationCount = Optional.ofNullable(allocationRepository.findByOrderDetail_RentalOrder_OrderId(orderId))
-                .map(List::size)
-                .orElse(0);
+                .map(allocations -> allocations.stream()
+                        .filter(a -> a != null && !"RETURNED".equals(a.getStatus()))
+                        .count())
+                .orElse(0L);
         long orderDetailCount = orderDetailRepository.findByRentalOrder_OrderId(orderId).stream()
                 .map(OrderDetail::getQuantity)
                 .filter(Objects::nonNull)

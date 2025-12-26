@@ -4,6 +4,7 @@ import com.rentaltech.techrental.staff.model.dto.DeviceReplacementReportCustomer
 import com.rentaltech.techrental.staff.model.dto.DeviceReplacementReportResponseDto;
 import com.rentaltech.techrental.staff.model.dto.DeviceReplacementReportStaffSignRequestDto;
 import com.rentaltech.techrental.staff.model.dto.HandoverPinDeliveryDto;
+import jakarta.transaction.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -51,7 +52,9 @@ public interface DeviceReplacementReportService {
     /**
      * Tạo DiscrepancyReport cho complaint nếu faultSource = CUSTOMER
      * Được gọi sau khi technician xác định faultSource và conditionDefinitionIds
+     * @param complaintId ID của complaint
+     * @param conditionDefinitionIds Danh sách conditionDefinitionIds cần tạo DiscrepancyReport (chỉ tạo cho những condition này, không phải tất cả conditions của device)
      */
-    void createDiscrepancyReportIfNeeded(Long complaintId);
+    void createDiscrepancyReportIfNeeded(Long complaintId, List<Long> conditionDefinitionIds);
 }
 

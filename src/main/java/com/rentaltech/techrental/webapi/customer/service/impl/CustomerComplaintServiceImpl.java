@@ -39,6 +39,7 @@ import com.rentaltech.techrental.webapi.customer.repository.CustomerRepository;
 import com.rentaltech.techrental.webapi.customer.service.CustomerComplaintService;
 import com.rentaltech.techrental.webapi.operator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
@@ -95,7 +97,7 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         // Validate device thuộc order (qua Allocation)
         Allocation allocation = allocationRepository.findByOrderDetail_RentalOrder_OrderIdAndDevice_DeviceId(
-                order.getOrderId(), device.getDeviceId())
+                        order.getOrderId(), device.getDeviceId())
                 .orElseThrow(() -> new IllegalStateException("Thiết bị không thuộc đơn hàng này"));
 
         // Check xem đã có complaint pending chưa
@@ -133,36 +135,77 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
             return null;
         }
 
-        // Lấy conditionDefinitionIds từ DeviceCondition
-        List<Long> conditionDefinitionIds = Collections.emptyList();
-        String damageNote = null;
-        if (complaint.getDevice() != null && complaint.getDevice().getDeviceId() != null) {
-            List<DeviceConditionResponseDto> deviceConditions = deviceConditionService.getByDevice(complaint.getDevice().getDeviceId());
-            if (deviceConditions != null && !deviceConditions.isEmpty()) {
-                conditionDefinitionIds = deviceConditions.stream()
-                        .map(DeviceConditionResponseDto::getConditionDefinitionId)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-                // Lấy damageNote từ condition đầu tiên (hoặc có thể merge tất cả)
-                damageNote = deviceConditions.stream()
-                        .map(DeviceConditionResponseDto::getNote)
-                        .filter(Objects::nonNull)
-                        .filter(note -> !note.isBlank())
-                        .findFirst()
-                        .orElse(null);
-            }
-        }
-
         // Lấy DiscrepancyReport từ complaint
         List<DiscrepancyReportResponseDto> discrepancies = Collections.emptyList();
+        List<Long> conditionDefinitionIds = Collections.emptyList();
+        String damageNote = null;
+
         if (complaint.getComplaintId() != null) {
             try {
                 discrepancies = discrepancyReportService.getByReference(
                         DiscrepancyCreatedFrom.CUSTOMER_COMPLAINT,
                         complaint.getComplaintId()
                 );
+
+                // CHỈ lấy conditionDefinitionIds từ DiscrepancyReport để đảm bảo chỉ hiển thị
+                // những condition được xác định trong complaint này, không bị ảnh hưởng bởi condition cũ của device
+                // KHÔNG fallback vào DeviceCondition khi đã có DiscrepancyReport để tránh hiển thị condition không được report
+                if (discrepancies != null && !discrepancies.isEmpty()) {
+                    conditionDefinitionIds = discrepancies.stream()
+                            .map(DiscrepancyReportResponseDto::getConditionDefinitionId)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    // Lấy damageNote từ DiscrepancyReport đầu tiên
+                    damageNote = discrepancies.stream()
+                            .map(DiscrepancyReportResponseDto::getStaffNote)
+                            .filter(Objects::nonNull)
+                            .filter(note -> !note.isBlank())
+                            .findFirst()
+                            .orElse(null);
+                }
             } catch (Exception ex) {
                 // Log nhưng không throw để không làm gián đoạn flow
+                log.warn("Lỗi khi lấy DiscrepancyReport cho complaint {}: {}",
+                        complaint.getComplaintId(), ex.getMessage());
+            }
+        }
+
+        // Fallback: CHỈ lấy từ DeviceCondition khi KHÔNG có DiscrepancyReport (faultSource = COMPANY hoặc UNKNOWN)
+        // và CHỈ khi conditionDefinitionIds vẫn còn empty (chưa có DiscrepancyReport nào)
+        if (conditionDefinitionIds.isEmpty() && complaint.getDevice() != null && complaint.getDevice().getDeviceId() != null) {
+            List<DeviceConditionResponseDto> deviceConditions = deviceConditionService.getByDevice(complaint.getDevice().getDeviceId());
+            if (deviceConditions != null && !deviceConditions.isEmpty()) {
+                // Chỉ lấy condition được tạo sau khi complaint được created hoặc processed
+                // để tránh lấy condition cũ từ đơn hàng trước
+                LocalDateTime filterTime = complaint.getProcessedAt() != null
+                        ? complaint.getProcessedAt()
+                        : complaint.getCreatedAt();
+
+                if (filterTime != null) {
+                    deviceConditions = deviceConditions.stream()
+                            .filter(dc -> dc.getCapturedAt() != null &&
+                                    (dc.getCapturedAt().isAfter(filterTime) ||
+                                            dc.getCapturedAt().isEqual(filterTime)))
+                            .collect(Collectors.toList());
+                }
+
+                if (!deviceConditions.isEmpty()) {
+                    conditionDefinitionIds = deviceConditions.stream()
+                            .map(DeviceConditionResponseDto::getConditionDefinitionId)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    // Lấy damageNote từ condition đầu tiên
+                    damageNote = deviceConditions.stream()
+                            .map(DeviceConditionResponseDto::getNote)
+                            .filter(Objects::nonNull)
+                            .filter(note -> !note.isBlank())
+                            .findFirst()
+                            .orElse(null);
+                }
             }
         }
 
@@ -335,10 +378,10 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
 
         CustomerComplaint saved = complaintRepository.save(complaint);
         complaintRepository.flush(); // Flush để đảm bảo complaint được save trước khi query
-        
+
         // KHÔNG tạo biên bản ngay lúc này vì chưa có allocation
         // Biên bản sẽ được tạo sau khi QC pass và allocation được tạo
-        
+
         return buildComplaintResponseDto(saved);
     }
 
@@ -377,17 +420,29 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         }
 
         CustomerComplaint saved = complaintRepository.save(complaint);
-        
+
         // Nếu faultSource = CUSTOMER, tạo DiscrepancyReport để tính phí thiệt hại
         // Được gọi sau khi technician xác định faultSource và conditionDefinitionIds
+        // CHỈ tạo DiscrepancyReport cho những conditionDefinitionIds được truyền vào, không phải tất cả conditions của device
         if (saved.getFaultSource() == ComplaintFaultSource.CUSTOMER) {
+            // Flush để đảm bảo complaint đã được persist trước khi tạo DiscrepancyReport
+            // Check constraint có thể yêu cầu ref_id phải tồn tại trong customer_complaint
+            complaintRepository.flush();
+
             try {
-                deviceReplacementReportService.createDiscrepancyReportIfNeeded(saved.getComplaintId());
+                log.info("🔄 Tạo DiscrepancyReport cho complaint {} với conditionDefinitionIds: {}",
+                        saved.getComplaintId(), conditionDefinitionIds);
+                deviceReplacementReportService.createDiscrepancyReportIfNeeded(saved.getComplaintId(), conditionDefinitionIds);
+                log.info("✅ Đã tạo DiscrepancyReport cho complaint {} thành công", saved.getComplaintId());
             } catch (Exception ex) {
-                // Log nhưng không throw để không làm gián đoạn flow
+                // Log lỗi chi tiết để debug
+                log.error("❌ Lỗi khi tạo DiscrepancyReport cho complaint {} với conditionDefinitionIds {}: {}",
+                        saved.getComplaintId(), conditionDefinitionIds, ex.getMessage(), ex);
+                // Không throw để không làm gián đoạn flow updateFaultAndConditions
+                // DiscrepancyReport có thể được tạo sau khi replacement report được tạo
             }
         }
-        
+
         return buildComplaintResponseDto(saved);
     }
 
@@ -416,19 +471,19 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
         if (task == null || task.getTaskId() == null) {
             return;
         }
-        
+
         // Lấy tất cả complaints đang PROCESSING của order để build description đầy đủ
         List<CustomerComplaint> processingComplaints = complaintRepository
                 .findByRentalOrder_OrderIdAndStatus(task.getOrderId(), ComplaintStatus.PROCESSING);
-        
+
         if (processingComplaints.isEmpty()) {
             return;
         }
-        
+
         // Build description với tất cả devices cần thay thế
         StringBuilder description = new StringBuilder();
         description.append(String.format("Thay thế thiết bị cho đơn hàng #%d:\n", task.getOrderId()));
-        
+
         for (CustomerComplaint c : processingComplaints) {
             if (c.getDevice() != null && c.getReplacementDevice() != null) {
                 description.append(String.format("- Khiếu nại #%d: %s (Serial: %s) → %s (Serial: %s)\n",
@@ -439,14 +494,14 @@ public class CustomerComplaintServiceImpl implements CustomerComplaintService {
                         c.getReplacementDevice().getSerialNumber()));
             }
         }
-        
+
         description.append("Vui lòng assign staff đi giao máy.");
-        
+
         // Truncate nếu quá dài (description có limit 1000 chars)
-        String finalDescription = description.length() > 1000 
-                ? description.substring(0, 997) + "..." 
+        String finalDescription = description.length() > 1000
+                ? description.substring(0, 997) + "..."
                 : description.toString();
-        
+
         task.setDescription(finalDescription);
         taskRepository.save(task);
     }

@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -49,29 +49,75 @@ public class ChatServiceImpl implements ChatService {
         // Tìm CUSTOMER_SUPPORT_STAFF trước
         List<Staff> supportStaffs = staffRepository.findByStaffRoleAndIsActiveTrue(StaffRole.CUSTOMER_SUPPORT_STAFF);
         if (!supportStaffs.isEmpty()) {
-            return supportStaffs.get(0); // Lấy staff đầu tiên, có thể random hoặc round-robin
+            // Load balancing: chọn staff có ít conversations nhất
+            return selectStaffWithLeastConversations(supportStaffs);
         }
         
         // Nếu không có CUSTOMER_SUPPORT_STAFF, fallback sang ADMIN
         List<Staff> adminStaffs = staffRepository.findByStaffRoleAndIsActiveTrue(StaffRole.ADMIN);
         if (!adminStaffs.isEmpty()) {
-            return adminStaffs.get(0);
+            return selectStaffWithLeastConversations(adminStaffs);
         }
         
         // Nếu không có ADMIN, fallback sang OPERATOR
         List<Staff> operatorStaffs = staffRepository.findByStaffRoleAndIsActiveTrue(StaffRole.OPERATOR);
         if (!operatorStaffs.isEmpty()) {
-            return operatorStaffs.get(0);
+            return selectStaffWithLeastConversations(operatorStaffs);
         }
         
         // Nếu vẫn không có, lấy bất kỳ staff active nào
         List<Staff> anyActiveStaffs = staffRepository.findByIsActiveTrue();
         if (!anyActiveStaffs.isEmpty()) {
-            return anyActiveStaffs.get(0);
+            return selectStaffWithLeastConversations(anyActiveStaffs);
         }
         
         // Cuối cùng mới throw error
         throw new IllegalStateException("No active staff found in the system");
+    }
+    
+    /**
+     * Chọn staff có ít conversations nhất để phân phối đều tải
+     * Nếu có nhiều staff có cùng số conversations, chọn ngẫu nhiên trong số đó
+     */
+    private Staff selectStaffWithLeastConversations(List<Staff> staffs) {
+        if (staffs == null || staffs.isEmpty()) {
+            throw new IllegalArgumentException("Staff list cannot be empty");
+        }
+        
+        // Nếu chỉ có 1 staff, trả về luôn
+        if (staffs.size() == 1) {
+            return staffs.get(0);
+        }
+        
+        // Đếm số conversations của mỗi staff
+        Map<Long, Long> conversationCounts = new HashMap<>();
+        for (Staff staff : staffs) {
+            if (staff != null && staff.getStaffId() != null) {
+                long count = conversationRepository.findByStaff_StaffId(staff.getStaffId()).size();
+                conversationCounts.put(staff.getStaffId(), count);
+            }
+        }
+        
+        // Tìm số conversations nhỏ nhất
+        long minCount = conversationCounts.values().stream()
+                .mapToLong(Long::longValue)
+                .min()
+                .orElse(0L);
+        
+        // Lọc các staff có số conversations = minCount
+        List<Staff> staffsWithMinConversations = staffs.stream()
+                .filter(staff -> staff != null && staff.getStaffId() != null)
+                .filter(staff -> conversationCounts.get(staff.getStaffId()).equals(minCount))
+                .collect(Collectors.toList());
+        
+        // Nếu có nhiều staff có cùng số conversations nhỏ nhất, chọn ngẫu nhiên
+        if (staffsWithMinConversations.size() > 1) {
+            Random random = new Random();
+            return staffsWithMinConversations.get(random.nextInt(staffsWithMinConversations.size()));
+        }
+        
+        // Trả về staff có ít conversations nhất
+        return staffsWithMinConversations.get(0);
     }
 
     @Override
